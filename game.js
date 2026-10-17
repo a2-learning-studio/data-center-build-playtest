@@ -62,7 +62,7 @@ function effects() {
     for (const [p, m] of Object.entries(e.sched || {})) sum.sched[p] = (sum.sched[p] || 0) + m;
   };
   for (const c of CHOICES) add(EFFECT[c][st.choice[c]]);
-  for (const [id, pick] of Object.entries(st.cards)) add(CARD[id].opts[pick]);
+  for (const [id, pick] of Object.entries(st.cards)) if (pick) add(CARD[id].opts[pick]);
   if (st.placed.has("meetings")) sum.hood += 10;
   return sum;
 }
@@ -162,6 +162,7 @@ function measureSafe() {
   const b = $(".p-build").getBoundingClientRect();
   const s = $(".p-side").getBoundingClientRect();
   const p = $(".p-plan").getBoundingClientRect();
+  document.documentElement.style.setProperty("--plan-h", `${p.height}px`);
   const x = b.right - c.left, r = s.left - c.left;
   scene.setSafe({ x, y: 0, w: Math.max(200, r - x), h: Math.max(200, p.top - c.top) });
 }
@@ -351,8 +352,10 @@ function pickPhase(id) {
     return;
   }
   if (st.done.has(id)) return;
+  const fresh = st.focus !== id && !started(id);
   st.focus = id;
   renderAll();
+  if (fresh) speak(`phase:${id}`);
   if (ui.tab !== "build") setTab("build");
   $(".el:not([data-done])")?.focus({ preventScroll: true });
 }
@@ -364,15 +367,16 @@ function place(e) {
   renderAll();
   scene?.focus(e);
   showTag(e);
+  const said = speak(`el:${e}`);
   const card = Object.entries(CARD).find(([id, c]) => !(id in st.cards) && (c.at === e || c.at === phaseOf[e]));
-  if (card) setTimeout(() => openCard(card[0]), motionOff.matches ? 0 : 900);
+  if (card) { st.cards[card[0]] = null; Promise.race([said, new Promise((r) => setTimeout(r, 7000))]).then(() => setTimeout(() => openCard(card[0]), motionOff.matches ? 0 : 400)); }
   else ($(".el:not([data-done])") || $("[data-finish]:not([disabled])"))?.focus({ preventScroll: true });
 }
 function finishPhase(id) {
   const t = T();
   st.done.add(id);
   say(fmt(t.logPhaseDone, { name: t.phases[id].name }));
-  if (id === "cx") say(t.logCx);
+  if (id === "cx") { say(t.logCx); speak("cx"); }
   st.focus = null;
   renderAll();
   if (id === "turn") openEnd();
@@ -397,6 +401,46 @@ function next() {
   if (r) pickPhase(r.id);
 }
 
+// ---------- narration ----------
+const audio = new Audio();
+const capEl = $("[data-caption]");
+const voice = { on: true };
+let capTimer = 0;
+function speak(key) {
+  const text = (D.CAPTIONS[lang] || D.CAPTIONS.en)[key];
+  if (!text) return Promise.resolve();
+  const clip = (D.VOICE[lang] || {})[key] || (lang === "en" ? null : D.VOICE.en[key]);
+  clearTimeout(capTimer);
+  if (voice.on && clip) {
+    capEl.textContent = text;
+    capEl.hidden = false;
+    audio.pause();
+    audio.src = clip;
+    return new Promise((res) => {
+      let finished = false;
+      const done = () => { if (finished) return; finished = true; clearTimeout(backstop); audio.onended = audio.onerror = null; capTimer = setTimeout(() => (capEl.hidden = true), 600); res(); };
+      // Backstop: about 85 ms a character, in case a device never reports the end of a clip.
+      const backstop = setTimeout(done, Math.max(4000, text.length * 85));
+      audio.onended = audio.onerror = done;
+      audio.play().catch(done);
+    });
+  }
+  return Promise.resolve();
+}
+function hush() { audio.pause(); capEl.hidden = true; }
+const voiceBtn = $("[data-voice]");
+function renderVoiceBtn() {
+  voiceBtn.textContent = voice.on ? T().voiceOn : T().voiceOff;
+  voiceBtn.setAttribute("aria-pressed", voice.on);
+  $("[data-libmode]").checked = !voice.on;
+  voiceBtn.hidden = !Object.keys(D.VOICE.en).length;
+  $("[data-listen]").hidden = !voice.on || !D.VOICE.en.intro;
+}
+function setVoice(on) { voice.on = on; if (!on) hush(); renderVoiceBtn(); }
+voiceBtn.addEventListener("click", () => setVoice(!voice.on));
+$("[data-libmode]").addEventListener("change", (e) => setVoice(!e.target.checked));
+$("[data-listen]").addEventListener("click", () => speak("intro"));
+
 // ---------- dialogs ----------
 const dlg = $("[data-card]");
 function openCard(id) {
@@ -410,6 +454,7 @@ function openCard(id) {
   dlg.dataset.id = id;
   dlg.showModal();
   $(".opt", dlg).focus();
+  speak(`card:${id}`);
 }
 $(".card-opts", dlg).addEventListener("click", (e) => {
   const b = e.target.closest("[data-o]");
@@ -417,6 +462,7 @@ $(".card-opts", dlg).addEventListener("click", (e) => {
   const id = dlg.dataset.id;
   st.cards[id] = b.dataset.o;
   say(T().cards[id][b.dataset.o].log);
+  speak(`opt:${id}:${b.dataset.o}`);
   dlg.close();
   renderAll();
   ($(".el:not([data-done])") || $("[data-finish]:not([disabled])"))?.focus({ preventScroll: true });
@@ -434,9 +480,10 @@ function openEnd() {
   ].map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("");
   $(".end-chose", endDlg).innerHTML = [
     ...CHOICES.map((c) => `<li><b>${esc(t.choices[c].name)}:</b> ${esc(t.choices[c][st.choice[c]].label)}</li>`),
-    ...Object.entries(st.cards).map(([id, o]) => `<li><b>${esc(t.cards[id].title)}:</b> ${esc(t.cards[id][o].label)}</li>`),
+    ...Object.entries(st.cards).filter(([, o]) => o).map(([id, o]) => `<li><b>${esc(t.cards[id].title)}:</b> ${esc(t.cards[id][o].label)}</li>`),
   ].join("");
   endDlg.showModal();
+  speak("end");
 }
 $("[data-again]").addEventListener("click", () => { endDlg.close(); reset(); });
 const introDlg = $("[data-intro]");
@@ -461,6 +508,7 @@ function applyLang() {
     if (typeof v === "string") node.textContent = v;
   }
   renderEffectsBtn();
+  renderVoiceBtn();
   renderAll(false);
 }
 const langBtn = $("[data-lang]");
@@ -491,8 +539,10 @@ document.addEventListener("keydown", (ev) => {
   if (introDlg.open) { if (ev.key === "n" || ev.key === "N") { ev.preventDefault(); $("[data-start]").click(); } return; }
   if (ev.key === "n" || ev.key === "N") { ev.preventDefault(); next(); }
   if (ev.key === "m" || ev.key === "M") { ev.preventDefault(); toggleFx(); }
+  if (ev.key === "v" || ev.key === "V") { ev.preventDefault(); setVoice(!voice.on); }
 });
 function reset() {
+  hush();
   st = fresh();
   say(T().log0);
   ui.hot = null;
@@ -560,6 +610,7 @@ window.__dc = {
   meshes: () => scene?.meshes(),
 };
 
+renderVoiceBtn();
 reset();
 measureSafe();
 scene?.start();

@@ -1,6 +1,6 @@
 // Builds index.html: Build the Campus, a 3D game about building a data center campus.
 // node build.mjs  -> index.html, one self-contained page: three.js, fonts, strings and code inlined, no network.
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -36,6 +36,19 @@ const THREE_JS = `const THREE=(()=>{${threeSrc.slice(0, exp.index)}\nreturn {${n
 const font = (file, family) => `@font-face{font-family:"${family}";src:url(data:font/woff2;base64,${readFileSync(join(HERE, "vendor/fonts", file)).toString("base64")}) format("woff2");font-weight:100 900;font-display:swap}`;
 const FONTS = font("Geist-var.woff2", "Geist") + font("Inter-var.woff2", "Inter");
 
+// Narration: every clip in voice/<lang>/ is inlined as a data URL; captions come from the same lines.
+const { lines } = await import(pathToFileURL(join(HERE, "voice-lines.mjs")).href);
+const VOICE = {}, CAPTIONS = {};
+for (const lang of Object.keys(STRINGS)) {
+  const tl = { ...STRINGS.en, ...STRINGS[lang] };
+  CAPTIONS[lang] = lines(tl);
+  const dir = join(HERE, "voice", lang);
+  const man = existsSync(join(dir, "manifest.json")) ? JSON.parse(readFileSync(join(dir, "manifest.json"), "utf8")) : {};
+  VOICE[lang] = {};
+  for (const [key, m] of Object.entries(man)) if (CAPTIONS[lang][key] && existsSync(join(dir, m.file))) VOICE[lang][key] = `data:audio/mpeg;base64,${readFileSync(join(dir, m.file)).toString("base64")}`;
+}
+const clipCount = Object.values(VOICE).reduce((n, v) => n + Object.keys(v).length, 0);
+
 const tx = (key, text) => `<span data-t="${key}">${text}</span>`;
 const kpi = (key, label) => `<div class="kpi" data-dash="${key}" data-level="4"><span class="kpi-label">${label}</span><span class="kpi-val">—</span><span class="kpi-word"></span></div>`;
 
@@ -50,6 +63,7 @@ const body = `
   <canvas class="scene" data-scene tabindex="0" aria-label="${t.canvasLabel}"></canvas>
   <p class="nogl">${t.canvasLabel}</p>
   <div class="tag" data-tag hidden aria-hidden="true"></div>
+  <p class="caption" data-caption hidden></p>
   <span class="sr" role="status" aria-live="polite" data-status></span>
   <nav class="tabs" role="tablist" aria-label="${t.gameName}">
     <button type="button" role="tab" data-tab="build" aria-selected="true" data-t="tabBuild">${t.tabBuild}</button>
@@ -65,7 +79,7 @@ const body = `
     <p class="credit-line"><span data-t="credits">${t.credits}</span> · <span data-t="creditOrg">${t.creditOrg}</span></p>
   </section>
   <section class="panel p-plan" data-plan aria-label="${t.schedTitle}"></section>
-  <div class="tools"><button type="button" class="pill pill-dark" data-fx aria-pressed="true">${t.effectsOn}</button><button type="button" class="pill pill-dark" data-reset data-t="resetView">${t.resetView}</button><span class="hint" data-t="dragHint">${t.dragHint}</span></div>
+  <div class="tools"><button type="button" class="pill pill-dark" data-fx aria-pressed="true">${t.effectsOn}</button><button type="button" class="pill pill-dark" data-voice aria-pressed="true">${t.voiceOn}</button><button type="button" class="pill pill-dark" data-reset data-t="resetView">${t.resetView}</button><span class="hint" data-t="dragHint">${t.dragHint}</span></div>
 </main>
 </div>
 <dialog class="dlg dlg-intro" data-intro aria-labelledby="intro-title">
@@ -75,15 +89,16 @@ const body = `
   <p data-t="introBody">${t.introBody}</p>
   <p data-t="introHow">${t.introHow}</p>
   <p class="muted" data-t="keysHint">${t.keysHint}</p>
-  <button type="button" class="btn btn-big" data-start data-t="start">${t.start}</button>
+  <label class="libmode"><input type="checkbox" data-libmode><span><b data-t="libraryMode">${t.libraryMode}</b><br><span class="muted" data-t="libraryModeNote">${t.libraryModeNote}</span></span></label>
+  <div class="intro-btns"><button type="button" class="btn btn-big" data-start data-t="start">${t.start}</button><button type="button" class="btn btn-ghost" data-listen>${t.listen}</button></div>
 </dialog>
 <dialog class="dlg" data-card aria-labelledby="card-title"><p class="kicker" data-t="cardKicker">${t.cardKicker}</p><h2 class="card-title" id="card-title"></h2><p class="card-body"></p><p class="muted" data-t="cardChoose">${t.cardChoose}</p><div class="card-opts"></div></dialog>
 <dialog class="dlg" data-end aria-labelledby="end-title"><h2 id="end-title" data-t="endTitle">${t.endTitle}</h2><p data-t="endBody">${t.endBody}</p><h3 data-t="endStats">${t.endStats}</h3><dl class="end-stats"></dl><h3 data-t="endChose">${t.endChose}</h3><ul class="end-chose"></ul><button type="button" class="btn btn-big" data-again data-t="endAgain">${t.endAgain}</button></dialog>
 <dialog class="dlg" data-idle aria-labelledby="idle-title"><h2 id="idle-title" data-t="idleTitle">${t.idleTitle}</h2><p class="idle-body"></p><button type="button" class="btn btn-big" data-idle-keep data-t="idleKeep">${t.idleKeep}</button></dialog>
-<dialog class="dlg" data-about-dlg aria-labelledby="about-title"><h2 id="about-title" data-t="gameName">${t.gameName}</h2><p class="byline" data-t="credits">${t.credits}</p><p data-t="creditsBody">${t.creditsBody}</p><p data-t="creditsSet">${t.creditsSet}</p><p class="muted">three.js r170 (MIT) · Geist and Inter fonts (SIL Open Font License)</p><button type="button" class="btn" data-about-close data-t="close">${t.close}</button></dialog>`;
+<dialog class="dlg" data-about-dlg aria-labelledby="about-title"><h2 id="about-title" data-t="gameName">${t.gameName}</h2><p class="byline" data-t="credits">${t.credits}</p><p data-t="creditsBody">${t.creditsBody}</p><p data-t="creditsSet">${t.creditsSet}</p><p class="muted"><span data-t="voiceCredit">${t.voiceCredit}</span> three.js r170 (MIT) · Geist and Inter fonts (SIL Open Font License)</p><button type="button" class="btn" data-about-close data-t="close">${t.close}</button></dialog>`;
 
-const LIVE = read("game.js").replace("__DATA__", JSON.stringify({ PHASES, BASE_MONTHS })).replace("__STRINGS__", JSON.stringify(STRINGS));
+const LIVE = read("game.js").replace("__DATA__", JSON.stringify({ PHASES, BASE_MONTHS, VOICE, CAPTIONS })).replace("__STRINGS__", JSON.stringify(STRINGS));
 const script = (THREE_JS + read("scene.js") + "\n" + LIVE).replace(/<\/(script)/gi, "<\\/$1");
 const page = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>${t.pageTitle}</title><style>${FONTS}${read("style.css")}</style></head><body data-tab="build" data-side="hood">${body}<script type="module">${script}</script></body></html>`;
 writeFileSync(join(HERE, "index.html"), page);
-console.log("wrote index.html", `${(page.length / 1024).toFixed(0)} KB`, `base ${BASE_MONTHS} months`);
+console.log("wrote index.html", `${(page.length / 1024).toFixed(0)} KB`, `base ${BASE_MONTHS} months`, `${clipCount} voice clips`);

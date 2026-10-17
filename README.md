@@ -16,6 +16,8 @@ Created by Ali Keyvanfar, Ph.D. A personal public-education project, drawing on 
 | `scene.js` | The 3D campus (three.js) |
 | `style.css` | Layout and look |
 | `build.mjs` | `node build.mjs` rebuilds `index.html` |
+| `voice-lines.mjs` | The narration script, built from the strings table |
+| `voice.mjs` | Makes the narration clips with ElevenLabs (stock voice; key from the environment only) |
 | `AUDIT.md` | Audit of v1.1 and open items |
 | `PROMPT-for-Grok.md` | A ready prompt for an outside AI review |
 | `screenshots/` | Laptop and phone views |
