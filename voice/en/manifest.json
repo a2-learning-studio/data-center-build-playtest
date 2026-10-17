@@ -1,0 +1,332 @@
+{
+ "intro": {
+  "file": "intro.mp3",
+  "hash": "b72699d9ed2e",
+  "text": "Red Clay Ridge is a made-up site of about 45 acres off a county road in Georgia, next to a street of homes. A company wants a data center campus there. Your job is to build it in the right order, keep the schedule, the budget and the crew safe, and work with the neighbors. The game shows facts and trade-offs. It does not take a side on data centers. Pick a phase, place each of its key elements, then finish the phase. Issue cards will interrupt you. Your choices move the dashboard and the neighborhood panel.",
+  "bytes": 133450
+ },
+ "phase:site": {
+  "file": "phase-site.mp3",
+  "hash": "be924c675644",
+  "text": "Site and permits. The county reviews the plans and the public has its say.",
+  "bytes": 20497
+ },
+ "phase:grade": {
+  "file": "phase-grade.mp3",
+  "hash": "5871e7e642a3",
+  "text": "Clearing and grading. Crews clear trees, move earth and build ponds and roads.",
+  "bytes": 19766
+ },
+ "phase:util": {
+  "file": "phase-util.mp3",
+  "hash": "c3967e92b1f0",
+  "text": "Utilities. Power, water and fiber are brought to the site.",
+  "bytes": 16422
+ },
+ "phase:found": {
+  "file": "phase-found.mp3",
+  "hash": "85e702ff7438",
+  "text": "Foundations and pads. Concrete slabs and equipment pads are poured.",
+  "bytes": 17153
+ },
+ "phase:shell": {
+  "file": "phase-shell.mp3",
+  "hash": "f9545298aa8f",
+  "text": "Building shell. Walls, steel and roof close the building in.",
+  "bytes": 13705
+ },
+ "phase:mep": {
+  "file": "phase-mep.mp3",
+  "hash": "9e9f56ab1d18",
+  "text": "M E P systems. Mechanical, electrical and plumbing systems go in.",
+  "bytes": 20497
+ },
+ "phase:fitout": {
+  "file": "phase-fitout.mp3",
+  "hash": "b8e462a038c2",
+  "text": "Data hall fit-out. The data hall is fitted with racks, aisles and trays.",
+  "bytes": 18512
+ },
+ "phase:cx": {
+  "file": "phase-cx.mp3",
+  "hash": "028505e2a9be",
+  "text": "Commissioning, levels one to five. Every system is tested, alone and together.",
+  "bytes": 22064
+ },
+ "phase:turn": {
+  "file": "phase-turn.mp3",
+  "hash": "c05f3d9100d3",
+  "text": "Turnover. The finished campus is handed to its operator.",
+  "bytes": 12765
+ },
+ "el:zoning": {
+  "file": "el-zoning.mp3",
+  "hash": "70c770de5769",
+  "text": "A public hearing is held on the rezoning and site plan.",
+  "bytes": 14228
+ },
+ "el:capacity": {
+  "file": "el-capacity.mp3",
+  "hash": "ecaae9e3fdd9",
+  "text": "The power utility studies whether the grid can serve the site.",
+  "bytes": 11824
+ },
+ "el:stormPlan": {
+  "file": "el-stormPlan.mp3",
+  "hash": "bc917b077452",
+  "text": "Engineers plan how rain will be slowed, cleaned and stored.",
+  "bytes": 15482
+ },
+ "el:meetings": {
+  "file": "el-meetings.mp3",
+  "hash": "5a6d23fdd38e",
+  "text": "Neighbors ask about traffic, noise, water and jobs.",
+  "bytes": 15482
+ },
+ "el:clear": {
+  "file": "el-clear.mp3",
+  "hash": "d5039f0b648b",
+  "text": "Trees are cleared from the building area.",
+  "bytes": 8794
+ },
+ "el:erosion": {
+  "file": "el-erosion.mp3",
+  "hash": "2a4d12978d54",
+  "text": "Silt fence and stabilized slopes keep mud on site.",
+  "bytes": 13496
+ },
+ "el:ponds": {
+  "file": "el-ponds.mp3",
+  "hash": "c745ffbdfb09",
+  "text": "Two ponds are dug to hold and slowly release rain.",
+  "bytes": 12974
+ },
+ "el:roads": {
+  "file": "el-roads.mp3",
+  "hash": "3ec8984d6236",
+  "text": "A gravel construction entrance and laydown yard are built.",
+  "bytes": 12765
+ },
+ "el:substation": {
+  "file": "el-substation.mp3",
+  "hash": "a91617bf68a8",
+  "text": "A substation steps high-voltage power down for the campus.",
+  "bytes": 14646
+ },
+ "el:transmission": {
+  "file": "el-transmission.mp3",
+  "hash": "7dd382f0bc74",
+  "text": "A new line ties the substation to the grid.",
+  "bytes": 12033
+ },
+ "el:water": {
+  "file": "el-water.mp3",
+  "hash": "95a1101a9cb0",
+  "text": "Water and sewer lines are connected at the county road.",
+  "bytes": 11615
+ },
+ "el:fiber": {
+  "file": "el-fiber.mp3",
+  "hash": "5339f3c2387d",
+  "text": "Two separate fiber routes reach the site, so one cut is not an outage.",
+  "bytes": 18825
+ },
+ "el:slab": {
+  "file": "el-slab.mp3",
+  "hash": "6e89ec5b4fb0",
+  "text": "The data hall floor slab is poured.",
+  "bytes": 9212
+ },
+ "el:pads": {
+  "file": "el-pads.mp3",
+  "hash": "c7a83388c048",
+  "text": "Pads are poured for generators, switchgear and cooling.",
+  "bytes": 14959
+ },
+ "el:panels": {
+  "file": "el-panels.mp3",
+  "hash": "207e083435e6",
+  "text": "Concrete wall panels are cast and tilted up into place.",
+  "bytes": 14228
+ },
+ "el:steel": {
+  "file": "el-steel.mp3",
+  "hash": "613b2b814146",
+  "text": "Steel columns and joists frame the roof.",
+  "bytes": 9944
+ },
+ "el:roof": {
+  "file": "el-roof.mp3",
+  "hash": "3be236536349",
+  "text": "The roof is installed and the building is dried in.",
+  "bytes": 12556
+ },
+ "el:switchgear": {
+  "file": "el-switchgear.mp3",
+  "hash": "43785c463a89",
+  "text": "Switchgear routes power to every part of the building.",
+  "bytes": 12556
+ },
+ "el:ups": {
+  "file": "el-ups.mp3",
+  "hash": "ced8bafdda67",
+  "text": "Batteries bridge the seconds before generators start.",
+  "bytes": 12765
+ },
+ "el:gens": {
+  "file": "el-gens.mp3",
+  "hash": "15956f050790",
+  "text": "Diesel backup generators are set on their pads.",
+  "bytes": 10884
+ },
+ "el:cooling": {
+  "file": "el-cooling.mp3",
+  "hash": "41f94e046e8f",
+  "text": "Cooling equipment is set to carry heat away from the servers.",
+  "bytes": 15482
+ },
+ "el:fire": {
+  "file": "el-fire.mp3",
+  "hash": "64ec42c5ecf9",
+  "text": "A water tank, pumps and sprinklers protect the building.",
+  "bytes": 12974
+ },
+ "el:racks": {
+  "file": "el-racks.mp3",
+  "hash": "31cc39a3937b",
+  "text": "Rows of racks are set in the data hall.",
+  "bytes": 9630
+ },
+ "el:containment": {
+  "file": "el-containment.mp3",
+  "hash": "3e1a5db2c0f9",
+  "text": "Panels separate cold supply air from hot exhaust air.",
+  "bytes": 14019
+ },
+ "el:trays": {
+  "file": "el-trays.mp3",
+  "hash": "fbd62323987f",
+  "text": "Overhead trays carry power and network cables.",
+  "bytes": 13287
+ },
+ "el:L1": {
+  "file": "el-L1.mp3",
+  "hash": "98d59c5f0298",
+  "text": "Level one: equipment is tested at the factory.",
+  "bytes": 11824
+ },
+ "el:L2": {
+  "file": "el-L2.mp3",
+  "hash": "6728f1343deb",
+  "text": "Level two: each item is checked as delivered and installed.",
+  "bytes": 14437
+ },
+ "el:L3": {
+  "file": "el-L3.mp3",
+  "hash": "1a55a1e922ff",
+  "text": "Level three: each system is started up on its own.",
+  "bytes": 14959
+ },
+ "el:L4": {
+  "file": "el-L4.mp3",
+  "hash": "fd8a94bb6fde",
+  "text": "Level four: each system is run through its sequences, with load banks as fake servers.",
+  "bytes": 19766
+ },
+ "el:L5": {
+  "file": "el-L5.mp3",
+  "hash": "4ba51dc0d391",
+  "text": "Level five: the utility power is cut on purpose to prove everything works together.",
+  "bytes": 19452
+ },
+ "el:punch": {
+  "file": "el-punch.mp3",
+  "hash": "fcd6e9254b53",
+  "text": "Last fixes are made and the landscaping is planted.",
+  "bytes": 12974
+ },
+ "el:handover": {
+  "file": "el-handover.mp3",
+  "hash": "dd9117bf23bc",
+  "text": "Keys, manuals and training are handed to the operator.",
+  "bytes": 14228
+ },
+ "card:weather": {
+  "file": "card-weather.mp3",
+  "hash": "961df7661f03",
+  "text": "Weather: a week of heavy rain. The forecast calls for a week of heavy rain while the site is bare earth. Mud running off the site can reach the creek and the street.",
+  "bytes": 44321
+ },
+ "opt:weather:a": {
+  "file": "opt-weather-a.mp3",
+  "hash": "11622dfae180",
+  "text": "Grading pauses; crews add silt fence, mulch and check dams.",
+  "bytes": 15377
+ },
+ "opt:weather:b": {
+  "file": "opt-weather-b.mp3",
+  "hash": "938d74507cbb",
+  "text": "Grading continues in the rain; some muddy water leaves the site.",
+  "bytes": 16631
+ },
+ "card:longlead": {
+  "file": "card-longlead.mp3",
+  "hash": "467397e5b1b6",
+  "text": "Long-lead equipment: transformers and switchgear. Large transformers and switchgear are built to order and can take a long time to arrive. The design is not final yet.",
+  "bytes": 44739
+ },
+ "opt:longlead:a": {
+  "file": "opt-longlead-a.mp3",
+  "hash": "7df04213873c",
+  "text": "Equipment is ordered early; some changes will cost extra.",
+  "bytes": 15168
+ },
+ "opt:longlead:b": {
+  "file": "opt-longlead-b.mp3",
+  "hash": "5832bd4a79f1",
+  "text": "Ordering waits for the final design; delivery dates move out.",
+  "bytes": 15377
+ },
+ "opt:longlead:c": {
+  "file": "opt-longlead-c.mp3",
+  "hash": "365d4cb4e5f3",
+  "text": "Transformers are ordered now; switchgear waits for the design.",
+  "bytes": 13810
+ },
+ "card:labor": {
+  "file": "card-labor.mp3",
+  "hash": "7470363253d0",
+  "text": "Labor shortage: electricians. Many projects in the region need electricians at the same time, and the crew is short-handed.",
+  "bytes": 30215
+ },
+ "opt:labor:a": {
+  "file": "opt-labor-a.mp3",
+  "hash": "0add7436229d",
+  "text": "A night shift starts; lights and noise run later.",
+  "bytes": 14646
+ },
+ "opt:labor:b": {
+  "file": "opt-labor-b.mp3",
+  "hash": "26ac18f4c2ab",
+  "text": "The electrical work takes longer with a smaller crew.",
+  "bytes": 12138
+ },
+ "opt:labor:c": {
+  "file": "opt-labor-c.mp3",
+  "hash": "adc85ca108fa",
+  "text": "Prefabricated power skids arrive, wired in a factory.",
+  "bytes": 14750
+ },
+ "cx": {
+  "file": "cx.mp3",
+  "hash": "c08c43c1c757",
+  "text": "All five commissioning levels passed.",
+  "bytes": 9944
+ },
+ "end": {
+  "file": "end.mp3",
+  "hash": "64b3c91c1d87",
+  "text": "Turnover: the campus is handed to its owner. The building is now an operating facility. Construction jobs wind down and a smaller operations staff takes over. Every choice you made traded time, money, safety or neighbor effects. Different communities weigh these trade-offs differently.",
+  "bytes": 76086
+ }
+}
