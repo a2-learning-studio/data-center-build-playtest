@@ -13,9 +13,9 @@
  },
  "phase:grade": {
   "file": "phase-grade.mp3",
-  "hash": "5871e7e642a3",
-  "text": "Clearing and grading. Crews clear trees, move earth and build ponds and roads.",
-  "bytes": 19766
+  "hash": "357efff51f5b",
+  "text": "Erosion control and grading. Silt fence, a construction exit and sediment basins go in before crews clear trees and grade the ground.",
+  "bytes": 40559
  },
  "phase:util": {
   "file": "phase-util.mp3",
@@ -49,9 +49,9 @@
  },
  "phase:cx": {
   "file": "phase-cx.mp3",
-  "hash": "028505e2a9be",
-  "text": "Commissioning, levels one to five. Every system is tested, alone and together.",
-  "bytes": 22064
+  "hash": "e4c3e3a620d2",
+  "text": "Commissioning, Level five. Only the integrated systems test is left. Levels 1 to 4 were done earlier, one piece of equipment at a time.",
+  "bytes": 38574
  },
  "phase:turn": {
   "file": "phase-turn.mp3",
@@ -85,27 +85,27 @@
  },
  "el:clear": {
   "file": "el-clear.mp3",
-  "hash": "d5039f0b648b",
-  "text": "Trees are cleared from the building area.",
-  "bytes": 8794
+  "hash": "1225a611a08d",
+  "text": "Trees and topsoil come out only after the silt fence and sediment basins are in.",
+  "bytes": 19766
  },
  "el:erosion": {
   "file": "el-erosion.mp3",
-  "hash": "2a4d12978d54",
-  "text": "Silt fence and stabilized slopes keep mud on site.",
-  "bytes": 13496
+  "hash": "3d53ab78e041",
+  "text": "Silt fence goes in before any clearing, so mud stays on the site.",
+  "bytes": 15377
  },
  "el:ponds": {
   "file": "el-ponds.mp3",
-  "hash": "c745ffbdfb09",
-  "text": "Two ponds are dug to hold and slowly release rain.",
-  "bytes": 12974
+  "hash": "1b950cbd887c",
+  "text": "Sediment basins are dug before clearing. They hold muddy water, and later they hold rain.",
+  "bytes": 18512
  },
  "el:roads": {
   "file": "el-roads.mp3",
-  "hash": "3ec8984d6236",
-  "text": "A gravel construction entrance and laydown yard are built.",
-  "bytes": 12765
+  "hash": "ad1780cc4a6c",
+  "text": "A construction exit and access road are built so trucks do not track mud into the street.",
+  "bytes": 21437
  },
  "el:substation": {
   "file": "el-substation.mp3",
@@ -253,45 +253,45 @@
  },
  "card:weather": {
   "file": "card-weather.mp3",
-  "hash": "961df7661f03",
-  "text": "Weather: a week of heavy rain. The forecast calls for a week of heavy rain while the site is bare earth. Mud running off the site can reach the creek and the street.",
-  "bytes": 44321
+  "hash": "39384e3b8c67",
+  "text": "Weather: a week of heavy rain. The forecast calls for a week of heavy rain while the site is bare earth. Mud running off the site can reach the creek and the street. If controls fail, an inspector may issue a fine or a stop-work order.",
+  "bytes": 66577
  },
  "opt:weather:a": {
   "file": "opt-weather-a.mp3",
-  "hash": "11622dfae180",
-  "text": "Grading pauses; crews add silt fence, mulch and check dams.",
-  "bytes": 15377
+  "hash": "3e24a3d1abe0",
+  "text": "Grading pauses. Crews add silt fence, mulch and check dams.",
+  "bytes": 16631
  },
  "opt:weather:b": {
   "file": "opt-weather-b.mp3",
-  "hash": "938d74507cbb",
-  "text": "Grading continues in the rain; some muddy water leaves the site.",
-  "bytes": 16631
+  "hash": "74f0b4870ccb",
+  "text": "Grading continues in the rain. Muddy water leaves the site, and an inspector may fine the job or stop the work.",
+  "bytes": 25722
  },
  "card:longlead": {
   "file": "card-longlead.mp3",
-  "hash": "467397e5b1b6",
-  "text": "Long-lead equipment: transformers and switchgear. Large transformers and switchgear are built to order and can take a long time to arrive. The design is not final yet.",
-  "bytes": 44739
+  "hash": "92bf8af008f3",
+  "text": "Long-lead equipment: transformers and switchgear. Large transformers can take about 2 to 4 years to build and deliver. Switchgear is also built to order. The design is not final yet. In this game, waiting on transformers delays the substation by about 9 months, and waiting on switchgear delays the electrical work by about 4 months, so the wait still fits on the schedule.",
+  "bytes": 102417
  },
  "opt:longlead:a": {
   "file": "opt-longlead-a.mp3",
-  "hash": "7df04213873c",
-  "text": "Equipment is ordered early; some changes will cost extra.",
-  "bytes": 15168
+  "hash": "320ab6d5b029",
+  "text": "Equipment is ordered early. The factory tests it before it ships. Some design changes will cost extra.",
+  "bytes": 25408
  },
  "opt:longlead:b": {
   "file": "opt-longlead-b.mp3",
-  "hash": "5832bd4a79f1",
-  "text": "Ordering waits for the final design; delivery dates move out.",
-  "bytes": 15377
+  "hash": "28e55c00a5dc",
+  "text": "Ordering waits for the final design. The substation and the electrical work both slip.",
+  "bytes": 21646
  },
  "opt:longlead:c": {
   "file": "opt-longlead-c.mp3",
-  "hash": "365d4cb4e5f3",
-  "text": "Transformers are ordered now; switchgear waits for the design.",
-  "bytes": 13810
+  "hash": "45864513040d",
+  "text": "Transformers are ordered now and tested at the factory. Switchgear waits, which delays the electrical work.",
+  "bytes": 26662
  },
  "card:labor": {
   "file": "card-labor.mp3",
@@ -301,9 +301,9 @@
  },
  "opt:labor:a": {
   "file": "opt-labor-a.mp3",
-  "hash": "0add7436229d",
-  "text": "A night shift starts; lights and noise run later.",
-  "bytes": 14646
+  "hash": "35e796b0db3d",
+  "text": "A night shift starts. Lights and noise run later until the electrical work is done.",
+  "bytes": 19243
  },
  "opt:labor:b": {
   "file": "opt-labor-b.mp3",
@@ -319,9 +319,9 @@
  },
  "cx": {
   "file": "cx.mp3",
-  "hash": "c08c43c1c757",
-  "text": "All five commissioning levels passed.",
-  "bytes": 9944
+  "hash": "6ad1d7e5d1d4",
+  "text": "Level five passed. Levels 1 to 4 were already done, one piece of equipment at a time.",
+  "bytes": 22169
  },
  "end": {
   "file": "end.mp3",
