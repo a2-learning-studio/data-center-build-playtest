@@ -2,7 +2,9 @@
 
 **Play it:** https://a2-learning-studio.github.io/data-center-build-playtest/
 
-A free, offline, single-page game for a public library panel on data centers. The player is the construction manager building a data center campus on a made-up Georgia site, one phase at a time: site and permits, clearing and grading, utilities, foundations, shell, MEP, data hall fit-out, commissioning levels 1–5, and turnover. It has a critical-path schedule, issue cards with trade-offs, a neighborhood panel and a dashboard. The game shows facts and trade-offs and does not take a side on data centers.
+A free, offline, single-page game for a public library panel on data centers. The player is the construction manager building a data center campus on a made-up Georgia site, one phase at a time: site and permits, erosion control and grading, utilities, foundations, shell, MEP, data hall fit-out, commissioning (levels 1–4 during construction, level 5 at the end), and turnover. It has a critical-path schedule, issue cards with trade-offs, a neighborhood panel and a dashboard. The game shows facts and trade-offs and does not take a side on data centers.
+
+**Kiosk setup.** The whole game is `index.html`. Download that file and open it in a full-screen browser. It does not need a network. On the web address, `sw.js` saves a copy of the page so a reload can still open after the connection drops. In About, the game explains the same setup.
 
 Created by Ali Keyvanfar, Ph.D. A personal public-education project, drawing on construction research at Kennesaw State University. A companion to [Community Builders of Pecan Grove](https://a2-learning-studio.github.io/pecan-grove-playtest/). Made-up site and companies; durations are typical ranges and vary by project.
 
@@ -17,7 +19,8 @@ Created by Ali Keyvanfar, Ph.D. A personal public-education project, drawing on 
 | `style.css` | Layout and look |
 | `build.mjs` | `node build.mjs` rebuilds `index.html` |
 | `voice-lines.mjs` | The narration script, built from the strings table |
-| `voice.mjs` | Makes the narration clips with ElevenLabs (stock voice; key from the environment only) |
+| `voice.mjs` | Makes the narration clips with an AI text-to-speech service (stock voice; key from the environment only) |
+| `sw.js` | Saves the web copy for offline reloads |
 | `AUDIT.md` | Audit of v1.1 and open items |
 | `PROMPT-for-Grok.md` | A ready prompt for an outside AI review |
 | `screenshots/` | Laptop and phone views |

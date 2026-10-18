@@ -1,19 +1,40 @@
 // scene.js — the Red Clay Ridge campus in 3D (three.js, inlined as THREE). Units are metres.
 // World plan x runs toward the county road, plan y toward Pecan Street; in three.js that is x, z, with y up.
 // Every part sits in a tagged group { show, hide, opt, keep } that the game shows or hides.
-function createScene(canvas, { reduced = () => false } = {}) {
+function detectLowQ() {
+  const cores = navigator.hardwareConcurrency || 4;
+  let gpu = "";
+  try {
+    const probe = document.createElement("canvas");
+    const gl = probe.getContext("webgl", { powerPreference: "high-performance" });
+    if (gl) {
+      const ext = gl.getExtension("WEBGL_debug_renderer_info");
+      if (ext) gpu = String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) || "");
+      gl.getExtension("WEBGL_lose_context")?.loseContext();
+    }
+  } catch { /* keep the default quality if the probe fails */ }
+  const integrated = /intel|uhd|iris|hd graphics|swiftshader|llvmpipe|microsoft basic/i.test(gpu);
+  return cores <= 4 || integrated;
+}
+
+function createScene(canvas, { reduced = () => false, signs = null } = {}) {
   const T3 = THREE;
+  const lowQ = detectLowQ();
+  const signMats = {};
+  const signLines = () => (signs ? signs() : ["PUBLIC NOTICE", "Rezoning hearing", "RED CLAY RIDGE"]);
   let seed = 1234567;
   const R = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
   const TILE = { x0: -260, x1: 260, z0: -180, z1: 180 };
 
   // ---------- renderer, camera, light ----------
-  const renderer = new T3.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
-  renderer.setPixelRatio(Math.min(1.5, window.devicePixelRatio || 1));
+  const renderer = new T3.WebGLRenderer({ canvas, antialias: !lowQ, powerPreference: "high-performance" });
+  renderer.setPixelRatio(lowQ ? 1 : Math.min(1.5, window.devicePixelRatio || 1));
   renderer.toneMapping = T3.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = T3.PCFSoftShadowMap;
+  renderer.shadowMap.type = lowQ ? T3.BasicShadowMap : T3.PCFSoftShadowMap;
+  renderer.shadowMap.autoUpdate = false;
+  renderer.shadowMap.needsUpdate = true;
   renderer.localClippingEnabled = true;
   const scene = new T3.Scene();
   const camera = new T3.PerspectiveCamera(30, 1, 5, 4000);
@@ -40,7 +61,7 @@ function createScene(canvas, { reduced = () => false } = {}) {
   const sun = new T3.DirectionalLight("#fff3e0", 2.6);
   sun.position.set(-170, 300, 190);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.mapSize.set(lowQ ? 1024 : 2048, lowQ ? 1024 : 2048);
   Object.assign(sun.shadow.camera, { left: -330, right: 330, top: 260, bottom: -260, near: 10, far: 1200 });
   sun.shadow.bias = -0.0004;
   sun.shadow.normalBias = 0.6;
@@ -222,9 +243,9 @@ function createScene(canvas, { reduced = () => false } = {}) {
     rubber: M({ color: "#1f2124", roughness: 0.9 }),
     steel: M({ color: "#9a4a2f", roughness: 0.6, metalness: 0.4 }),
     machine: M({ color: "#f0b323", roughness: 0.45, metalness: 0.15 }),
-    glass: new T3.MeshPhysicalMaterial({ color: "#5d7f97", roughness: 0.08, metalness: 0.2, envMapIntensity: 1.4 }),
-    clearGlass: new T3.MeshPhysicalMaterial({ color: "#cfe7f2", roughness: 0.05, metalness: 0, transparent: true, opacity: 0.35, depthWrite: false }),
-    water: new T3.MeshPhysicalMaterial({ color: "#3d6f73", roughness: 0.1, metalness: 0.1, normalMap: tx(TX.water, 1, 1), normalScale: new T3.Vector2(0.12, 0.12), envMapIntensity: 1.2, clearcoat: 0.6 }),
+    glass: new (lowQ ? T3.MeshStandardMaterial : T3.MeshPhysicalMaterial)({ color: "#5d7f97", roughness: 0.08, metalness: 0.2, envMapIntensity: 1.4 }),
+    clearGlass: new (lowQ ? T3.MeshStandardMaterial : T3.MeshPhysicalMaterial)({ color: "#cfe7f2", roughness: 0.05, metalness: 0, transparent: true, opacity: 0.35, depthWrite: false }),
+    water: new (lowQ ? T3.MeshStandardMaterial : T3.MeshPhysicalMaterial)({ color: "#3d6f73", roughness: 0.1, metalness: 0.1, normalMap: tx(TX.water, 1, 1), normalScale: new T3.Vector2(0.12, 0.12), envMapIntensity: 1.2, clearcoat: lowQ ? 0 : 0.6 }),
     bank: M({ map: tx(TX.dirt, 2, 2), color: "#c9b98f" }),
     wood: M({ color: "#8a6a48", roughness: 0.9 }),
     trunk: M({ color: "#6b4f37", roughness: 0.95 }),
@@ -248,11 +269,11 @@ function createScene(canvas, { reduced = () => false } = {}) {
   // ---------- tagged groups ----------
   const groups = [];
   const groupFor = (tags = {}) => {
-    const key = [tags.show || "", tags.hide || "", tags.opt || "", tags.keep || "", tags.drop ? 1 : 0].join("|");
+    const key = [tags.show || "", tags.hide || "", tags.opt || "", tags.keep || "", tags.need || "", tags.drop ? 1 : 0].join("|");
     let g = groups.find((q) => q.userData.key === key);
     if (!g) {
       g = new T3.Group();
-      g.userData = { key, show: tags.show || "", hide: tags.hide || "", opt: tags.opt || "", keep: tags.keep || "", drop: !!tags.drop, rise: 1 };
+      g.userData = { key, show: tags.show || "", hide: tags.hide || "", opt: tags.opt || "", keep: tags.keep || "", need: tags.need || "", drop: !!tags.drop, rise: 1 };
       scene.add(g);
       groups.push(g);
     }
@@ -443,7 +464,9 @@ function createScene(canvas, { reduced = () => false } = {}) {
     const g = groupFor({ show: "zoning", hide: "punch" });
     box(g, MAT.wood, 217.5, 218, 21, 21.5, 0, 4.4);
     box(g, MAT.wood, 217.5, 218, 27.5, 28, 0, 4.4);
-    const sign = new T3.Mesh(new T3.PlaneGeometry(8, 4), new T3.MeshStandardMaterial({ map: textTex([[STR_SIGN[0], 56, 800], [STR_SIGN[1], 40, 600]]) }));
+    const noticeMat = new T3.MeshStandardMaterial({ map: textTex([[signLines()[0], 56, 800], [signLines()[1], 40, 600]]) });
+    signMats.notice = noticeMat;
+    const sign = new T3.Mesh(new T3.PlaneGeometry(8, 4), noticeMat);
     sign.position.set(218.3, 4.2, 24.5);
     sign.rotation.y = Math.PI / 2;
     add(g, sign);
@@ -809,9 +832,9 @@ function createScene(canvas, { reduced = () => false } = {}) {
       beacons.push(m);
     }
   };
-  beacon({ show: "L1" }, [[153, 7.6, -141], [177, 7.6, -141]]);
-  beacon({ show: "L2" }, [0, 1, 2, 3].map((i) => [42.3 + i * 5.5, 5.1, -91]));
-  beacon({ show: "L3" }, GENS.map((p) => [p.x + 4, 5.8, p.z]));
+  beacon({ show: "L1", need: "substation" }, [[153, 7.6, -141], [177, 7.6, -141]]);
+  beacon({ show: "L2", need: "switchgear" }, [0, 1, 2, 3].map((i) => [42.3 + i * 5.5, 5.1, -91]));
+  beacon({ show: "L3", need: "gens" }, GENS.map((p) => [p.x + 4, 5.8, p.z]));
   beacon({ show: "L5" }, [[51, 10.2, -117], [-130, 11.5, -48]]);
   {
     const g = groupFor({ show: "L4", hide: "handover" });
@@ -852,7 +875,9 @@ function createScene(canvas, { reduced = () => false } = {}) {
     box(g, M({ color: "#e8e3d6" }), 197.5, 204.5, 14.5, 21.5, 3.4, 3.8);
     const arm = box(g, M({ color: "#c0392b" }), 188, 197, 13, 13.4, 1.6, 1.9);
     void arm;
-    const sign = new T3.Mesh(new T3.PlaneGeometry(10, 3), new T3.MeshStandardMaterial({ map: textTex([[STR_SIGN[2], 72, 800]], { w: 512, h: 160, bg: "#163a30", fg: "#f7f4ee", accent: "#e69f00" }) }));
+    const campusMat = new T3.MeshStandardMaterial({ map: textTex([[signLines()[2], 72, 800]], { w: 512, h: 160, bg: "#163a30", fg: "#f7f4ee", accent: "#e69f00" }) });
+    signMats.campus = campusMat;
+    const sign = new T3.Mesh(new T3.PlaneGeometry(10, 3), campusMat);
     sign.position.set(222.4, 2.2, 28);
     sign.rotation.y = Math.PI / 2;
     add(g, sign);
@@ -896,7 +921,8 @@ function createScene(canvas, { reduced = () => false } = {}) {
       }
     }
   })();
-  canvas.addEventListener("webglcontextlost", (e) => { e.preventDefault(); document.body.dataset.nogl = ""; });
+  canvas.addEventListener("webglcontextlost", (e) => { e.preventDefault(); stop(); document.body.dataset.nogl = ""; });
+  canvas.addEventListener("webglcontextrestored", () => location.reload());
 
   // ---------- neighborhood overlays ----------
   const ov = new T3.Group();
@@ -1012,6 +1038,7 @@ function createScene(canvas, { reduced = () => false } = {}) {
     pointers.set(e.pointerId, [e.clientX, e.clientY]);
     dragging = { x: e.clientX, y: e.clientY, az: want.az, el: want.el };
     attract = false;
+    kick();
   });
   canvas.addEventListener("pointermove", (e) => {
     if (!pointers.has(e.pointerId)) return;
@@ -1028,11 +1055,12 @@ function createScene(canvas, { reduced = () => false } = {}) {
     if (!dragging) return;
     want.az = dragging.az - (e.clientX - dragging.x) * 0.006;
     want.el = Math.min(1.25, Math.max(0.28, dragging.el + (e.clientY - dragging.y) * 0.004));
+    kick();
   });
   const up = (e) => { pointers.delete(e.pointerId); if (pointers.size < 1) dragging = null; };
   canvas.addEventListener("pointerup", up);
   canvas.addEventListener("pointercancel", up);
-  canvas.addEventListener("wheel", (e) => { e.preventDefault(); attract = false; want.dist = Math.min(fitDist * 1.4, Math.max(120, want.dist * Math.exp(e.deltaY * 0.0012))); }, { passive: false });
+  canvas.addEventListener("wheel", (e) => { e.preventDefault(); attract = false; want.dist = Math.min(fitDist * 1.4, Math.max(120, want.dist * Math.exp(e.deltaY * 0.0012))); kick(); }, { passive: false });
   canvas.addEventListener("keydown", (e) => {
     const k = e.key;
     if (k === "ArrowLeft") want.az += 0.12;
@@ -1044,6 +1072,7 @@ function createScene(canvas, { reduced = () => false } = {}) {
     else return;
     attract = false;
     e.preventDefault();
+    kick();
   });
 
   function resize() {
@@ -1063,6 +1092,7 @@ function createScene(canvas, { reduced = () => false } = {}) {
     lastFit = fitDist;
     fitted = true;
     camera.updateProjectionMatrix();
+    kick();
   }
   let fitted = false, lastFit = 0;
 
@@ -1078,6 +1108,8 @@ function createScene(canvas, { reduced = () => false } = {}) {
       g.visible = on;
     }
     firstApply = false;
+    renderer.shadowMap.needsUpdate = true;
+    kick();
   }
   function overlays(state) {
     ov.visible = state.on;
@@ -1091,6 +1123,7 @@ function createScene(canvas, { reduced = () => false } = {}) {
     trucks.route = state.route;
     const tw = groups.find((q) => q.userData.show === "transmission");
     if (tw && tw.userData.wires) for (const w of tw.userData.wires) { w.material.color.set(state.on && state.layers.power?.on ? "#d65db1" : "#2c3034"); w.material.emissive?.set(state.on && state.layers.power?.on ? "#5a1d48" : "#000000"); }
+    kick();
   }
   // Where a placed element sits, for the camera and the floating tag.
   function boundsOf(id) {
@@ -1104,6 +1137,7 @@ function createScene(canvas, { reduced = () => false } = {}) {
     const c = b.getCenter(new T3.Vector3());
     want.target.set(c.x * 0.55 - 10 * 0.45, 0, c.z * 0.55 - 20 * 0.45);
     attract = false;
+    kick();
   }
   function screenOf(id) {
     const b = boundsOf(id);
@@ -1115,6 +1149,7 @@ function createScene(canvas, { reduced = () => false } = {}) {
   function resetView() {
     Object.assign(want, { az: 0.78, el: 0.6, dist: fitDist });
     want.target.set(-10, 0, -20);
+    kick();
   }
 
   // ---------- frame loop ----------
@@ -1136,9 +1171,11 @@ function createScene(canvas, { reduced = () => false } = {}) {
     sun.target.position.copy(view.target);
     sun.position.set(view.target.x - 170, 300, view.target.z + 190);
 
+    let rising = false;
     for (const g of groups) {
       const u = g.userData;
       if (u.rise < 1) {
+        rising = true;
         u.riseT += dt;
         const t = Math.min(1, u.riseT / 0.75);
         const e = 1 + 2.2 * Math.pow(t - 1, 3) + 1.2 * Math.pow(t - 1, 2);
@@ -1147,6 +1184,7 @@ function createScene(canvas, { reduced = () => false } = {}) {
         if (t >= 1) { u.rise = 1; g.scale.y = 1; g.position.y = 0; }
       }
     }
+    if (rising) renderer.shadowMap.needsUpdate = true;
     if (!still) {
       for (const f of fans) f.rotation.y += dt * 9;
       ledT += dt;
@@ -1189,8 +1227,8 @@ function createScene(canvas, { reduced = () => false } = {}) {
         u.pts.material.opacity = (u.name === "dust" ? 0.18 + 0.12 * u.level : 0.38) * Math.min(1, u.hot);
       }
     }
-    const rc = routeCurve[trucks.route];
-    if (!still) trucks.t += dt * 16;
+    const rc = routeCurve[trucks.route] || routeCurve.a;
+    if (!still && trucks.count) trucks.t += dt * 16;
     truckSet.forEach((t, i) => {
       t.visible = i < trucks.count;
       if (!t.visible) return;
@@ -1203,14 +1241,47 @@ function createScene(canvas, { reduced = () => false } = {}) {
     renderer.render(scene, camera);
   }
   let running = false;
-  function loop() {
-    if (!running) return;
-    frame();
-    requestAnimationFrame(loop);
+  let raf = 0;
+  let lastDraw = 0;
+  const shown = (obj) => {
+    let n = obj;
+    while (n) { if (!n.visible) return false; n = n.parent; }
+    return true;
+  };
+  function needsFrame() {
+    if (document.hidden) return false;
+    if (attract && !reduced()) return true;
+    if (dragging || pointers.size) return true;
+    if (Math.abs(want.az - view.az) > 0.001) return true;
+    if (Math.abs(want.el - view.el) > 0.001) return true;
+    if (Math.abs(want.dist - view.dist) > 0.5) return true;
+    if (view.target.distanceTo(want.target) > 0.5) return true;
+    if (groups.some((g) => g.visible && g.userData.rise < 1)) return true;
+    if (!reduced() && fans.some(shown)) return true;
+    if (ov.visible && Object.values(OV).some((g) => g.visible)) return true;
+    if (trucks.count > 0) return true;
+    return false;
   }
-  function start() { if (!running) { running = true; clock.getDelta(); requestAnimationFrame(loop); } }
-  function stop() { running = false; }
-  document.addEventListener("visibilitychange", () => (document.hidden ? stop() : start()));
+  function kick() {
+    if (document.hidden) return;
+    if (running) return;
+    running = true;
+    clock.getDelta();
+    lastDraw = 0;
+    raf = requestAnimationFrame(loop);
+  }
+  function loop(now) {
+    if (!running) return;
+    const cap = attract && !dragging ? 1000 / 30 : 0;
+    if (cap && lastDraw && now - lastDraw < cap - 1) { raf = requestAnimationFrame(loop); return; }
+    lastDraw = now || performance.now();
+    frame();
+    if (!needsFrame()) { running = false; return; }
+    raf = requestAnimationFrame(loop);
+  }
+  function start() { kick(); }
+  function stop() { running = false; if (raf) cancelAnimationFrame(raf); raf = 0; }
+  document.addEventListener("visibilitychange", () => (document.hidden ? stop() : kick()));
   new ResizeObserver(resize).observe(canvas);
 
   return {
@@ -1220,12 +1291,20 @@ function createScene(canvas, { reduced = () => false } = {}) {
     screenOf,
     resetView,
     setSafe(r) { Object.assign(safe, r); resize(); },
-    setAttract(v) { attract = v; },
-    lookAt(x, z) { want.target.set(x * 0.6 - 10 * 0.4, 0, z * 0.6 - 20 * 0.4); attract = false; },
-    setView(o) { if (o.az != null) want.az = o.az; if (o.el != null) want.el = o.el; if (o.dist != null) want.dist = o.dist; if (o.x != null) want.target.set(o.x, 0, o.z); attract = false; },
+    setAttract(v) { attract = v; kick(); },
+    refreshSigns() {
+      const src = signLines();
+      const swap = (mat, map) => { if (!mat) return; const old = mat.map; mat.map = map; mat.needsUpdate = true; old?.dispose(); };
+      swap(signMats.notice, textTex([[src[0], 56, 800], [src[1], 40, 600]]));
+      swap(signMats.campus, textTex([[src[2], 72, 800]], { w: 512, h: 160, bg: "#163a30", fg: "#f7f4ee", accent: "#e69f00" }));
+      renderer.shadowMap.needsUpdate = true;
+      kick();
+    },
+    lookAt(x, z) { want.target.set(x * 0.6 - 10 * 0.4, 0, z * 0.6 - 20 * 0.4); attract = false; kick(); },
+    setView(o) { if (o.az != null) want.az = o.az; if (o.el != null) want.el = o.el; if (o.dist != null) want.dist = o.dist; if (o.x != null) want.target.set(o.x, 0, o.z); attract = false; kick(); },
     start,
     renderOnce: frame,
     meshes: () => { const out = {}; scene.traverse((o) => { if (o.isMesh && o.visible) { let g = o; while (g.parent && g.parent !== scene) g = g.parent; const k = (g.userData && g.userData.key) || g.type; const m = Array.isArray(o.material) ? 'multi' : (o.material.transparent ? 'T' : '') + o.material.type.slice(4, 9); out[k] = out[k] || {}; out[k][m] = (out[k][m] || 0) + 1; } }); return out; },
-    info: () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures, pixelRatio: renderer.getPixelRatio() }),
+    info: () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures, pixelRatio: renderer.getPixelRatio(), lowQ }),
   };
 }
