@@ -1,5 +1,5 @@
 // Saves the game for offline reloads, and replaces that copy when a new build is published.
-// Cache name bump: an older worker deletes every cache that is not this name.
+// CACHE must match SW_BUILD in game.js. Bump both together when publishing a new build.
 const CACHE = "build-the-campus-v3";
 
 function precache() {
@@ -44,7 +44,15 @@ self.addEventListener("fetch", (event) => {
       .then((res) => {
         if (res.ok && (res.type === "basic" || res.type === "default")) {
           const copy = res.clone();
-          caches.open(CACHE).then((cache) => cache.put(req, copy)).catch(() => {});
+          const shell = res.clone();
+          caches.open(CACHE).then(async (cache) => {
+            await cache.put(req, copy);
+            const path = new URL(req.url).pathname;
+            if (path.endsWith("/") || path.endsWith("/index.html")) {
+              await cache.put("./", shell.clone());
+              await cache.put("./index.html", shell);
+            }
+          }).catch(() => {});
         }
         return res;
       })

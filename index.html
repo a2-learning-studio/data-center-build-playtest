@@ -2174,6 +2174,7 @@ function speak(key) {
   capEl.textContent = text;
   capEl.hidden = false;
   if (!clip) {
+    audio.pause();
     capTimer = setTimeout(() => (capEl.hidden = true), Math.min(12000, Math.max(2500, text.length * 45)));
     return Promise.resolve();
   }
@@ -2429,8 +2430,9 @@ $("[data-idle-keep]").addEventListener("click", () => { clearInterval(idleTimer)
 idleDlg.addEventListener("cancel", (ev) => { ev.preventDefault(); $("[data-idle-keep]").click(); });
 
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
-  // Reload once when a newer worker takes over a page that was already controlled.
-  // The first visit has no controller, so it does not reload itself in a loop.
+  // Keep this id identical to CACHE in sw.js. Bump both together when publishing.
+  // The file name changes with the id, so a reload installs the new worker immediately.
+  const SW_BUILD = "build-the-campus-v3";
   const hadController = !!navigator.serviceWorker.controller;
   let reloading = false;
   if (hadController) {
@@ -2440,7 +2442,7 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
       location.reload();
     });
   }
-  navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" }).then((reg) => {
+  navigator.serviceWorker.register(`./sw-${SW_BUILD}.js`, { updateViaCache: "none" }).then((reg) => {
     const askSkip = () => { if (hadController && reg.waiting) reg.waiting.postMessage({ type: "SKIP_WAITING" }); };
     askSkip();
     reg.addEventListener("updatefound", () => {

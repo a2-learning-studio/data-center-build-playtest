@@ -1,6 +1,6 @@
 // Builds index.html: Build the Campus, a 3D game about building a data center campus.
 // node build.mjs  -> index.html, one self-contained page: three.js, fonts, strings and code inlined, no network.
-import { readFileSync, writeFileSync, existsSync, mkdirSync, copyFileSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, unlinkSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { speakable } from "./voice-lines.mjs";
@@ -114,6 +114,19 @@ writeFileSync(join(HERE, "index.html"), page);
 const docs = join(HERE, "docs");
 mkdirSync(docs, { recursive: true });
 writeFileSync(join(docs, "index.html"), page);
-copyFileSync(join(HERE, "sw.js"), join(docs, "sw.js"));
+const sw = read("sw.js");
+const cacheName = sw.match(/const CACHE = "([^"]+)"/)?.[1];
+const swBuild = read("game.js").match(/const SW_BUILD = "([^"]+)"/)?.[1];
+if (!cacheName || cacheName !== swBuild) throw new Error("SW_BUILD in game.js must match CACHE in sw.js");
+const swFile = `sw-${cacheName}.js`;
+for (const dir of [HERE, docs]) {
+  for (const name of readdirSync(dir)) {
+    if (name.startsWith("sw-build-the-campus-") && name !== swFile) unlinkSync(join(dir, name));
+  }
+}
+const plainSw = join(docs, "sw.js");
+if (existsSync(plainSw)) unlinkSync(plainSw);
+writeFileSync(join(HERE, swFile), sw);
+writeFileSync(join(docs, swFile), sw);
 writeFileSync(join(docs, ".nojekyll"), "");
 console.log("wrote index.html", `${(page.length / 1024).toFixed(0)} KB`, `base ${BASE_MONTHS} months`, `${clipCount} voice clips`);
