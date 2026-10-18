@@ -1,6 +1,6 @@
 // Saves the game for offline reloads, and replaces that copy when a new build is published.
 // CACHE must match SW_BUILD in game.js. Bump both together when publishing a new build.
-const CACHE = "build-the-campus-v3";
+const CACHE = "build-the-campus-v4";
 
 function precache() {
   return caches.open(CACHE).then(async (cache) => {
