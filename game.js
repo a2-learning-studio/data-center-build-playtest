@@ -248,7 +248,7 @@ function renderBuild() {
         .map((e) => {
           const done = st.placed.has(e);
           const waits = !done && (NEED_FIRST[e] || []).some((x) => !st.placed.has(x));
-          const title = waits ? t.elements.clearWait : done ? t.showOnMap : "";
+          const title = waits ? t.clearWait : done ? t.showOnMap : "";
           return `<li><button type="button" class="el" data-el="${e}"${done ? " data-done" : ""}${waits ? " disabled" : ""} title="${esc(title)}"><span class="el-mark">${done ? ICON.done : waits ? ICON.lock : ICON.plus}</span><span class="el-name">${esc(t.elements[e].name)}</span><span class="el-act">${esc(done ? t.placed : waits ? t.notYet : t.place)}</span></button></li>`;
         })
         .join("")}</ul>
@@ -465,7 +465,7 @@ function place(e) {
   const t = T();
   if (st.placed.has(e) || dlg.open || cardPending) return;
   if ((NEED_FIRST[e] || []).some((x) => !st.placed.has(x))) {
-    say(t.elements.clearWait);
+    say(t.clearWait);
     renderBuild();
     return;
   }
@@ -529,10 +529,31 @@ function next() {
 
 // ---------- narration ----------
 const audio = new Audio();
+audio.setAttribute("playsinline", "");
+audio.playsInline = true;
+const SILENT_WAV = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
+let audioUnlocked = false;
 const capEl = $("[data-caption]");
 const voice = { on: true };
 let capTimer = 0;
 let speakSettle = null;
+// iOS and Android allow later clips only after play() runs inside a tap or key press.
+function unlockAudio() {
+  if (audioUnlocked || audio.getAttribute("src")) return;
+  audio.src = SILENT_WAV;
+  const pending = audio.play();
+  if (!pending) { audioUnlocked = true; return; }
+  pending.then(() => {
+    audioUnlocked = true;
+    if ((audio.currentSrc || audio.src || "").includes("audio/wav")) {
+      audio.pause();
+      audio.removeAttribute("src");
+      audio.load();
+    }
+  }).catch(() => {});
+}
+addEventListener("pointerdown", unlockAudio, { capture: true });
+addEventListener("keydown", unlockAudio, { capture: true });
 function speak(key) {
   // A new line settles the previous one, so a queued issue card is not left waiting on audio that was cut off.
   if (speakSettle) { const prev = speakSettle; speakSettle = null; prev(); }
@@ -563,7 +584,8 @@ function speak(key) {
     speakSettle = done;
     const backstop = setTimeout(done, Math.max(4000, text.length * 85));
     audio.onended = audio.onerror = done;
-    audio.play().catch(done);
+    if (window.__voiceRate) audio.playbackRate = window.__voiceRate;
+    audio.play().then(() => { audioUnlocked = true; }).catch(done);
   });
 }
 function hush() {
@@ -798,7 +820,27 @@ $("[data-idle-keep]").addEventListener("click", () => { clearInterval(idleTimer)
 idleDlg.addEventListener("cancel", (ev) => { ev.preventDefault(); $("[data-idle-keep]").click(); });
 
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
-  navigator.serviceWorker.register("./sw.js").catch(() => {});
+  // Reload once when a newer worker takes over a page that was already controlled.
+  // The first visit has no controller, so it does not reload itself in a loop.
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloading = false;
+  if (hadController) {
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (reloading) return;
+      reloading = true;
+      location.reload();
+    });
+  }
+  navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" }).then((reg) => {
+    const askSkip = () => { if (hadController && reg.waiting) reg.waiting.postMessage({ type: "SKIP_WAITING" }); };
+    askSkip();
+    reg.addEventListener("updatefound", () => {
+      const worker = reg.installing;
+      if (!worker) return;
+      worker.addEventListener("statechange", () => { if (worker.state === "installed") askSkip(); });
+    });
+    reg.update().catch(() => {});
+  }).catch(() => {});
 }
 
 // A hook for screenshots and checks.
@@ -835,6 +877,7 @@ window.__dc = {
   card: openCard,
   view(o) { if (o) scene?.setView(o); else scene?.resetView(); },
   state: () => st,
+  audio: () => ({ unlocked: audioUnlocked, paused: audio.paused, time: audio.currentTime, src: audio.currentSrc ? audio.currentSrc.slice(0, 48) : "" }),
   scores,
   hood,
   info: () => scene?.info(),

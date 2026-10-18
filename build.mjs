@@ -1,6 +1,6 @@
 // Builds index.html: Build the Campus, a 3D game about building a data center campus.
 // node build.mjs  -> index.html, one self-contained page: three.js, fonts, strings and code inlined, no network.
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, copyFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { speakable } from "./voice-lines.mjs";
@@ -108,5 +108,12 @@ const body = `
 const LIVE = read("game.js").replace("__DATA__", JSON.stringify({ PHASES, BASE_MONTHS, VOICE, CAPTIONS })).replace("__STRINGS__", JSON.stringify(STRINGS));
 const script = (THREE_JS + read("scene.js") + "\n" + LIVE).replace(/<\/(script)/gi, "<\\/$1");
 const page = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><link rel="icon" href="data:,"><title>${t.pageTitle}</title><style>${FONTS}${read("style.css")}</style></head><body data-view="build" data-side="hood">${body}<script type="module">${script}</script></body></html>`;
+if (page.includes("VOICE_HANDOFF")) throw new Error("voice handoff leaked into index.html");
 writeFileSync(join(HERE, "index.html"), page);
+// GitHub Pages publishes docs/ only. The handoff and other notes stay at the repo root, outside this folder.
+const docs = join(HERE, "docs");
+mkdirSync(docs, { recursive: true });
+writeFileSync(join(docs, "index.html"), page);
+copyFileSync(join(HERE, "sw.js"), join(docs, "sw.js"));
+writeFileSync(join(docs, ".nojekyll"), "");
 console.log("wrote index.html", `${(page.length / 1024).toFixed(0)} KB`, `base ${BASE_MONTHS} months`, `${clipCount} voice clips`);

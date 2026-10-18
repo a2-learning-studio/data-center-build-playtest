@@ -4,7 +4,7 @@ export function lines(t) {
   const L = {};
   L.intro = `${t.introBody} ${t.introHow}`;
   for (const [id, p] of Object.entries(t.phases)) L[`phase:${id}`] = `${p.name}. ${p.log}`;
-  for (const [id, e] of Object.entries(t.elements)) L[`el:${id}`] = e.log;
+  for (const [id, e] of Object.entries(t.elements)) if (e && typeof e.log === "string") L[`el:${id}`] = e.log;
   for (const [id, c] of Object.entries(t.cards)) {
     L[`card:${id}`] = `${c.title}. ${c.body}`;
     for (const o of ["a", "b", "c"]) if (c[o]) L[`opt:${id}:${o}`] = c[o].log;
