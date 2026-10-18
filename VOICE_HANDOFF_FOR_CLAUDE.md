@@ -1,6 +1,6 @@
 # Voice handoff for Claude Code
 
-This note is for the owner’s machine. It is not part of the game. Do not fetch it, inline it, copy it into `docs/`, or add it to a service-worker cache. `build.mjs` writes only `index.html` and the `docs/` copy of the game. `sw.js` does not cache `.md` files. GitHub Pages for this repo publishes `docs/` only, so this file at the repo root is not on the live site.
+This note is for the owner’s machine. It is not part of the game. Do not fetch it, inline it, copy it into `index.html` or `docs/`, or add it to a service-worker cache. `build.mjs` writes the game into `index.html` and a `docs/` copy. `sw.js` does not cache `.md` files. `_config.yml` excludes this file from the GitHub Pages build, so it is not on the live site.
 
 Fifteen narration lines changed and no longer match `voice/en/manifest.json`. The old mp3 files are still on disk, but `build.mjs` leaves them out, so the game shows the new caption with no audio. Forty other lines still match and must keep their current clips. `STRINGS.es` is empty, so this list is English only.
 

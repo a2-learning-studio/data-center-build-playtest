@@ -1,0 +1,21 @@
+# GitHub Pages runs Jekyll only so this exclude list is applied.
+# The game itself is the static index.html and the versioned service worker.
+exclude:
+  - VOICE_HANDOFF_FOR_CLAUDE.md
+  - README.md
+  - AUDIT.md
+  - PROMPT-for-Grok.md
+  - voice
+  - vendor
+  - screenshots
+  - docs
+  - strings.mjs
+  - game.js
+  - scene.js
+  - style.css
+  - build.mjs
+  - voice-lines.mjs
+  - voice.mjs
+  - make-voice.ps1
+  - make-voice.cmd
+  - sw.js
