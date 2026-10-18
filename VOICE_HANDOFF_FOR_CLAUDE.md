@@ -145,7 +145,7 @@ Taken from `voice.mjs`, `make-voice.ps1`, and commit `7684483` (“Add narration
 
 1. Keep every existing file in `voice/en/` whose manifest text still equals today’s `speakable()` line. `voice.mjs` already skips those.
 2. Run `voice.mjs` so it overwrites only the fifteen files above and updates their manifest entries (`file`, `hash`, `text` = the exact text to speak, `bytes`).
-3. Run `node build.mjs`. It inlines a clip only when the manifest text equals `speakable(lines())` and the mp3 exists (`build.mjs` around the `VOICE` loop). Each clip becomes a `data:audio/mpeg;base64,...` URL inside `index.html`. The same HTML is copied to `docs/index.html`, and `sw.js` is copied to `docs/sw.js`.
+3. Run `node build.mjs`. It inlines a clip only when the manifest text equals `speakable(lines())` and the mp3 exists (`build.mjs` around the `VOICE` loop). Each clip becomes a `data:audio/mpeg;base64,...` URL inside `index.html`. The same HTML is copied to `docs/index.html`, and the versioned worker `sw-build-the-campus-v3.js` is copied beside it. GitHub Pages publishes the root `index.html` and that worker. `_config.yml` leaves this note out of the site.
 4. Do not add audio URLs, do not fetch mp3s at runtime, and do not copy this markdown file into `index.html` or `docs/`.
 5. After the build, the log line should report 55 voice clips (40 today, plus these 15).
 
@@ -166,7 +166,7 @@ You are working in the repo a2-learning-studio/data-center-build-playtest. Read 
 
 Generate the fifteen narration clips listed in that file with the owner's existing TTS setup. Use make-voice.ps1, or the same commands it runs: set ELEVEN_API_KEY in the environment only (the script also accepts XI_KEY), then run `node --dns-result-order=ipv4first voice.mjs en`. voice.mjs already targets ElevenLabs voice 21m00Tcm4TlvDq8ikWAM, model eleven_multilingual_v2, output_format mp3_22050_32, and the voice_settings in that file. Do not change the voice, model, or settings. Do not clone a voice. Send each line's "exact text to speak" (voice.mjs does this via speakable()). Generate only lines whose text changed. Leave the existing mp3 files and manifest entries in place for every unchanged line.
 
-Then run `node build.mjs`. That inlines matching mp3s as data URLs so the game stays one offline index.html, and it copies that file plus sw.js into docs/ for GitHub Pages. Do not copy VOICE_HANDOFF_FOR_CLAUDE.md into index.html, docs/, or the service worker cache. The build should report 55 voice clips.
+Then run `node build.mjs`. That inlines matching mp3s as data URLs so the game stays one offline index.html, and it also refreshes the docs/ copy and the versioned service worker. Do not copy VOICE_HANDOFF_FOR_CLAUDE.md into index.html, docs/, or the service worker cache. Leave the _config.yml exclude in place. The build should report 55 voice clips.
 
 Run the game. Check that every changed line plays and that its on-screen caption matches the caption in the handoff. Also check that unchanged lines, including the intro, still play the old clips. Do this on desktop, in Android Chrome, and in iOS Safari, including the first-tap audio unlock. Open a pull request with the new clips, the updated manifest, and the rebuilt index.html and docs/index.html. Do not put the API key in the branch.
 ```
