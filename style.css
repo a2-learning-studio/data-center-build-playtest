@@ -38,7 +38,7 @@ h1.brand-name{font-family:var(--font-display);font-weight:700;font-size:1.2rem;l
 .kpi::before{content:"";position:absolute;left:9px;top:11px;width:8px;height:8px;border-radius:50%;background:var(--good);box-shadow:0 0 0 3px #1f8a5b33}
 .kpi[data-level="2"]::before,.kpi[data-level="3"]::before{background:var(--gold);box-shadow:0 0 0 3px #e69f0033}
 .kpi[data-level="1"]::before,.kpi[data-level="0"]::before{background:#ff7a5a;box-shadow:0 0 0 3px #ff7a5a33}
-.kpi-label{grid-column:1/-1;font-size:.74rem;text-transform:uppercase;letter-spacing:.08em;color:#bfd1c8;font-weight:700;white-space:nowrap}
+.kpi-label{grid-column:1/-1;font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;color:#bfd1c8;font-weight:700;white-space:nowrap}
 .kpi-val{font-family:var(--font-display);font-weight:700;font-size:1.05rem;font-variant-numeric:tabular-nums;white-space:nowrap}
 .kpi-word{font-size:.78rem;color:#bfd1c8;white-space:nowrap}
 .kpi-val .short{display:none}
@@ -130,7 +130,7 @@ body[data-side="hood"] .side-hood,body[data-side="choices"] .side-choices{displa
 .choice{display:grid;gap:4px}
 .choice-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .choice-name{font-weight:700;font-size:.86rem}
-.lock{display:inline-flex;align-items:center;gap:4px;font-size:.7rem;color:var(--muted);font-weight:600}
+.lock{display:inline-flex;align-items:center;gap:4px;font-size:.75rem;color:var(--muted);font-weight:600}
 .lock svg{width:12px;height:12px}
 .seg{display:grid;grid-template-columns:1fr 1fr;background:var(--sunken);border-radius:12px;padding:3px;gap:3px}
 .seg button{border:0;border-radius:9px;background:transparent;min-height:40px;padding:4px 8px;font-size:.84rem;font-weight:600;cursor:pointer;line-height:1.15;color:var(--ink-2)}
@@ -189,7 +189,7 @@ body[data-side="hood"] .side-hood,body[data-side="choices"] .side-choices{displa
 .opt kbd{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:8px;background:var(--sunken);font:inherit;font-size:.82rem;flex:none}
 .end-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:8px 0 18px}
 .end-stats div{background:var(--sunken);border-radius:14px;padding:10px 14px}
-.end-stats dt{font-size:.74rem;text-transform:uppercase;letter-spacing:.08em;font-weight:700;color:var(--muted)}
+.end-stats dt{font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;font-weight:700;color:var(--muted)}
 .end-stats dd{margin:0;font-weight:700}
 .end-chose{margin:0 0 16px;padding-left:20px;display:grid;gap:3px;font-size:.92rem;color:var(--ink-2)}
 
@@ -199,7 +199,7 @@ body[data-side="hood"] .side-hood,body[data-side="choices"] .side-choices{displa
   .kpi-word{display:none}
 }
 @media (max-width:1040px){
-  .kpi{padding:4px 10px 5px 20px}.kpi-label{font-size:.62rem}.kpi-val{font-size:.95rem}
+  .kpi{padding:4px 10px 5px 20px}.kpi-label{font-size:.75rem}.kpi-val{font-size:.95rem}
   .badge{display:none}
 }
 @media (max-height:800px) and (min-width:761px){
@@ -218,7 +218,7 @@ body[data-side="hood"] .side-hood,body[data-side="choices"] .side-choices{displa
   .kpis{order:3;flex-basis:100%;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
   .kpi{padding:4px 6px 5px 18px;grid-template-columns:1fr}
   .kpi::before{left:7px;top:9px;width:7px;height:7px}
-  .kpi-label{font-size:.7rem;letter-spacing:.02em;overflow:hidden;text-overflow:ellipsis}
+  .kpi-label{font-size:.75rem;letter-spacing:.02em;overflow:hidden;text-overflow:ellipsis}
   .kpi-val{font-size:.8rem;overflow:hidden;text-overflow:ellipsis}
   .kpi-word{display:none}
   .kpi-val .long{display:none}.kpi-val .short{display:inline}

@@ -25,7 +25,7 @@ const MEP = ["switchgear", "ups", "gens", "cooling", "fire"];
 // Asked at the moment they matter. Nothing is filled in ahead of time.
 const PHASE_START = { grade: ["route", "hours"], shell: ["light"] };
 const BEFORE_EL = { roads: ["wall"], clear: ["buffer"], cooling: ["cool"] };
-const NEED_FIRST = { clear: ["erosion", "ponds"] };
+const NEED_FIRST = { clear: ["erosion", "roads", "ponds"] };
 const PHASE_REQUIRED = { grade: ["route", "hours", "buffer", "wall"], shell: ["light"], mep: ["cool"], cx: ["test"] };
 
 // ---------- state ----------
@@ -37,6 +37,11 @@ const fresh = () => ({
   choice: { route: null, hours: null, buffer: null, wall: null, cool: null, light: null, test: null },
   frozenSched: {},
   cards: {},
+  // Commissioning level reached by each MEP item: 0 none, 1 factory, 2 set in place, 3 start-up, 4 functional.
+  cx: Object.fromEntries(MEP.map((id) => [id, 0])),
+  xfmr: 0,
+  hold: { substation: false, switchgear: false },
+  holdWhy: { substation: "", switchgear: "" },
   log: [],
   ov: true,
   started: false,
@@ -44,7 +49,69 @@ const fresh = () => ({
 const ui = { tab: "build", side: "hood", hot: null };
 const started = (id) => PH.find((p) => p.id === id).els.some((e) => st.placed.has(e));
 const ready = (p) => p.after.every((a) => st.done.has(a));
-const mepCount = () => MEP.filter((e) => st.placed.has(e)).length;
+const powerOn = () => st.placed.has("substation") && st.placed.has("transmission");
+const gearAt = (n) => MEP.filter((id) => (st.cx[id] || 0) >= n).length;
+function syncCx() {
+  for (const [flag, n] of [["L1", 1], ["L2", 2], ["L3", 3], ["L4", 4]]) {
+    if (gearAt(n) === MEP.length) st.placed.add(flag);
+    else st.placed.delete(flag);
+  }
+}
+function otherWorkLeft() {
+  for (const p of PH) {
+    if (!ready(p)) continue;
+    for (const e of p.els) {
+      if (e === "substation" || e === "switchgear" || e === "L5") continue;
+      if (!st.placed.has(e)) return true;
+    }
+  }
+  return false;
+}
+function waitMode() {
+  if (!st.done.has("shell")) return "shell";
+  if (otherWorkLeft()) return "step";
+  return "";
+}
+// "Wait" keeps gear off the site. The shell is the stand-in for a final design.
+// Switchgear that was waiting on the shell still waits through one later piece of other work.
+// If nothing else can be built, there is no hold, so a phase cannot jam.
+function applyProcurement(answer) {
+  st.hold = { substation: false, switchgear: false };
+  st.holdWhy = { substation: "", switchgear: "" };
+  if (answer === "a") return;
+  const arm = (id) => {
+    const why = waitMode();
+    if (!why) return;
+    st.hold[id] = true;
+    st.holdWhy[id] = why;
+  };
+  if (answer === "b" || answer === "c") arm("switchgear");
+  if (answer === "b") arm("substation");
+}
+function releaseHold() {
+  for (const id of ["substation", "switchgear"]) {
+    if (!st.hold[id]) continue;
+    if (st.holdWhy[id] === "step") {
+      st.hold[id] = false;
+      st.holdWhy[id] = "";
+    } else if (st.holdWhy[id] === "shell" && st.done.has("shell")) {
+      if (id === "switchgear" && otherWorkLeft()) st.holdWhy[id] = "step";
+      else {
+        st.hold[id] = false;
+        st.holdWhy[id] = "";
+      }
+    }
+  }
+}
+function stuckHold() {
+  for (const id of ["substation", "switchgear"]) {
+    if (!st.hold[id]) continue;
+    if (st.holdWhy[id] === "shell" && !st.done.has("shell")) continue;
+    if (otherWorkLeft()) continue;
+    st.hold[id] = false;
+    st.holdWhy[id] = "";
+  }
+}
 
 // ---------- model ----------
 const EFFECT = {
@@ -60,7 +127,8 @@ const EFFECT = {
 const CARD = {
   weather: { at: "clear", opts: { a: { budget: 0.5, hood: 6, sched: { grade: 0.5 } }, b: { safety: -12, hood: -10, storm: 1, sched: { grade: 1 }, budget: 1, permit: 1 } } },
   // Real transformer lead time is about 2–4 years. The months here are the shortened in-game wait.
-  longlead: { at: "util", opts: { a: { budget: 2 }, b: { sched: { util: 9, mep: 4 } }, c: { budget: 1, sched: { mep: 4 } } } },
+  // Asked before the substation or the switchgear is placed, not after either one is already on the site.
+  longlead: { opts: { a: { budget: 2 }, b: { sched: { util: 9, mep: 4 } }, c: { budget: 1, sched: { mep: 4 } } } },
   labor: { at: "mep", opts: { a: { budget: 2, safety: -8, hood: -8, night: 1 }, b: { sched: { mep: 3 } }, c: { budget: 1.5, safety: 5, sched: { mep: 1 } } } },
 };
 function effects() {
@@ -97,7 +165,7 @@ function choiceLocked(c) {
   if (c === "cool") return st.placed.has("cooling");
   if (c === "route" || c === "hours") return st.done.has("found");
   if (c === "light") return st.done.has("shell");
-  if (c === "test") return st.placed.has("L3");
+  if (c === "test") return MEP.some((id) => (st.cx[id] || 0) >= 3);
   return false;
 }
 function hood() {
@@ -129,7 +197,7 @@ function hood() {
   L.storm = !s("grade") ? 0 : st.placed.has("ponds") ? (e.storm ? 2 : 1) : 3 + (e.storm ? 1 : 0);
   L.water = !s("util") ? 0 : ops ? (c.cool === "b" ? 3 : 1) : 1;
   L.power = !s("util") ? 0 : ops ? (c.cool === "a" ? 4 : 3) : 1;
-  L.gens = !st.placed.has("gens") ? 0 : clamp((st.placed.has("L3") && !ops ? 2 : 1) + (c.test === "b" ? 1 : 0), 1, 4);
+  L.gens = !st.placed.has("gens") ? 0 : clamp((st.cx.gens >= 3 && !ops ? 2 : 1) + (c.test === "b" ? 1 : 0), 1, 4);
   L.jobs = !s("grade") ? 0 : ops ? 1 : s("mep") && !d("fitout") ? 4 : d("fitout") ? 2 : 3;
   L.tax = !d("shell") ? 0 : ops ? 3 : 1;
   L.setback = !st.placed.has("panels") ? (s("grade") ? 1 : 0) : c.buffer === "a" ? 1 : c.buffer === "b" ? 3 : 2;
@@ -214,21 +282,47 @@ const ICON = {
   plus: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>',
 };
 
+function cxState(n) {
+  const t = T();
+  const k = gearAt(n);
+  return k >= MEP.length ? t.cxDone : k ? fmt(t.cxOf, { n: k }) : t.cxWait;
+}
 function cxTrackHtml() {
   const t = T();
-  const show = st.placed.has("L1") || started("mep") || st.focus === "cx" || st.focus === "fitout";
+  const show = MEP.some((id) => st.cx[id] > 0) || st.xfmr || started("mep") || ["util", "mep", "fitout", "cx"].includes(st.focus);
   if (!show) return "";
-  const n = mepCount();
+  const row = (id, detail, state) => `<li data-cx="${esc(id)}"><span><b>${esc(t.elements[id].name)}</b> — ${esc(detail)}</span><span>${esc(state)}</span></li>`;
+  const gear = MEP.map((id) => `<li data-cx="${esc(id)}"><span><b>${esc(t.elements[id].name)}</b></span><span>${esc(st.cx[id] ? fmt(t.cxLv, { n: st.cx[id] }) : t.cxWait)}</span></li>`);
   const rows = [
-    ["L1", st.placed.has("L1") ? t.cxDone : t.cxWait],
-    ["L2", n >= MEP.length ? t.cxDone : n ? fmt(t.cxOf, { n }) : t.cxWait],
-    ["L3", st.placed.has("L3") ? t.cxDone : t.cxWait],
-    ["L4", st.placed.has("L4") ? t.cxDone : t.cxWait],
-    ["L5", st.placed.has("L5") ? t.cxDone : t.cxWait],
+    row("L1", t.cxWhen.L1, cxState(1)),
+    row("L2", t.cxWhen.L2, cxState(2)),
+    row("L3", t.cxWhen.L3, cxState(3)),
+    row("L4", t.cxWhen.L4, cxState(4)),
+    ...gear,
+    row("substation", t.cxWhen.L1, st.xfmr ? t.cxDone : t.cxWait),
+    row("L5", t.cxWhen.L5, st.placed.has("L5") ? t.cxDone : t.cxWait),
   ];
-  return `<p class="log-h">${esc(t.cxTrackTitle)}</p><ul class="cx">${rows
-    .map(([id, state]) => `<li><span><b>${esc(t.elements[id].name)}</b> — ${esc(t.cxWhen[id])}</span><span>${esc(state)}</span></li>`)
-    .join("")}</ul><p class="muted">${esc(t.cxTrackNote)}</p>`;
+  return `<p class="log-h">${esc(t.cxTrackTitle)}</p><ul class="cx">${rows.join("")}</ul><p class="muted">${esc(t.cxTrackNote)}</p>`;
+}
+function blockReason(e) {
+  const t = T();
+  if ((NEED_FIRST[e] || []).some((x) => !st.placed.has(x))) return e === "clear" ? t.clearWait : t.notYet;
+  if (st.hold[e]) return st.holdWhy[e] === "shell" ? t.holdShell : t.holdStep;
+  if (e === "L5" && !MEP.every((id) => st.cx[id] >= 4)) {
+    if (powerOn() && st.choice.test && MEP.every((id) => st.cx[id] >= 3)) return "";
+    return t.cxNeedL5;
+  }
+  return "";
+}
+function actLabel(e, done) {
+  const t = T();
+  if (done) return t.placed;
+  if (blockReason(e)) return t.notYet;
+  if ((e === "substation" || e === "switchgear") && !st.cards.longlead) return t.orderAct;
+  if (e === "substation" && !st.xfmr) return t.factoryAct;
+  if (MEP.includes(e) && !st.cx[e]) return t.factoryAct;
+  if (e === "L5" && MEP.some((id) => st.cx[id] === 3)) return t.cxRunL4;
+  return t.place;
 }
 function renderBuild() {
   const t = T();
@@ -247,9 +341,9 @@ function renderBuild() {
       <ul class="els">${p.els
         .map((e) => {
           const done = st.placed.has(e);
-          const waits = !done && (NEED_FIRST[e] || []).some((x) => !st.placed.has(x));
-          const title = waits ? t.clearWait : done ? t.showOnMap : "";
-          return `<li><button type="button" class="el" data-el="${e}"${done ? " data-done" : ""}${waits ? " disabled" : ""} title="${esc(title)}"><span class="el-mark">${done ? ICON.done : waits ? ICON.lock : ICON.plus}</span><span class="el-name">${esc(t.elements[e].name)}</span><span class="el-act">${esc(done ? t.placed : waits ? t.notYet : t.place)}</span></button></li>`;
+          const why = !done ? blockReason(e) : "";
+          const title = why || (done ? t.showOnMap : "");
+          return `<li><button type="button" class="el" data-el="${e}"${done ? " data-done" : ""}${why ? " disabled" : ""} title="${esc(title)}"><span class="el-mark">${done ? ICON.done : why ? ICON.lock : ICON.plus}</span><span class="el-name">${esc(t.elements[e].name)}</span><span class="el-act">${esc(actLabel(e, done))}</span></button></li>`;
         })
         .join("")}</ul>
       <button type="button" class="btn btn-wide" data-finish${all ? "" : " disabled"}>${esc(all ? fmt(t.finishPhase, { name: t.phases[p.id].short }) : t.finishNeed)}</button>`;
@@ -348,14 +442,30 @@ function renderSide() {
   for (const b of $$("[data-side-tab]")) b.setAttribute("aria-pressed", b.dataset.sideTab === ui.side);
   document.body.dataset.side = ui.side;
 }
-$("[data-hood]").addEventListener("click", (e) => {
-  const b = e.target.closest("[data-key]");
-  if (!b) return;
-  ui.hot = ui.hot === b.dataset.key ? null : b.dataset.key;
+function focusHood(key, toggle) {
+  if (!key) return;
+  if (toggle) ui.hot = ui.hot === key ? null : key;
+  else if (ui.hot === key) return;
+  else ui.hot = key;
+  const keep = document.activeElement?.closest?.("[data-key]")?.dataset.key;
   renderSide();
   paintScene(false);
+  if (keep) $(`[data-hood] [data-key="${keep}"]`)?.focus({ preventScroll: true });
   const spot = HOT_SPOT[ui.hot];
   if (spot && st.ov) scene?.lookAt(spot[0], spot[1]);
+}
+$("[data-hood]").addEventListener("pointerover", (e) => {
+  if (e.pointerType && e.pointerType !== "mouse") return;
+  const b = e.target.closest("[data-key]");
+  if (b) focusHood(b.dataset.key, false);
+});
+$("[data-hood]").addEventListener("focusin", (e) => {
+  const b = e.target.closest("[data-key]");
+  if (b) focusHood(b.dataset.key, false);
+});
+$("[data-hood]").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-key]");
+  if (b) focusHood(b.dataset.key, true);
 });
 $("[data-choices]").addEventListener("click", (e) => {
   const b = e.target.closest("[data-choice]");
@@ -426,22 +536,23 @@ function decisionsDue(e) {
   for (const c of BEFORE_EL[e] || []) if (!st.choice[c] && !due.includes(c)) due.push(c);
   return due;
 }
-function l3Ready() { return st.done.has("util") && mepCount() > 0 && !st.placed.has("L3"); }
-function l3NeedsTest() { return l3Ready() && !st.choice.test; }
-function markAutoCx(just) {
+function l3NeedsTest() {
+  return powerOn() && !st.choice.test && MEP.some((id) => st.cx[id] >= 2 && st.cx[id] < 3);
+}
+// Level 3 needs that item on site, permanent power, and the test choice. Level 4 is a later step, never the same one.
+function advanceCx() {
   const t = T();
   const notes = [];
-  const n = mepCount();
-  if (n > 0) st.placed.add("L2");
-  if (MEP.includes(just)) notes.push(fmt(t.logL2, { n }));
-  if (l3Ready() && st.choice.test) {
-    st.placed.add("L3");
-    notes.push(t.logL3);
+  if (powerOn() && st.choice.test) {
+    let up = false;
+    for (const id of MEP) if (st.cx[id] === 2) { st.cx[id] = 3; up = true; }
+    if (up) notes.push(t.logL3);
   }
-  if (st.done.has("mep") && !st.placed.has("L4")) {
-    st.placed.add("L4");
+  if (!notes.length && powerOn() && MEP.every((id) => st.cx[id] >= 3) && MEP.some((id) => st.cx[id] === 3)) {
+    for (const id of MEP) if (st.cx[id] === 3) st.cx[id] = 4;
     notes.push(t.logL4);
   }
+  syncCx();
   return notes;
 }
 function pickPhase(id) {
@@ -456,6 +567,7 @@ function pickPhase(id) {
   if (st.done.has(id)) return;
   const opening = st.focus !== id && !started(id);
   st.focus = id;
+  advanceCx().forEach(say);
   renderAll();
   if (opening) speak(`phase:${id}`);
   if (ui.tab !== "build") setTab("build");
@@ -464,23 +576,57 @@ function pickPhase(id) {
 function place(e) {
   const t = T();
   if (st.placed.has(e) || dlg.open || cardPending) return;
-  if ((NEED_FIRST[e] || []).some((x) => !st.placed.has(x))) {
-    say(t.clearWait);
+  stuckHold();
+  const why = blockReason(e);
+  if (why) {
+    say(why);
     renderBuild();
     return;
   }
   const due = decisionsDue(e);
   if (due.length) { openDecide(due[0], () => place(e)); return; }
+  if ((e === "substation" || e === "switchgear") && !st.cards.longlead) {
+    openCard("longlead", () => { renderAll(); focusNext(); });
+    return;
+  }
+  if (e === "substation" && !st.xfmr) {
+    st.xfmr = 1;
+    say(t.logL1);
+    renderAll();
+    focusNext();
+    return;
+  }
+  if (MEP.includes(e) && !st.cx[e]) {
+    st.cx[e] = 1;
+    syncCx();
+    say(t.logL1);
+    renderAll();
+    focusNext();
+    return;
+  }
+  if (e === "L5" && !MEP.every((id) => st.cx[id] >= 4)) {
+    const notes = advanceCx();
+    notes.forEach(say);
+    if (!notes.length) say(t.cxNeedL5);
+    renderAll();
+    focusNext();
+    return;
+  }
   st.placed.add(e);
-  for (const note of markAutoCx(e)) say(note);
+  if (MEP.includes(e)) {
+    st.cx[e] = Math.max(st.cx[e], 2);
+    say(fmt(t.logL2, { n: gearAt(2) }));
+  }
+  if (!st.hold[e]) releaseHold();
+  advanceCx().forEach(say);
   say(t.elements[e].log);
   renderAll();
   scene?.focus(e);
   showTag(e);
   const said = speak(`el:${e}`);
-  const card = Object.entries(CARD).find(([id, c]) => !(id in st.cards) && (c.at === e || c.at === phaseOf[e]));
+  const card = Object.entries(CARD).find(([id, c]) => c.at && !(id in st.cards) && (c.at === e || c.at === phaseOf[e]));
   const follow = () => {
-    if (l3NeedsTest()) openDecide("test", () => { markAutoCx("").forEach(say); renderAll(); focusNext(); });
+    if (l3NeedsTest()) openDecide("test", () => { advanceCx().forEach(say); renderAll(); focusNext(); });
     else focusNext();
   };
   if (card) { st.cards[card[0]] = null; scheduleCard(card[0], said, follow); }
@@ -497,7 +643,8 @@ function finishPhase(id) {
     say(fmt(t.logPhaseDone, { name: t.phases[id].name }));
   }
   const proceed = () => {
-    markAutoCx("").forEach(say);
+    releaseHold();
+    advanceCx().forEach(say);
     if (id === "cx") { say(t.logCx); speak("cx"); }
     st.focus = null;
     renderAll();
@@ -507,11 +654,12 @@ function finishPhase(id) {
   if (l3NeedsTest()) openDecide("test", proceed);
   else proceed();
 }
-function choose(c, v) {
+function choose(c, v, opts = {}) {
   const t = T();
   if (choiceLocked(c) || st.choice[c] === v || !EFFECT[c]?.[v]) return;
   st.choice[c] = v;
   say(fmt(t.logChoice, { name: t.choices[c].name, value: t.choices[c][v].label }));
+  if (c === "test" && !opts.skipCx) advanceCx().forEach(say);
   renderAll();
   $(`[data-choice="${c}"][data-v="${v}"]`)?.focus({ preventScroll: true });
 }
@@ -519,9 +667,13 @@ function next() {
   if (dlg.open || cardPending) return;
   const p = PH.find((q) => q.id === st.focus);
   if (p) {
-    const e = p.els.find((x) => !st.placed.has(x));
+    const open = p.els.filter((x) => !st.placed.has(x));
+    const e = open.find((x) => !blockReason(x));
     if (e) return place(e);
-    return finishPhase(p.id);
+    if (!open.length) return finishPhase(p.id);
+    const other = PH.find((q) => q.id !== p.id && ready(q) && !st.done.has(q.id) && q.els.some((x) => !st.placed.has(x) && !blockReason(x)));
+    if (other) return pickPhase(other.id);
+    return place(open[0]);
   }
   const r = PH.find((q) => ready(q) && !st.done.has(q.id));
   if (r) pickPhase(r.id);
@@ -681,15 +833,12 @@ $(".card-opts", dlg).addEventListener("click", (e) => {
     const fn = resume;
     resume = null;
     dlg.close();
-    choose(id, b.dataset.o);
+    choose(id, b.dataset.o, { skipCx: true });
     fn?.();
     return;
   }
   st.cards[id] = b.dataset.o;
-  if (id === "longlead" && !st.placed.has("L1")) {
-    st.placed.add("L1");
-    say(T().logL1);
-  }
+  if (id === "longlead") applyProcurement(b.dataset.o);
   say(T().cards[id][b.dataset.o].log);
   speak(`opt:${id}:${b.dataset.o}`);
   const fn = cardAfter;
@@ -763,6 +912,7 @@ fxBtn.addEventListener("click", toggleFx);
 $("[data-reset]").addEventListener("click", () => scene?.resetView());
 document.addEventListener("keydown", (ev) => {
   if (ev.altKey || ev.ctrlKey || ev.metaKey) return;
+  if (ev.key === "v" || ev.key === "V") { ev.preventDefault(); setVoice(!voice.on); return; }
   if (dlg.open) {
     const b = $(`.opt[data-key="${ev.key}"]`, dlg);
     if (b) { ev.preventDefault(); b.click(); }
@@ -772,7 +922,6 @@ document.addEventListener("keydown", (ev) => {
   if (introDlg.open) { if (ev.key === "n" || ev.key === "N") { ev.preventDefault(); $("[data-start]").click(); } return; }
   if (ev.key === "n" || ev.key === "N") { ev.preventDefault(); next(); }
   if (ev.key === "m" || ev.key === "M") { ev.preventDefault(); toggleFx(); }
-  if (ev.key === "v" || ev.key === "V") { ev.preventDefault(); setVoice(!voice.on); }
 });
 function reset() {
   playGen += 1;
@@ -823,7 +972,7 @@ idleDlg.addEventListener("cancel", (ev) => { ev.preventDefault(); $("[data-idle-
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
   // Keep this id identical to CACHE in sw.js. Bump both together when publishing.
   // The file name changes with the id, so a reload installs the new worker immediately.
-  const SW_BUILD = "build-the-campus-v3";
+  const SW_BUILD = "build-the-campus-v4";
   const hadController = !!navigator.serviceWorker.controller;
   let reloading = false;
   if (hadController) {
@@ -850,7 +999,12 @@ window.__dc = {
   all(opts = {}) {
     Object.assign(st.choice, opts);
     for (const p of PH) { for (const e of p.els) st.placed.add(e); st.done.add(p.id); }
-    for (const id of ["L1", "L2", "L3", "L4"]) st.placed.add(id);
+    for (const id of MEP) st.cx[id] = 4;
+    st.xfmr = 1;
+    st.cards.longlead = st.cards.longlead || "a";
+    st.hold = { substation: false, switchgear: false };
+    st.holdWhy = { substation: "", switchgear: "" };
+    syncCx();
     st.done.delete("turn");
     st.focus = "turn";
     st.started = true;
@@ -860,15 +1014,18 @@ window.__dc = {
   },
   upTo(id, opts = {}) {
     Object.assign(st.choice, opts);
-    let passedMep = false;
     for (const p of PH) {
       if (p.id === id) { st.focus = id; p.els.slice(0, Math.ceil(p.els.length / 2)).forEach((e) => st.placed.add(e)); break; }
       for (const e of p.els) st.placed.add(e);
       st.done.add(p.id);
-      if (p.id === "mep") passedMep = true;
     }
-    if (passedMep || st.placed.has("switchgear")) for (const cid of ["L1", "L2", "L3", "L4"]) st.placed.add(cid);
-    for (const [cid, c] of Object.entries(CARD)) if (st.placed.has(c.at) || PH.find((p) => p.id === c.at && started(p.id))) st.cards[cid] = st.cards[cid] || "a";
+    for (const gid of MEP) if (st.placed.has(gid)) st.cx[gid] = Math.max(st.cx[gid] || 0, 2);
+    if (st.placed.has("substation")) st.xfmr = 1;
+    syncCx();
+    for (const [cid, c] of Object.entries(CARD)) {
+      if (!c.at) continue;
+      if (st.placed.has(c.at) || started(c.at)) st.cards[cid] = st.cards[cid] || "a";
+    }
     st.started = true;
     introDlg.open && introDlg.close();
     scene?.setAttract(false);
@@ -881,6 +1038,7 @@ window.__dc = {
   state: () => st,
   audio: () => ({ unlocked: audioUnlocked, paused: audio.paused, time: audio.currentTime, src: audio.currentSrc ? audio.currentSrc.slice(0, 48) : "" }),
   scores,
+  schedule,
   hood,
   info: () => scene?.info(),
   meshes: () => scene?.meshes(),

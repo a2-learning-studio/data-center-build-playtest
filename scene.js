@@ -21,7 +21,7 @@ function createScene(canvas, { reduced = () => false, signs = null } = {}) {
   const T3 = THREE;
   const lowQ = detectLowQ();
   const signMats = {};
-  const signLines = () => (signs ? signs() : ["PUBLIC NOTICE", "Rezoning hearing", "RED CLAY RIDGE"]);
+  const signLines = () => (signs ? signs() : ["", "", ""]);
   let seed = 1234567;
   const R = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
   const TILE = { x0: -260, x1: 260, z0: -180, z1: 180 };
@@ -245,7 +245,7 @@ function createScene(canvas, { reduced = () => false, signs = null } = {}) {
     machine: M({ color: "#f0b323", roughness: 0.45, metalness: 0.15 }),
     glass: new (lowQ ? T3.MeshStandardMaterial : T3.MeshPhysicalMaterial)({ color: "#5d7f97", roughness: 0.08, metalness: 0.2, envMapIntensity: 1.4 }),
     clearGlass: new (lowQ ? T3.MeshStandardMaterial : T3.MeshPhysicalMaterial)({ color: "#cfe7f2", roughness: 0.05, metalness: 0, transparent: true, opacity: 0.35, depthWrite: false }),
-    water: new (lowQ ? T3.MeshStandardMaterial : T3.MeshPhysicalMaterial)({ color: "#3d6f73", roughness: 0.1, metalness: 0.1, normalMap: tx(TX.water, 1, 1), normalScale: new T3.Vector2(0.12, 0.12), envMapIntensity: 1.2, clearcoat: lowQ ? 0 : 0.6 }),
+    water: new (lowQ ? T3.MeshStandardMaterial : T3.MeshPhysicalMaterial)(Object.assign({ color: "#3d6f73", roughness: 0.1, metalness: 0.1, normalMap: tx(TX.water, 1, 1), normalScale: new T3.Vector2(0.12, 0.12), envMapIntensity: 1.2 }, lowQ ? {} : { clearcoat: 0.6 })),
     bank: M({ map: tx(TX.dirt, 2, 2), color: "#c9b98f" }),
     wood: M({ color: "#8a6a48", roughness: 0.9 }),
     trunk: M({ color: "#6b4f37", roughness: 0.95 }),
