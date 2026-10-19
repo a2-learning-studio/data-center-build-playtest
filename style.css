@@ -60,6 +60,7 @@ h1.brand-name{font-family:var(--font-display);font-weight:700;font-size:1.2rem;l
 .scene{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
 .scene:active{cursor:grabbing}
 .scene[data-zoomed]{cursor:move}
+.scene[data-placing],.scene[data-placing]:active{cursor:crosshair}
 .scene:focus-visible{outline-offset:-4px}
 .nogl{display:none}
 body[data-nogl] .nogl{display:block;position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);max-width:420px;text-align:center}
@@ -90,6 +91,13 @@ body[data-nogl] .nogl{display:block;position:absolute;left:50%;top:40%;transform
 .cam .pill{min-height:40px}
 body[data-nogl] .cam,body[data-nogl] .hint,body[data-nogl] [data-fx]{display:none}
 .cb[aria-pressed="true"]{background:var(--pine);color:#fff;border-color:var(--pine)}
+.place-box{background:var(--pine-soft);border:2px solid var(--pine);border-radius:16px;padding:10px 12px;margin:0 0 12px}
+.place-box p{margin:0 0 8px}
+.place-why{font-weight:700}
+.place-why[data-ok="1"]{color:var(--good)}
+.place-why[data-ok="0"]{color:var(--bad)}
+.place-actions{display:flex;flex-wrap:wrap;gap:8px}
+.place-actions .btn{min-height:44px}
 .game-btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
 .btn-small{min-height:40px;padding:6px 14px;font-size:.88rem}
 .end-btns{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:6px}

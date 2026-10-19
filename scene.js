@@ -284,11 +284,11 @@ function createScene(canvas, { reduced = () => false, signs = null, onMode = nul
   // ---------- tagged groups ----------
   const groups = [];
   const groupFor = (tags = {}) => {
-    const key = [tags.show || "", tags.hide || "", tags.opt || "", tags.keep || "", tags.need || "", tags.drop ? 1 : 0].join("|");
+    const key = [tags.show || "", tags.hide || "", tags.opt || "", tags.keep || "", tags.need || "", tags.drop ? 1 : 0, tags.shift || ""].join("|");
     let g = groups.find((q) => q.userData.key === key);
     if (!g) {
       g = new T3.Group();
-      g.userData = { key, show: tags.show || "", hide: tags.hide || "", opt: tags.opt || "", keep: tags.keep || "", need: tags.need || "", drop: !!tags.drop, rise: 1 };
+      g.userData = { key, show: tags.show || "", hide: tags.hide || "", opt: tags.opt || "", keep: tags.keep || "", need: tags.need || "", drop: !!tags.drop, shift: tags.shift || "", rise: 1 };
       scene.add(g);
       groups.push(g);
     }
@@ -559,16 +559,16 @@ function createScene(canvas, { reduced = () => false, signs = null, onMode = nul
     run(-172, 20, -112, 20);
   }
   for (const p of PONDS) {
-    const g = groupFor({ show: "ponds" });
+    const g = groupFor({ show: "ponds", shift: "ponds" });
     flatShape(g, MAT.bank, p, 0.05, p.r);
     flatShape(g, MAT.water, { x: p.x + 5, y: p.y + 5, w: p.w - 10, d: p.d - 10 }, 0.09, p.r - 4);
     // Outlet structure.
     box(g, MAT.slab, p.x + p.w - 6, p.x + p.w - 3, p.y + p.d / 2 - 1.5, p.y + p.d / 2 + 1.5, 0, 1.4);
   }
   {
-    const g = groupFor({ show: "roads" });
+    const g = groupFor({ show: "roads", shift: "roads" });
     strip(g, mat2(MAT.asphalt, 30, 1), -100, 228, 0, 12, 0.065);
-    const lay = groupFor({ show: "roads", hide: "punch" });
+    const lay = groupFor({ show: "roads", hide: "punch", shift: "roads" });
     strip(lay, mat2(MAT.gravel, 4, 3), 120, 204, -62, -12, 0.06);
     strip(lay, mat2(MAT.gravel, 2, 1), 196, 228, -4, 16, 0.07);
     const pipe = M({ color: "#2f3236", roughness: 0.5, metalness: 0.5 });
@@ -607,7 +607,7 @@ function createScene(canvas, { reduced = () => false, signs = null, onMode = nul
 
   // ---------- phase 3: utilities ----------
   {
-    const g = groupFor({ show: "substation" });
+    const g = groupFor({ show: "substation", shift: "substation" });
     strip(g, mat2(MAT.gravel, 4, 3), 135, 205, -165, -105, 0.07);
     const fence = (x0, z0, x1, z1) => {
       const len = Math.hypot(x1 - x0, z1 - z0);
@@ -689,22 +689,22 @@ function createScene(canvas, { reduced = () => false, signs = null, onMode = nul
 
   // ---------- phase 4: foundations ----------
   const H = { x0: -150, x1: 30, z0: -140, z1: -60 };
-  box(groupFor({ show: "slab" }), MAT.slab, H.x0 - 2, H.x1 + 2, H.z0 - 2, H.z1 + 2, 0, 0.8);
-  box(groupFor({ show: "slab" }), MAT.slab, -151, -109, -60, -37, 0, 0.6);
+  box(groupFor({ show: "slab", shift: "hall" }), MAT.slab, H.x0 - 2, H.x1 + 2, H.z0 - 2, H.z1 + 2, 0, 0.8);
+  box(groupFor({ show: "slab", shift: "hall" }), MAT.slab, -151, -109, -60, -37, 0, 0.6);
   const GENS = Array.from({ length: 7 }, (_, i) => ({ x: 86, z: -134.5 + i * 11 }));
   {
-    const g = groupFor({ show: "pads" });
+    const g = groupFor({ show: "pads", shift: "yard" });
     box(g, MAT.slab, 39, 63, -136, -99, 0, 0.6);
     for (const p of GENS) box(g, MAT.slab, p.x - 7, p.x + 7, p.z - 4.5, p.z + 4.5, 0, 0.6);
     box(g, MAT.slab, 39, 63, -95, -87, 0, 0.6);
-    box(g, MAT.slab, -192, -168, -132, -108, 0, 0.6);
-    box(groupFor({ show: "pads", opt: "cool:b" }), MAT.slab, 37, 69, -55, -39, 0, 0.6);
+    box(groupFor({ show: "pads", shift: "hall" }), MAT.slab, -192, -168, -132, -108, 0, 0.6);
+    box(groupFor({ show: "pads", opt: "cool:b", shift: "yard" }), MAT.slab, 37, 69, -55, -39, 0, 0.6);
   }
 
   // ---------- phase 5: shell ----------
   const HH = 17.5;
   {
-    const g = groupFor({ show: "panels" });
+    const g = groupFor({ show: "panels", shift: "hall" });
     box(g, panelMat(180, HH), H.x0, H.x1, H.z0, H.z0 + 1.2, 0.8, HH);
     box(g, panelMat(80, HH), H.x0, H.x0 + 1.2, H.z0, H.z1, 0.8, HH);
     box(g, panelMat(180, HH), H.x0, H.x1, H.z1 - 1.2, H.z1, 0.8, HH);
@@ -717,7 +717,7 @@ function createScene(canvas, { reduced = () => false, signs = null, onMode = nul
     for (const x of [-95, -80, -65]) box(g, M({ color: "#a9afb3", metalness: 0.5, roughness: 0.4 }), x, x + 6, H.z1 + 0.01, H.z1 + 0.06, 0.8, 6.5, false);
   }
   {
-    const g = groupFor({ show: "panels", hide: "ups" });
+    const g = groupFor({ show: "panels", hide: "ups", shift: "hall" });
     // A crawler crane setting panels and steel.
     const c = new T3.Group();
     c.position.set(10, 0, -40);
@@ -740,26 +740,26 @@ function createScene(canvas, { reduced = () => false, signs = null, onMode = nul
     add(g, c);
   }
   {
-    const g = groupFor({ show: "steel" });
+    const g = groupFor({ show: "steel", shift: "hall" });
     for (const z of [-120, -100, -80]) box(g, MAT.steel, -0.5, 0.5, z - 0.5, z + 0.5, 0.8, 15.6);
     for (let x = 0; x < 30; x += 5) box(g, MAT.steel, x - 0.3, x + 0.3, H.z0 + 1.2, H.z1 - 1.2, 15, 15.8);
     box(g, MAT.steel, -0.6, 0.6, H.z0 + 1.2, H.z1 - 1.2, 15.6, 16.4);
   }
   {
-    const g = groupFor({ show: "roof" });
+    const g = groupFor({ show: "roof", shift: "hall" });
     box(g, mat2(MAT.roof, 6, 3), H.x0 + 1.2, 0.6, H.z0 + 1.2, H.z1 - 1.2, 15.8, 16.4);
     for (const x of [-130, -100, -70, -40]) box(g, MAT.white, x, x + 2, -104, -101, 16.4, 17.2);
   }
 
   // ---------- phase 6: MEP ----------
   {
-    const g = groupFor({ show: "ups" });
+    const g = groupFor({ show: "ups", shift: "yard" });
     box(g, ribMat(35, 8), 40, 62, -135, -100, 0.6, 9);
     box(g, M({ color: "#d4d8da", metalness: 0.4, roughness: 0.4 }), 39.6, 62.4, -135.4, -99.6, 9, 9.5);
     for (const z of [-130, -122, -114, -106]) box(g, MAT.enclosure, 62, 62.1, z, z + 4, 3, 6, false);
   }
   {
-    const g = groupFor({ show: "switchgear" });
+    const g = groupFor({ show: "switchgear", shift: "yard" });
     for (let i = 0; i < 4; i++) {
       rbox(g, M({ color: "#c9cdc9", roughness: 0.45, metalness: 0.2 }), 42.3 + i * 5.5, -91, 4.6, 6, 0.6, 3.6, 0.2);
       box(g, M({ color: "#7e8487" }), 40.4 + i * 5.5, 44.2 + i * 5.5, -87.95, -87.9, 1, 3.8, false);
@@ -779,7 +779,7 @@ function createScene(canvas, { reduced = () => false, signs = null, onMode = nul
     fans.push(b);
   };
   {
-    const g = groupFor({ show: "gens" });
+    const g = groupFor({ show: "gens", shift: "yard" });
     for (const p of GENS) {
       rbox(g, MAT.enclosure, p.x, p.z, 12, 6.6, 0.6, 4.4, 0.5);
       cyl(g, MAT.dark, p.x - 3.5, p.z, 0.45, 5, 3.4, 10);
@@ -787,7 +787,7 @@ function createScene(canvas, { reduced = () => false, signs = null, onMode = nul
     }
   }
   {
-    const g = groupFor({ show: "cooling", opt: "cool:a", drop: true });
+    const g = groupFor({ show: "cooling", opt: "cool:a", drop: true, shift: "hall" });
     for (let x = -142; x < -10; x += 22) {
       for (const z of [-128, -112, -96, -80]) {
         rbox(g, MAT.chiller, x + 7, z + 3.5, 14, 7, 16.4, 2.4, 0.3);
@@ -797,7 +797,7 @@ function createScene(canvas, { reduced = () => false, signs = null, onMode = nul
   }
   const steamSpots = [];
   {
-    const g = groupFor({ show: "cooling", opt: "cool:b" });
+    const g = groupFor({ show: "cooling", opt: "cool:b", shift: "yard" });
     for (let i = 0; i < 3; i++) {
       const x = 38 + i * 10.5 + 4.5;
       box(g, MAT.tower, x - 4.5, x + 4.5, -54, -40, 0.6, 8.4);
@@ -808,7 +808,7 @@ function createScene(canvas, { reduced = () => false, signs = null, onMode = nul
     }
   }
   {
-    const g = groupFor({ show: "fire" });
+    const g = groupFor({ show: "fire", shift: "hall" });
     cyl(g, MAT.tank, -180, -120, 10, 0.6, 14, 40);
     cyl(g, MAT.tank, -180, -120, 10.1, 14.6, 2.4, 40, 0.8);
     for (let y = 1; y < 14; y += 0.6) box(g, MAT.galv, -170.4, -169.8, -120.6, -119.4, y, y + 0.1);
@@ -819,18 +819,18 @@ function createScene(canvas, { reduced = () => false, signs = null, onMode = nul
   const ROWS = [3.2, 8.2, 13.6, 18.6, 24];
   const RZ = [H.z0 + 7, H.z1 - 7];
   {
-    const g = groupFor({ show: "racks" });
+    const g = groupFor({ show: "racks", shift: "hall" });
     for (const x of ROWS) box(g, MAT.racks, x, x + 1.2, RZ[0], RZ[1], 0.8, 3.2);
   }
   {
-    const g = groupFor({ show: "containment" });
+    const g = groupFor({ show: "containment", shift: "hall" });
     for (const [a, b] of [[4.4, 8.2], [14.8, 18.6]]) {
       box(g, MAT.clearGlass, a, b, RZ[0], RZ[1], 3.2, 3.35, false);
       box(g, MAT.clearGlass, a, b, RZ[1] - 0.1, RZ[1], 0.8, 3.2, false);
     }
   }
   {
-    const g = groupFor({ show: "trays" });
+    const g = groupFor({ show: "trays", shift: "hall" });
     for (const x of [3.6, 14, 24.4]) box(g, MAT.tray, x - 0.3, x + 0.9, H.z0 + 1.2, H.z1 - 1.2, 5, 5.25);
     for (let z = H.z0 + 10; z < H.z1; z += 12) box(g, MAT.tray, 3.3, 25.1, z, z + 0.6, 5.25, 5.4);
   }
@@ -847,12 +847,12 @@ function createScene(canvas, { reduced = () => false, signs = null, onMode = nul
       beacons.push(m);
     }
   };
-  beacon({ show: "L1", need: "substation" }, [[153, 7.6, -141], [177, 7.6, -141]]);
-  beacon({ show: "L2", need: "switchgear" }, [0, 1, 2, 3].map((i) => [42.3 + i * 5.5, 5.1, -91]));
-  beacon({ show: "L3", need: "gens" }, GENS.map((p) => [p.x + 4, 5.8, p.z]));
-  beacon({ show: "L5" }, [[51, 10.2, -117], [-130, 11.5, -48]]);
+  beacon({ show: "L1", need: "substation", shift: "substation" }, [[153, 7.6, -141], [177, 7.6, -141]]);
+  beacon({ show: "L2", need: "switchgear", shift: "yard" }, [0, 1, 2, 3].map((i) => [42.3 + i * 5.5, 5.1, -91]));
+  beacon({ show: "L3", need: "gens", shift: "yard" }, GENS.map((p) => [p.x + 4, 5.8, p.z]));
+  beacon({ show: "L5", shift: "hall" }, [[51, 10.2, -117], [-130, 11.5, -48]]);
   {
-    const g = groupFor({ show: "L4", hide: "handover" });
+    const g = groupFor({ show: "L4", hide: "handover", shift: "yard" });
     for (let i = 0; i < 4; i++) {
       rbox(g, MAT.loadbank, 109, -128 + i * 16, 8, 12, 0.4, 3.6, 0.4);
       box(g, MAT.enclosure, 104.9, 105, -133 + i * 16, -123 + i * 16, 1, 3.6, false);
@@ -1147,6 +1147,8 @@ function createScene(canvas, { reduced = () => false, signs = null, onMode = nul
   }
 
   const pointers = new Map();
+  let placeMode = false;
+  let placeCb = null;
   // The current drag. It is re-baselined whenever the number of fingers changes, so lifting one finger
   // after a pinch does not swing the view (I16).
   let gesture = null;
@@ -1167,10 +1169,16 @@ function createScene(canvas, { reduced = () => false, signs = null, onMode = nul
     if (e.button === 1) return;
     try { canvas.setPointerCapture(e.pointerId); } catch { /* the pointer may already be gone */ }
     // The mode is fixed at pointer-down and does not change mid-drag.
-    if (!pointers.size) gesture = { mode1: e.button === 2 || e.shiftKey ? "turn" : isZoomed() ? "move" : "turn" };
+    // While siting a piece, a plain drag moves the footprint. Right-drag, Shift-drag and two fingers still turn.
+    const siting = placeMode && placeCb && e.button === 0 && !e.shiftKey;
+    if (!pointers.size) gesture = { mode1: e.button === 2 || e.shiftKey ? "turn" : siting ? "place" : isZoomed() ? "move" : "turn" };
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     baseline();
     attract = false;
+    if (gesture?.mode === "place") {
+      const p = groundAt(e.clientX, e.clientY);
+      if (p) placeCb({ type: "down", x: p.x, z: p.z });
+    }
     kick();
   });
   canvas.addEventListener("pointermove", (e) => {
@@ -1188,6 +1196,13 @@ function createScene(canvas, { reduced = () => false, signs = null, onMode = nul
       Object.assign(gesture, { mx, my, d, ang });
       return;
     }
+    if (gesture.mode === "place") {
+      const p = groundAt(e.clientX, e.clientY);
+      if (p && placeCb) placeCb({ type: "move", x: p.x, z: p.z });
+      gesture.lx = e.clientX;
+      gesture.ly = e.clientY;
+      return;
+    }
     if (gesture.mode === "move") {
       dragMove(gesture.lx, gesture.ly, e.clientX, e.clientY);
       gesture.lx = e.clientX;
@@ -1201,8 +1216,13 @@ function createScene(canvas, { reduced = () => false, signs = null, onMode = nul
   });
   const up = (e) => {
     if (!pointers.has(e.pointerId)) return;
+    const wasPlace = gesture?.mode === "place";
+    const start = gesture;
+    const p = wasPlace ? groundAt(e.clientX, e.clientY) : null;
+    const tap = !!(wasPlace && start && Math.hypot(e.clientX - start.x, e.clientY - start.y) < 14);
     pointers.delete(e.pointerId);
     baseline();
+    if (wasPlace && placeCb && p) placeCb({ type: "up", x: p.x, z: p.z, tap });
   };
   canvas.addEventListener("pointerup", up);
   canvas.addEventListener("pointercancel", up);
@@ -1235,6 +1255,8 @@ function createScene(canvas, { reduced = () => false, signs = null, onMode = nul
     if (e.altKey || e.ctrlKey || e.metaKey) return;
     const k = e.key;
     const arrow = { ArrowLeft: "L", ArrowRight: "R", ArrowUp: "U", ArrowDown: "D" }[k];
+    // While siting, arrow keys nudge the footprint (handled by the game) instead of turning the view.
+    if (placeMode && arrow && !e.shiftKey) { e.preventDefault(); return; }
     let name = "";
     if (arrow && e.shiftKey) name = `pan${arrow}`;
     else if (arrow) name = { L: "left", R: "right", U: "up", D: "down" }[arrow];
@@ -1473,9 +1495,61 @@ function createScene(canvas, { reduced = () => false, signs = null, onMode = nul
   document.addEventListener("visibilitychange", () => (document.hidden ? stop() : kick()));
   new ResizeObserver(resize).observe(canvas);
 
+  // Footprints drawn while the player sites a piece. Not part of the tagged groups, so apply() leaves them alone.
+  const ghost = new T3.Group();
+  scene.add(ghost);
+  const ghostMat = {
+    ok: new T3.MeshBasicMaterial({ color: "#1f8a5b", transparent: true, opacity: 0.45, depthWrite: false }),
+    bad: new T3.MeshBasicMaterial({ color: "#c2452a", transparent: true, opacity: 0.48, depthWrite: false }),
+    set: new T3.MeshBasicMaterial({ color: "#163a30", transparent: true, opacity: 0.22, depthWrite: false }),
+    line: new T3.MeshBasicMaterial({ color: "#00a37a", transparent: true, opacity: 0.95, depthWrite: false }),
+  };
+  function clearGhost() {
+    for (const c of [...ghost.children]) { c.geometry?.dispose(); ghost.remove(c); }
+  }
+  function setFootprints(items) {
+    clearGhost();
+    for (const item of items || []) {
+      const mat = ghostMat[item.tone] || ghostMat.set;
+      for (const r of item.rects || []) {
+        const m = new T3.Mesh(new T3.PlaneGeometry(Math.max(0.5, r.w), Math.max(0.5, r.h)), mat);
+        m.rotation.x = -Math.PI / 2;
+        m.position.set(r.x + r.w / 2, item.tone === "set" ? 0.22 : 0.4, r.z + r.h / 2);
+        ghost.add(m);
+      }
+      if (item.setback) {
+        const line = new T3.Mesh(new T3.PlaneGeometry(454, 1.4), ghostMat.line);
+        line.rotation.x = -Math.PI / 2;
+        line.position.set(-15, 0.5, 92);
+        ghost.add(line);
+      }
+    }
+    ghost.visible = ghost.children.length > 0;
+    kick();
+  }
+  function setShifts(map) {
+    let changed = false;
+    for (const g of groups) {
+      const id = g.userData.shift;
+      if (!id) continue;
+      const d = (map && map[id]) || { x: 0, z: 0 };
+      if (g.position.x !== d.x || g.position.z !== d.z) { g.position.x = d.x; g.position.z = d.z; changed = true; }
+    }
+    if (changed) { renderer.shadowMap.needsUpdate = true; kick(); }
+  }
+  function setPlaceMode(on, cb) {
+    placeMode = !!on;
+    placeCb = on ? cb : null;
+    canvas.toggleAttribute("data-placing", placeMode);
+    kick();
+  }
+
   return {
     apply,
     overlays,
+    setShifts,
+    setFootprints,
+    setPlaceMode,
     focus,
     screenOf,
     resetView,

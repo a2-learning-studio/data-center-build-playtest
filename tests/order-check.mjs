@@ -94,6 +94,10 @@ for (const key of ["1", "2", "3"]) {
   check(tested.xfmr === 1 && !tested.placed.includes("substation") && !tested.placed.includes("L1"), `procure ${key}: factory test did not come first`);
   await sub.click();
   await page.waitForTimeout(200);
+  if (!(await snapshot(page)).placed.includes("substation")) {
+    await page.locator("[data-place-set]").click();
+    await page.waitForTimeout(200);
+  }
   check((await snapshot(page)).placed.includes("substation"), `procure ${key}: substation did not place after its factory test`);
   check(errors.length === 0, `procure ${key} console: ${errors.join(" | ")}`);
   await page.close();

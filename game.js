@@ -67,8 +67,14 @@ const fresh = () => ({
   log: [],
   ov: true,
   started: false,
+  // Offsets, in metres, for pieces the player sited. seed/rolled remember construction-setback draws.
+  layout: {},
+  seed: (Math.floor(Math.random() * 0xffffffff) >>> 0) || 1,
+  rolled: {},
 });
 const ui = { tab: "build", side: "hood", hot: null, hoodSig: null, hoodNew: false };
+// The piece the player is siting on the map, or null. Not saved: a reload returns to the button.
+let placing = null;
 // Plain copies of the state, for undo and for the class/home autosave.
 const snapState = () => ({ ...st, placed: [...st.placed], done: [...st.done] });
 function loadState(o) {
@@ -92,7 +98,29 @@ function loadState(o) {
     log: Array.isArray(o.log) ? o.log.slice(0, 6).map(String) : [],
     ov: o.ov !== false,
     started: true,
+    layout: cleanLayout(o.layout),
+    seed: Number.isFinite(Number(o.seed)) ? (Number(o.seed) >>> 0) || 1 : 1,
+    rolled: cleanRolled(o.rolled),
   };
+}
+function cleanLayout(raw) {
+  const out = {};
+  for (const id of Object.keys(M.LAYOUT || {})) {
+    const v = raw?.[id];
+    const x = Number(v?.x), z = Number(v?.z);
+    if (Number.isFinite(x) && Number.isFinite(z)) out[id] = { x, z };
+  }
+  return out;
+}
+function cleanRolled(raw) {
+  const out = {};
+  if (!raw || typeof raw !== "object") return out;
+  for (const p of PH) if (typeof raw[p.id] === "string") out[p.id] = raw[p.id];
+  return out;
+}
+function rng() {
+  st.seed = (Math.imul(st.seed, 1664525) + 1013904223) >>> 0;
+  return st.seed / 4294967296;
 }
 let history = [];
 function remember() {
@@ -266,6 +294,7 @@ function paintScene(animate = true) {
     setback: on(st.placed.has("zoning")),
   };
   scene.overlays({ on: st.ov, layers, trucks: st.choice.route ? L.trucks : 0, route: st.choice.route || "a", focus: ui.hot ? OV_OF[ui.hot] || [] : null });
+  scene.setShifts(shiftMap());
 }
 const HOT_SPOT = { trucks: [200, 40], noise: [-60, 40], dust: [-40, -60], storm: [-60, 30], water: [55, -47], power: [170, -130], gens: [86, -100], setback: [-60, 92] };
 const OV_OF = { trucks: ["route-a", "route-b"], noise: ["noise"], dust: ["dust", "glow"], storm: ["storm"], water: ["plume"], power: ["power"], gens: ["gens"], setback: ["setback"] };
@@ -339,7 +368,9 @@ let zoomTipShown = false;
 function onCamMode(zoomed) {
   const t = T();
   // Small phones show the short form, so the hint stays on one line above the map buttons.
-  $("[data-hint]").innerHTML = `<span class="long">${esc(zoomed ? t.dragHintZoomed : t.dragHint)}</span><span class="short">${esc(zoomed ? t.dragHintZoomedShort : t.dragHintShort)}</span>`;
+  const long = placing ? t.placeDrag : zoomed ? t.dragHintZoomed : t.dragHint;
+  const short = placing ? t.placeDragShort : zoomed ? t.dragHintZoomedShort : t.dragHintShort;
+  $("[data-hint]").innerHTML = `<span class="long">${esc(long)}</span><span class="short">${esc(short)}</span>`;
   $("[data-cam-move]").hidden = !zoomed;
   if (zoomed && !zoomTipShown) {
     zoomTipShown = true;
@@ -441,7 +472,14 @@ function actLabel(e, done) {
   if (e === "substation" && !st.xfmr) return t.factoryAct;
   if (MEP.includes(e) && !st.cx[e]) return t.factoryAct;
   if (e === "L5" && MEP.some((id) => st.cx[id] === 3)) return t.cxRunL4;
+  if (M.LAYOUT[e]) return placing?.id === e ? t.placeSet : t.placeMap;
   return t.place;
+}
+function placeBoxHtml() {
+  const t = T();
+  if (!placing) return "";
+  const hint = t.placeHint[placing.id] || "";
+  return `<div class="place-box" data-place-box><p class="kicker">${esc(t.placeKicker)}</p><p>${esc(hint)}</p><p class="place-why" data-place-why></p><div class="place-actions"><button type="button" class="btn btn-small" data-place-set>${esc(t.placeSet)}</button><button type="button" class="btn btn-ghost btn-small" data-place-cancel>${esc(t.placeCancel)}</button></div></div>`;
 }
 function renderBuild() {
   const t = T();
@@ -455,7 +493,7 @@ function renderBuild() {
     } else html = `<p class="muted">${esc(t.pickPhase)}</p>`;
   } else {
     const all = p.els.every((e) => st.placed.has(e));
-    html = `<p class="kicker">${fmt(t.phaseOf, { n: PH.indexOf(p) + 1 })}</p><h2>${esc(t.phases[p.id].name)}</h2>
+    html = `${placeBoxHtml()}<p class="kicker">${fmt(t.phaseOf, { n: PH.indexOf(p) + 1 })}</p><h2>${esc(t.phases[p.id].name)}</h2>
       <p class="muted">${esc(t.phases[p.id].log)} <span class="range">${p.months[0]}–${p.months[1]} ${esc(t.schedAxis)} · ${esc(t.typical)}</span></p>
       <ul class="els">${p.els
         .map((e) => {
@@ -473,6 +511,7 @@ function renderBuild() {
   html += `<div class="game-btns"><button type="button" class="btn btn-ghost btn-small" data-undo${canUndo ? "" : " disabled"}>${esc(t.undo)}</button><button type="button" class="btn btn-ghost btn-small" data-restart>${esc(t.startOver)}</button></div>`;
   const keep = document.activeElement?.matches?.("[data-undo], [data-restart]") ? (document.activeElement.hasAttribute("data-undo") ? "[data-undo]" : "[data-restart]") : "";
   box.innerHTML = html;
+  fillPlaceWhy();
   if (keep) $(keep, box)?.focus({ preventScroll: true });
 }
 $("[data-build]").addEventListener("click", (e) => {
@@ -481,6 +520,8 @@ $("[data-build]").addEventListener("click", (e) => {
   if (cardPending && !b.matches("[data-restart], [data-undo], [data-done]")) { waitForCard(); return; }
   if (b.hasAttribute("data-undo")) undo();
   else if (b.hasAttribute("data-restart")) askStartOver();
+  else if (b.hasAttribute("data-place-set")) confirmPlace();
+  else if (b.hasAttribute("data-place-cancel")) { endPlace(); renderBuild(); focusNext(); }
   else if (b.dataset.el && b.hasAttribute("data-done")) { scene?.focus(b.dataset.el); showTag(b.dataset.el); }
   else if (b.dataset.el) place(b.dataset.el);
   else if (b.hasAttribute("data-finish")) finishPhase(st.focus);
@@ -769,12 +810,107 @@ function pickPhase(id) {
   }
   if (st.done.has(id)) return;
   const opening = st.focus !== id && !started(id);
+  if (placing && phaseOf[placing.id] !== id) endPlace();
   st.focus = id;
   advanceCx().forEach(say);
   renderAll();
   if (opening) speak(`phase:${id}`);
   if (ui.tab !== "build") setTab("build");
   $(".el:not([data-done]):not([disabled])")?.focus({ preventScroll: true });
+}
+function placeIssueText(code) {
+  const t = T();
+  const map = { setback: t.placeBadSetback, site: t.placeBadSite, pad: t.placeBadPad, overlap: t.placeBadOverlap, utility: t.placeBadUtility, near: t.placeBadNear, road: t.placeBadRoad };
+  return map[code] || "";
+}
+function snapGrid(n) { const g = M.LAYOUT_GRID || 10; return Math.round(n / g) * g; }
+function layoutPlaced(except) {
+  const out = {};
+  for (const id of Object.keys(M.LAYOUT || {})) {
+    if (id === except || !st.placed.has(id)) continue;
+    out[id] = st.layout[id] || { x: 0, z: 0 };
+  }
+  return out;
+}
+function shiftMap() {
+  const map = {};
+  for (const [id, spec] of Object.entries(M.LAYOUT || {})) {
+    if (!st.placed.has(id)) continue;
+    map[spec.shift] = st.layout[id] || { x: 0, z: 0 };
+  }
+  return map;
+}
+function fillPlaceWhy() {
+  const node = $("[data-place-why]");
+  if (!node || !placing) return;
+  const issue = M.layoutIssue(placing.id, placing.dx, placing.dz, layoutPlaced(placing.id));
+  node.dataset.ok = issue ? "0" : "1";
+  node.textContent = issue ? placeIssueText(issue) : T().placeOk;
+}
+function paintFootprints() {
+  if (!scene) return;
+  if (!placing) { scene.setFootprints([]); return; }
+  const issue = M.layoutIssue(placing.id, placing.dx, placing.dz, layoutPlaced(placing.id));
+  const items = [{ rects: M.layoutRects(placing.id, placing.dx, placing.dz), tone: issue ? "bad" : "ok", setback: true }];
+  for (const id of Object.keys(M.LAYOUT)) {
+    if (!st.placed.has(id) || id === placing.id) continue;
+    const d = st.layout[id] || { x: 0, z: 0 };
+    items.push({ rects: M.layoutRects(id, d.x, d.z), tone: "set" });
+  }
+  scene.setFootprints(items);
+}
+function endPlace() {
+  placing = null;
+  scene?.setPlaceMode(false);
+  scene?.setFootprints([]);
+  onCamMode(!!scene?.zoomed());
+}
+function setPreview(dx, dz) {
+  if (!placing) return;
+  const spec = M.LAYOUT[placing.id];
+  if (spec?.axis === "z") dx = 0;
+  placing.dx = snapGrid(dx);
+  placing.dz = snapGrid(dz);
+  fillPlaceWhy();
+  paintFootprints();
+}
+function onPlacePointer(ev) {
+  if (!placing || !M.LAYOUT[placing.id]) return;
+  const r = M.LAYOUT[placing.id].rects[0];
+  const cx = r.x + r.w / 2, cz = r.z + r.h / 2;
+  if (ev.type === "down") {
+    placing.grabX = ev.x - (cx + placing.dx);
+    placing.grabZ = ev.z - (cz + placing.dz);
+    return;
+  }
+  if (ev.type === "move") { setPreview(ev.x - (placing.grabX || 0) - cx, ev.z - (placing.grabZ || 0) - cz); return; }
+  if (ev.type === "up") {
+    if (ev.tap) setPreview(ev.x - cx, ev.z - cz);
+    if (!M.layoutIssue(placing.id, placing.dx, placing.dz, layoutPlaced(placing.id))) confirmPlace();
+  }
+}
+function beginPlace(e) {
+  if (!M.LAYOUT[e] || !scene) { commitElement(e, { x: 0, z: 0 }); return; }
+  const prev = st.layout[e] || { x: 0, z: 0 };
+  placing = { id: e, dx: prev.x, dz: prev.z };
+  scene.setPlaceMode(true, onPlacePointer);
+  renderBuild();
+  paintFootprints();
+  onCamMode(!!scene.zoomed());
+  $("[data-place-box]")?.scrollIntoView({ block: "nearest" });
+  $("[data-place-set]")?.focus({ preventScroll: true });
+}
+function confirmPlace() {
+  if (!placing) return;
+  const { id, dx, dz } = placing;
+  const issue = M.layoutIssue(id, dx, dz, layoutPlaced(id));
+  if (issue) { toast(placeIssueText(issue)); fillPlaceWhy(); return; }
+  endPlace();
+  commitElement(id, { x: dx, z: dz });
+}
+function nudgePlace(dx, dz) {
+  if (!placing) return;
+  setPreview(placing.dx + dx, placing.dz + dz);
 }
 function place(e) {
   const t = T();
@@ -792,8 +928,8 @@ function place(e) {
     openCard("longlead", () => { renderAll(); focusNext(); });
     return;
   }
-  remember();
   if (e === "substation" && !st.xfmr) {
+    remember();
     st.xfmr = 1;
     say(t.logL1);
     renderAll();
@@ -801,6 +937,7 @@ function place(e) {
     return;
   }
   if (MEP.includes(e) && !st.cx[e]) {
+    remember();
     st.cx[e] = 1;
     syncCx();
     say(t.logL1);
@@ -816,6 +953,18 @@ function place(e) {
     focusNext();
     return;
   }
+  if (M.LAYOUT[e]) {
+    if (placing?.id === e) { confirmPlace(); return; }
+    if (placing) endPlace();
+    beginPlace(e);
+    return;
+  }
+  commitElement(e);
+}
+function commitElement(e, offset) {
+  const t = T();
+  remember();
+  if (offset) st.layout[e] = { x: offset.x, z: offset.z };
   st.placed.add(e);
   if (MEP.includes(e)) {
     st.cx[e] = Math.max(st.cx[e], 2);
@@ -835,10 +984,25 @@ function afterPlace() {
   if (l3NeedsTest()) openDecide("test", () => { advanceCx().forEach(say); renderAll(); focusNext(); });
   else focusNext();
 }
+// Lock this phase's months, then leave it. Called after a setback is answered, or right away when none is drawn.
+function phaseSettled(id) {
+  const t = T();
+  st.frozenSched[id] = effects().sched[id] || 0;
+  advanceCx().forEach(say);
+  if (id === "cx") { say(t.logCx); speak("cx"); }
+  st.focus = null;
+  renderAll();
+  if (id === "turn") openEnd();
+  else $("[data-go]")?.focus({ preventScroll: true });
+}
 // An issue card that was due but not answered (after undo or a resumed game) is offered again.
+// A setback drawn at the end of a phase still finishes that phase once it is answered.
 function reofferCards() {
   const due = Object.entries(st.cards).find(([, pick]) => pick == null);
-  if (due) scheduleCard(due[0], Promise.resolve(), afterPlace);
+  if (!due) return;
+  const rollPhase = CARD[due[0]]?.roll;
+  const after = rollPhase && st.done.has(rollPhase) ? () => phaseSettled(rollPhase) : afterPlace;
+  scheduleCard(due[0], Promise.resolve(), after);
 }
 // Undo takes back the last placement or finished phase (I7).
 function undo() {
@@ -850,6 +1014,7 @@ function undo() {
   resume = null;
   cardAfter = null;
   cardPending = false;
+  endPlace();
   hush();
   st = back;
   say(T().logUndo);
@@ -865,20 +1030,29 @@ function finishPhase(id) {
   if (missing.length) { openDecide(missing[0], () => finishPhase(id)); return; }
   if (!st.done.has(id)) {
     remember();
-    st.frozenSched[id] = effects().sched[id] || 0;
     st.done.add(id);
     say(fmt(t.logPhaseDone, { name: t.phases[id].name }));
   }
-  const proceed = () => {
-    advanceCx().forEach(say);
-    if (id === "cx") { say(t.logCx); speak("cx"); }
-    st.focus = null;
-    renderAll();
-    if (id === "turn") openEnd();
-    else $("[data-go]")?.focus({ preventScroll: true });
-  };
-  if (l3NeedsTest()) openDecide("test", proceed);
-  else proceed();
+  // Freeze after the setback, if one opened, so that answer's months stay on the schedule.
+  const proceed = () => phaseSettled(id);
+  if (l3NeedsTest()) { openDecide("test", proceed); return; }
+  if (maybeSetback(id, proceed)) return;
+  proceed();
+}
+// One construction setback per phase, drawn when the phase is finished. The same issue-card dialog as the scripted cards.
+function maybeSetback(id, proceed) {
+  if (st.rolled[id] != null) return false;
+  const found = Object.entries(CARD).find(([, c]) => c.roll === id);
+  if (!found) { st.rolled[id] = ""; return false; }
+  const [cid, card] = found;
+  if (cid in st.cards) { st.rolled[id] = cid; return false; }
+  const hit = rng() < (card.chance ?? 0);
+  st.rolled[id] = hit ? cid : "";
+  if (!hit) return false;
+  st.cards[cid] = null;
+  renderAll();
+  openCard(cid, proceed);
+  return true;
 }
 function choose(c, v, opts = {}) {
   const t = T();
@@ -892,6 +1066,7 @@ function choose(c, v, opts = {}) {
 function next() {
   if (dlg.open) return;
   if (cardPending) { waitForCard(); return; }
+  if (placing) { confirmPlace(); return; }
   const p = PH.find((q) => q.id === st.focus);
   if (p) {
     const open = p.els.filter((x) => !st.placed.has(x));
@@ -1322,6 +1497,11 @@ document.addEventListener("keydown", (ev) => {
   if (otherDialogOpen() || !prefs.keys) return;
   if (ev.target instanceof Element && ev.target.closest("input, textarea, select, [contenteditable]")) return;
   const k = ev.key.toLowerCase();
+  if (placing && k === "escape") { ev.preventDefault(); endPlace(); renderBuild(); focusNext(); return; }
+  if (placing && !ev.shiftKey) {
+    const step = { arrowleft: [-1, 0], arrowright: [1, 0], arrowup: [0, 1], arrowdown: [0, -1] }[k];
+    if (step) { ev.preventDefault(); nudgePlace(step[0] * (M.LAYOUT_GRID || 10), step[1] * (M.LAYOUT_GRID || 10)); return; }
+  }
   if (k === "v") { ev.preventDefault(); setVoice(!voice.on, true); }
   else if (k === "n") { ev.preventDefault(); next(); }
   else if (k === "m") { ev.preventDefault(); toggleFx(); }
@@ -1335,6 +1515,7 @@ function reset({ clear = true } = {}) {
   resume = null;
   cardAfter = null;
   cardPending = false;
+  endPlace();
   hush();
   closeDlg(dlg);
   closeDlg(endDlg);
@@ -1489,7 +1670,7 @@ idleDlg.addEventListener("cancel", (ev) => { ev.preventDefault(); keepGoing(); }
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
   // Keep this id identical to CACHE in sw.js. Bump both together when publishing.
   // The file name changes with the id, so a reload installs the new worker immediately.
-  const SW_BUILD = "build-the-campus-v5";
+  const SW_BUILD = "build-the-campus-v6";
   const hadController = !!navigator.serviceWorker.controller;
   if (hadController) {
     // A new build took over. On the intro nothing is in progress, so reload now. Mid-game, wait: reset() reloads

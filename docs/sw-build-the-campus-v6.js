@@ -1,6 +1,6 @@
 // Saves the game for offline reloads, and replaces that copy when a new build is published.
 // CACHE must match SW_BUILD in game.js. Bump both together when publishing a new build.
-const CACHE = "build-the-campus-v5";
+const CACHE = "build-the-campus-v6";
 // The origin is shared with other projects (a2-learning-studio.github.io); touch only this game's caches.
 const PREFIX = "build-the-campus-";
 

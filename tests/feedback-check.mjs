@@ -99,6 +99,7 @@ const chipTexts = (p) => p.evaluate(() => [...document.querySelectorAll("[data-c
   const why = await p.evaluate(() => { window.__dc.hot(null); return document.querySelector('[data-el="clear"] .el-why')?.textContent || ""; });
   check("locked step shows its reason on the button", /silt fence/.test(why), why);
   await p.evaluate(() => document.querySelector('[data-el="ponds"]').click());
+  await p.evaluate(() => { if (!window.__dc.state().placed.has("ponds")) document.querySelector("[data-place-set]")?.click(); });
   await p.evaluate(() => document.querySelector('[data-el="clear"]').click());
   await p.waitForTimeout(100);
   await p.keyboard.press("n");
