@@ -18,15 +18,39 @@ const el = (tag, attrs = {}, html) => {
   return node;
 };
 const motionOff = matchMedia("(prefers-reduced-motion: reduce)");
-const PH = D.PHASES;
+
+// ---------- modes and device settings ----------
+// No mode: a library kiosk. It clears itself after a pause and saves nothing. ?mode=class and ?mode=home suspend
+// both resets and keep the game in progress for this tab (sessionStorage). ?mode=library is the kiosk, voice off.
+const URL_MODE = new URLSearchParams(location.search).get("mode");
+const MODE = ["class", "home", "library"].includes(URL_MODE) ? URL_MODE : "kiosk";
+const STAFFED = MODE === "class" || MODE === "home";
+const NS = "build-the-campus:v1:";
+const SAVE_VERSION = 1;
+const store = {
+  get(area, key) { try { const v = window[area].getItem(NS + key); return v ? JSON.parse(v) : null; } catch { return null; } },
+  set(area, key, value) { try { window[area].setItem(NS + key, JSON.stringify(value)); } catch { /* storage can be blocked or full */ } },
+  del(area, key) { try { window[area].removeItem(NS + key); } catch { /* storage can be blocked */ } },
+};
+// Library mode and the shortcut switch are remembered on this device (I8, I2). The voice choice is remembered only
+// in class and home modes, so on a kiosk one V press never carries over to the next visitor.
+const prefs = (() => {
+  const p = store.get("localStorage", "prefs");
+  const o = p && typeof p === "object" ? p : {};
+  return { library: o.library === true, voice: o.voice !== false, keys: o.keys !== false, present: o.present === true };
+})();
+// Presenter view (I10): a bigger map and larger text for projectors. ?view=presenter starts in it.
+const URL_PRESENT = new URLSearchParams(location.search).get("view") === "presenter";
+const savePrefs = () => store.set("localStorage", "prefs", prefs);
+const libraryOn = () => MODE === "library" || prefs.library;
+const deviceVoice = () => !libraryOn() && (!STAFFED || prefs.voice);
+// The model comes from model.mjs through the build (I19).
+const M = D.MODEL;
+const PH = M.PHASES;
 const phaseOf = Object.fromEntries(PH.flatMap((p) => p.els.map((e) => [e, p.id])));
-const CHOICES = ["route", "hours", "buffer", "wall", "cool", "light", "test"];
-const MEP = ["switchgear", "ups", "gens", "cooling", "fire"];
-// Asked at the moment they matter. Nothing is filled in ahead of time.
-const PHASE_START = { grade: ["route", "hours"], shell: ["light"] };
-const BEFORE_EL = { roads: ["wall"], clear: ["buffer"], cooling: ["cool"] };
-const NEED_FIRST = { clear: ["erosion", "roads", "ponds"] };
-const PHASE_REQUIRED = { grade: ["route", "hours", "buffer", "wall"], shell: ["light"], mep: ["cool"], cx: ["test"] };
+const { CHOICES, MEP, PHASE_START, BEFORE_EL, NEED_FIRST, PHASE_REQUIRED, EFFECT, CARD } = M;
+// Test-only settings (idle time, voice speed). The production build strips the hooks that set them.
+const testHooks = {};
 
 // ---------- state ----------
 let st;
@@ -40,13 +64,51 @@ const fresh = () => ({
   // Commissioning level reached by each MEP item: 0 none, 1 factory, 2 set in place, 3 start-up, 4 functional.
   cx: Object.fromEntries(MEP.map((id) => [id, 0])),
   xfmr: 0,
-  hold: { substation: false, switchgear: false },
-  holdWhy: { substation: "", switchgear: "" },
   log: [],
   ov: true,
   started: false,
 });
-const ui = { tab: "build", side: "hood", hot: null };
+const ui = { tab: "build", side: "hood", hot: null, hoodSig: null, hoodNew: false };
+// Plain copies of the state, for undo and for the class/home autosave.
+const snapState = () => ({ ...st, placed: [...st.placed], done: [...st.done] });
+function loadState(o) {
+  if (!o || typeof o !== "object" || !Array.isArray(o.placed) || !Array.isArray(o.done)) return null;
+  const base = fresh();
+  const pick = (v, ok) => (ok.includes(v) ? v : null);
+  const choice = Object.fromEntries(CHOICES.map((c) => [c, pick(o.choice?.[c], ["a", "b"])]));
+  const cards = {};
+  for (const [id, v] of Object.entries(o.cards || {})) if (CARD[id]) cards[id] = v == null ? null : pick(v, Object.keys(CARD[id].opts));
+  const known = new Set([...PH.flatMap((p) => p.els), ...M.CX_FLAGS]);
+  return {
+    ...base,
+    placed: new Set(o.placed.filter((e) => known.has(e))),
+    done: new Set(o.done.filter((id) => PH.some((p) => p.id === id))),
+    focus: PH.some((p) => p.id === o.focus) ? o.focus : null,
+    choice,
+    cards,
+    frozenSched: { ...(o.frozenSched || {}) },
+    cx: Object.fromEntries(MEP.map((id) => [id, clamp(Number(o.cx?.[id]) || 0, 0, 4)])),
+    xfmr: o.xfmr ? 1 : 0,
+    log: Array.isArray(o.log) ? o.log.slice(0, 6).map(String) : [],
+    ov: o.ov !== false,
+    started: true,
+  };
+}
+let history = [];
+function remember() {
+  history.push(JSON.stringify(snapState()));
+  if (history.length > 30) history.shift();
+}
+function autosave() {
+  if (!STAFFED || !st?.started) return;
+  store.set("sessionStorage", "save", { v: SAVE_VERSION, at: Date.now(), state: snapState() });
+}
+const clearSave = () => store.del("sessionStorage", "save");
+function readSave() {
+  if (!STAFFED) return null;
+  const s = store.get("sessionStorage", "save");
+  return s && s.v === SAVE_VERSION && s.state ? s : null;
+}
 const started = (id) => PH.find((p) => p.id === id).els.some((e) => st.placed.has(e));
 const ready = (p) => p.after.every((a) => st.done.has(a));
 const powerOn = () => st.placed.has("substation") && st.placed.has("transmission");
@@ -57,80 +119,7 @@ function syncCx() {
     else st.placed.delete(flag);
   }
 }
-function otherWorkLeft() {
-  for (const p of PH) {
-    if (!ready(p)) continue;
-    for (const e of p.els) {
-      if (e === "substation" || e === "switchgear" || e === "L5") continue;
-      if (!st.placed.has(e)) return true;
-    }
-  }
-  return false;
-}
-function waitMode() {
-  if (!st.done.has("shell")) return "shell";
-  if (otherWorkLeft()) return "step";
-  return "";
-}
-// "Wait" keeps gear off the site. The shell is the stand-in for a final design.
-// Switchgear that was waiting on the shell still waits through one later piece of other work.
-// If nothing else can be built, there is no hold, so a phase cannot jam.
-function applyProcurement(answer) {
-  st.hold = { substation: false, switchgear: false };
-  st.holdWhy = { substation: "", switchgear: "" };
-  if (answer === "a") return;
-  const arm = (id) => {
-    const why = waitMode();
-    if (!why) return;
-    st.hold[id] = true;
-    st.holdWhy[id] = why;
-  };
-  if (answer === "b" || answer === "c") arm("switchgear");
-  if (answer === "b") arm("substation");
-}
-function releaseHold() {
-  for (const id of ["substation", "switchgear"]) {
-    if (!st.hold[id]) continue;
-    if (st.holdWhy[id] === "step") {
-      st.hold[id] = false;
-      st.holdWhy[id] = "";
-    } else if (st.holdWhy[id] === "shell" && st.done.has("shell")) {
-      if (id === "switchgear" && otherWorkLeft()) st.holdWhy[id] = "step";
-      else {
-        st.hold[id] = false;
-        st.holdWhy[id] = "";
-      }
-    }
-  }
-}
-function stuckHold() {
-  for (const id of ["substation", "switchgear"]) {
-    if (!st.hold[id]) continue;
-    if (st.holdWhy[id] === "shell" && !st.done.has("shell")) continue;
-    if (otherWorkLeft()) continue;
-    st.hold[id] = false;
-    st.holdWhy[id] = "";
-  }
-}
-
 // ---------- model ----------
-const EFFECT = {
-  route: { a: { budget: 0.5, hood: 10 }, b: { hood: -10 } },
-  hours: { a: { hood: 8, sched: { grade: 0.5, found: 0.5 } }, b: { hood: -8, safety: -4 } },
-  buffer: { a: { budget: 1, hood: 10 }, b: { hood: -4 } },
-  wall: { a: { budget: 1, hood: 8 }, b: {} },
-  // Tags are panel marks only. Cooling does not move the neighbor score.
-  cool: { a: { tags: ["power"] }, b: { tags: ["water"] } },
-  light: { a: { budget: 0.3, hood: 5 }, b: {} },
-  test: { a: { hood: 5 }, b: {} },
-};
-const CARD = {
-  weather: { at: "clear", opts: { a: { budget: 0.5, hood: 6, sched: { grade: 0.5 } }, b: { safety: -12, hood: -10, storm: 1, sched: { grade: 1 }, budget: 1, permit: 1 } } },
-  // Real transformer lead time is about 2–4 years. The months here are the shortened in-game wait.
-  // Asked before the substation or the switchgear is placed, not after either one is already on the site.
-  longlead: { opts: { a: { budget: 2 }, b: { sched: { util: 9, mep: 4 } }, c: { budget: 1, sched: { mep: 4 } } } },
-  labor: { at: "mep", opts: { a: { budget: 2, safety: -8, hood: -8, night: 1 }, b: { sched: { mep: 3 } }, c: { budget: 1.5, safety: 5, sched: { mep: 1 } } } },
-};
 function effects() {
   const sum = { budget: 0, hood: 0, safety: 0, sched: {}, storm: 0, night: 0 };
   const add = (e) => {
@@ -142,9 +131,11 @@ function effects() {
   for (const [id, pick] of Object.entries(st.cards)) if (pick) add(CARD[id].opts[pick]);
   return sum;
 }
-function schedule() {
-  const e = effects();
-  const extra = (id) => (Object.prototype.hasOwnProperty.call(st.frozenSched, id) ? st.frozenSched[id] : e.sched[id] || 0);
+// live: ignore the months frozen when each phase finished (used to say what each answer added, at the end).
+function schedule({ live = false, none = false } = {}) {
+  const e = none ? { sched: {} } : effects();
+  const frozen = (id) => !live && !none && Object.prototype.hasOwnProperty.call(st.frozenSched, id);
+  const extra = (id) => (frozen(id) ? st.frozenSched[id] : e.sched[id] || 0);
   const dur = Object.fromEntries(PH.map((p) => [p.id, (p.months[0] + p.months[1]) / 2 + extra(p.id)]));
   const start = {}, finish = {}, via = {};
   for (const p of PH) {
@@ -156,14 +147,24 @@ function schedule() {
   for (let id = "turn"; id; id = via[id]) crit.add(id);
   return { dur, start, finish, crit, total: finish.turn };
 }
-const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-const levelWord = (score) => T().level[score < 30 ? 0 : score < 45 ? 1 : score < 60 ? 2 : score < 80 ? 3 : 4];
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+// One word scale for every tile: 0 Concern, 1 Watch, 2 Fair, 3 Good, 4 Strong. The dot colour follows the word.
+const scoreIdx = (score) => (score < 30 ? 0 : score < 45 ? 1 : score < 60 ? 2 : score < 80 ? 3 : 4);
+// Schedule: Strong at or under the plan, Good up to two months over, Fair up to four over, Watch beyond.
+const schedIdx = (m) => (m <= M.BASE_MONTHS ? 4 : m <= M.BASE_MONTHS + 2 ? 3 : m <= M.BASE_MONTHS + 4 ? 2 : 1);
+// Budget: Strong inside the plan's 3% contingency, then Good, Fair and Watch (M.BUDGET_BANDS).
+const budgetIdx = (b) => { const [s, g, f] = M.BUDGET_BANDS; return b <= s ? 4 : b <= g ? 3 : b <= f ? 2 : 1; };
+const levelWord = (score) => T().level[scoreIdx(score)];
 function choiceLocked(c) {
   if (st.done.has("turn")) return true;
   if (c === "buffer") return st.placed.has("clear");
   if (c === "wall") return st.placed.has("roads");
-  if (c === "cool") return st.placed.has("cooling");
-  if (c === "route" || c === "hours") return st.done.has("found");
+  // Cooling is a design decision: it locks once the permits are approved.
+  if (c === "cool") return st.done.has("site");
+  // Work hours lock when grading is finished, because grading's months freeze then; the route stays open
+  // through foundations, the other heavy-truck phase.
+  if (c === "hours") return st.done.has("grade");
+  if (c === "route") return st.done.has("found");
   if (c === "light") return st.done.has("shell");
   if (c === "test") return MEP.some((id) => (st.cx[id] || 0) >= 3);
   return false;
@@ -205,14 +206,27 @@ function hood() {
   L._dusty = dusty;
   return L;
 }
-function scores() {
+// The midpoint critical path with no added months: the budget's delay cost counts from here (I11).
+const PATH_MONTHS = (() => {
+  const fin = {};
+  for (const p of PH) fin[p.id] = Math.max(0, ...p.after.map((a) => fin[a])) + (p.months[0] + p.months[1]) / 2;
+  return fin.turn;
+})();
+function scores({ live = false } = {}) {
   const e = effects();
   const L = hood();
+  const total = schedule({ live }).total;
+  const budget = 100 + e.budget + M.DELAY_PCT * Math.max(0, total - PATH_MONTHS);
+  const hoodRaw = M.SCORE_START.hood + e.hood - 2 * (L.trucks + L.noiseScore + L.dust);
   return {
-    budget: Math.round((100 + e.budget) * 10) / 10,
-    safety: clamp(82 + e.safety, 0, 100),
-    hood: clamp(35 + e.hood - 2 * (L.trucks + L.noiseScore + L.dust), 0, 100),
-    months: Math.round(schedule().total),
+    budget: Math.round(budget * 10) / 10,
+    safety: clamp(M.SCORE_START.safety + e.safety, 0, 100),
+    hood: clamp(hoodRaw, 0, 100),
+    months: Math.round(total),
+    total,
+    budgetRaw: budget,
+    safetyRaw: M.SCORE_START.safety + e.safety,
+    hoodRaw,
   };
 }
 
@@ -223,6 +237,7 @@ try {
   scene = createScene(canvas, {
     reduced: () => motionOff.matches,
     signs: () => [T().signNotice, T().signNotice2, T().signCampus],
+    onMode: (zoomed) => onCamMode(zoomed),
   });
 } catch (err) {
   document.body.dataset.nogl = "";
@@ -255,19 +270,102 @@ function paintScene(animate = true) {
 const HOT_SPOT = { trucks: [200, 40], noise: [-60, 40], dust: [-40, -60], storm: [-60, 30], water: [55, -47], power: [170, -130], gens: [86, -100], setback: [-60, 92] };
 const OV_OF = { trucks: ["route-a", "route-b"], noise: ["noise"], dust: ["dust", "glow"], storm: ["storm"], water: ["plume"], power: ["power"], gens: ["gens"], setback: ["setback"] };
 
+// Keep in step with the tabbed-layout media query in style.css.
+const TABBED = matchMedia("(max-width: 1023px), (max-width: 1100px) and (orientation: portrait), (max-width: 1100px) and (max-height: 600px)");
+// The longest narration line heard during play (issue cards, the intro and the end are read inside their dialogs).
+let capProbe = null;
+function captionRoom() {
+  const cap = $("[data-caption]");
+  if (!capProbe) {
+    capProbe = cap.cloneNode(false);
+    capProbe.removeAttribute("data-caption");
+    capProbe.removeAttribute("aria-live");
+    capProbe.setAttribute("aria-hidden", "true");
+    Object.assign(capProbe.style, { visibility: "hidden", maxHeight: "none" });
+    cap.after(capProbe);
+  }
+  const lines = Object.entries(D.CAPTIONS[lang] || D.CAPTIONS.en).filter(([k]) => !/^(intro|end|card:)/.test(k)).map(([, v]) => v);
+  const longest = lines.reduce((a, b) => (b.length > a.length ? b : a), "");
+  if (capProbe.textContent !== longest) capProbe.textContent = longest;
+  capProbe.hidden = !longest || !voiceBtnShown();
+  return capProbe.hidden ? 0 : capProbe.offsetHeight;
+}
+const voiceBtnShown = () => Object.keys(D.VOICE.en || {}).length > 0;
 function measureSafe() {
+  const root = document.documentElement.style;
+  const tools = $(".tools");
+  const cam = $(".cam");
+  const toolsB = tools.offsetTop + tools.offsetHeight;
+  // Room for the toolbar, the longest narration caption and the map buttons, so none of them overlap (I9):
+  // the side-panel layout caps the schedule's height (it scrolls), the tabbed layout makes the map taller.
+  const capH = captionRoom();
+  const capGap = capH ? capH + 16 : 8;
+  // Both depend only on the width; style.css does the height arithmetic, so the layout is right before this runs.
+  root.setProperty("--top-room", `${Math.ceil(toolsB + capGap)}px`);
+  root.setProperty("--cam-h", `${cam.offsetHeight}px`);
+  if (TABBED.matches) root.setProperty("--scene-min", `${Math.ceil(toolsB + capGap + cam.offsetHeight + 8)}px`);
+  else root.removeProperty("--scene-min");
+  const p = $(".p-plan").getBoundingClientRect();
+  if (!TABBED.matches) root.setProperty("--plan-h", `${p.height}px`);
+  // Measured after --plan-h moves the map buttons: the caption fits between the toolbar and those buttons.
+  root.setProperty("--tools-b", `${tools.offsetTop + tools.offsetHeight}px`);
+  root.setProperty("--cam-t", `${cam.offsetTop}px`);
+  pinPad();
   if (!scene) return;
   const c = canvas.getBoundingClientRect();
-  const phone = matchMedia("(max-width: 760px)").matches;
-  if (phone) return scene.setSafe({ x: 0, y: 0, w: c.width, h: c.height });
+  if (TABBED.matches) return scene.setSafe({ x: 0, y: 0, w: c.width, h: c.height });
+  // The open map area between the panels. Presenter view hides the side panel and the schedule.
   const b = $(".p-build").getBoundingClientRect();
   const s = $(".p-side").getBoundingClientRect();
-  const p = $(".p-plan").getBoundingClientRect();
-  document.documentElement.style.setProperty("--plan-h", `${p.height}px`);
-  const x = b.right - c.left, r = s.left - c.left;
-  scene.setSafe({ x, y: 0, w: Math.max(200, r - x), h: Math.max(200, p.top - c.top) });
+  const x = b.width ? b.right - c.left : 0;
+  const r = s.width ? s.left - c.left : c.width;
+  const bottom = p.height ? p.top - c.top : c.height;
+  scene.setSafe({ x, y: 0, w: Math.max(200, r - x), h: Math.max(200, bottom) });
 }
-new ResizeObserver(measureSafe).observe(document.body);
+// Dialogs with a pinned button row keep focused controls clear of it (scroll-padding-bottom, WCAG 2.4.11).
+function pinPad() {
+  for (const [d, sel] of [[$("[data-intro]"), ".intro-btns"], [$("[data-end]"), ".dlg-foot"]]) {
+    const row = d.open && $(sel, d);
+    if (row) d.style.setProperty("--pin-h", `${row.offsetHeight + 12}px`);
+  }
+}
+const sizeWatch = new ResizeObserver(measureSafe);
+sizeWatch.observe(document.body);
+sizeWatch.observe($(".tools"));
+sizeWatch.observe($(".p-plan"));
+sizeWatch.observe($(".cam"));
+// Map buttons (WCAG 2.5.7): every drag, pinch and twist has a button. The move buttons appear when zoomed in.
+let zoomTipShown = false;
+function onCamMode(zoomed) {
+  const t = T();
+  // Small phones show the short form, so the hint stays on one line above the map buttons.
+  $("[data-hint]").innerHTML = `<span class="long">${esc(zoomed ? t.dragHintZoomed : t.dragHint)}</span><span class="short">${esc(zoomed ? t.dragHintZoomedShort : t.dragHintShort)}</span>`;
+  $("[data-cam-move]").hidden = !zoomed;
+  if (zoomed && !zoomTipShown) {
+    zoomTipShown = true;
+    const hint = $("[data-hint]");
+    hint.classList.add("hint-new");
+    setTimeout(() => hint.classList.remove("hint-new"), 4500);
+    $("[data-alert]").textContent = t.zoomTip;
+  }
+}
+$("[data-cam]").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-cam-act]");
+  if (!b) return;
+  if (b.dataset.camAct === "present") setPresent(!document.body.hasAttribute("data-present"), true);
+  else scene?.act(b.dataset.camAct);
+});
+// Presenter view (I10): the side panel and the schedule step aside so the map fills the stage, and the text is
+// larger for a projector. The Build panel and the scores stay. The device remembers it, like Library mode.
+const presentBoxes = () => $$("[data-present-pref]");
+function setPresent(on, remember = false) {
+  document.body.toggleAttribute("data-present", on);
+  document.documentElement.toggleAttribute("data-present", on);
+  for (const b of $$("[data-cam-act=present]")) b.setAttribute("aria-pressed", on);
+  for (const box of presentBoxes()) box.checked = on;
+  if (remember) { prefs.present = on; savePrefs(); }
+  measureSafe();
+}
 
 // ---------- panels ----------
 const status = $("[data-status]");
@@ -276,6 +374,19 @@ function say(text) {
   st.log = st.log.slice(0, 6);
   status.textContent = text;
 }
+// A short visible message for a click that did nothing (a locked phase, or an issue card about to open), so it is
+// seen on every tab and on touch screens, where tooltips never show. Screen readers get it from the status line.
+const toastEl = $("[data-toast]");
+let toastTimer = 0;
+function toast(text, { log = false } = {}) {
+  if (log) say(text);
+  else status.textContent = text;
+  toastEl.textContent = text;
+  toastEl.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => (toastEl.hidden = true), Math.min(9000, Math.max(3500, text.length * 55)));
+}
+const waitForCard = () => toast(T().waitCard);
 const ICON = {
   done: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   lock: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3.5" y="7" width="9" height="6.5" rx="1.5" fill="currentColor"/><path d="M5.5 7V5.2a2.5 2.5 0 015 0V7" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>',
@@ -304,10 +415,18 @@ function cxTrackHtml() {
   ];
   return `<p class="log-h">${esc(t.cxTrackTitle)}</p><ul class="cx">${rows.join("")}</ul><p class="muted">${esc(t.cxTrackNote)}</p>`;
 }
+// The short form shown on the button itself, so the reason is visible without a tooltip.
+function blockShort(e) {
+  const t = T();
+  const why = blockReason(e);
+  if (!why) return "";
+  if (why === t.clearWait) return t.clearShort;
+  if (why === t.cxNeedL5) return t.cxNeedL5Short;
+  return why === t.notYet ? "" : why;
+}
 function blockReason(e) {
   const t = T();
   if ((NEED_FIRST[e] || []).some((x) => !st.placed.has(x))) return e === "clear" ? t.clearWait : t.notYet;
-  if (st.hold[e]) return st.holdWhy[e] === "shell" ? t.holdShell : t.holdStep;
   if (e === "L5" && !MEP.every((id) => st.cx[id] >= 4)) {
     if (powerOn() && st.choice.test && MEP.every((id) => st.cx[id] >= 3)) return "";
     return t.cxNeedL5;
@@ -343,18 +462,26 @@ function renderBuild() {
           const done = st.placed.has(e);
           const why = !done ? blockReason(e) : "";
           const title = why || (done ? t.showOnMap : "");
-          return `<li><button type="button" class="el" data-el="${e}"${done ? " data-done" : ""}${why ? " disabled" : ""} title="${esc(title)}"><span class="el-mark">${done ? ICON.done : why ? ICON.lock : ICON.plus}</span><span class="el-name">${esc(t.elements[e].name)}</span><span class="el-act">${esc(actLabel(e, done))}</span></button></li>`;
+          const short = why ? blockShort(e) : "";
+          return `<li><button type="button" class="el" data-el="${e}"${done ? " data-done" : ""}${why ? " disabled" : ""} title="${esc(title)}"><span class="el-mark">${done ? ICON.done : why ? ICON.lock : ICON.plus}</span><span class="el-name">${esc(t.elements[e].name)}${short ? `<span class="el-why">${esc(short)}</span>` : ""}</span><span class="el-act">${esc(actLabel(e, done))}</span></button></li>`;
         })
         .join("")}</ul>
       <button type="button" class="btn btn-wide" data-finish${all ? "" : " disabled"}>${esc(all ? fmt(t.finishPhase, { name: t.phases[p.id].short }) : t.finishNeed)}</button>`;
   }
   html += `${cxTrackHtml()}<p class="log-h">${esc(t.logTitle)}</p><ul class="log">${st.log.slice(0, 3).map((l) => `<li>${esc(l)}</li>`).join("")}</ul>`;
+  const canUndo = history.length > 0 && !st.done.has("turn");
+  html += `<div class="game-btns"><button type="button" class="btn btn-ghost btn-small" data-undo${canUndo ? "" : " disabled"}>${esc(t.undo)}</button><button type="button" class="btn btn-ghost btn-small" data-restart>${esc(t.startOver)}</button></div>`;
+  const keep = document.activeElement?.matches?.("[data-undo], [data-restart]") ? (document.activeElement.hasAttribute("data-undo") ? "[data-undo]" : "[data-restart]") : "";
   box.innerHTML = html;
+  if (keep) $(keep, box)?.focus({ preventScroll: true });
 }
 $("[data-build]").addEventListener("click", (e) => {
   const b = e.target.closest("button");
   if (!b || b.disabled) return;
-  if (b.dataset.el && b.hasAttribute("data-done")) { scene?.focus(b.dataset.el); showTag(b.dataset.el); }
+  if (cardPending && !b.matches("[data-restart], [data-undo], [data-done]")) { waitForCard(); return; }
+  if (b.hasAttribute("data-undo")) undo();
+  else if (b.hasAttribute("data-restart")) askStartOver();
+  else if (b.dataset.el && b.hasAttribute("data-done")) { scene?.focus(b.dataset.el); showTag(b.dataset.el); }
   else if (b.dataset.el) place(b.dataset.el);
   else if (b.hasAttribute("data-finish")) finishPhase(st.focus);
   else if (b.dataset.go) pickPhase(b.dataset.go);
@@ -373,33 +500,57 @@ function renderPlan() {
       ? `<span class="range-line" style="left:${pct(s0 + p.months[0])};width:${pct(p.months[1] - p.months[0])}"></span><span class="gbar" data-state="${state}" data-crit="${sc.crit.has(p.id) ? 1 : 0}" style="left:${pct(s0)};width:${pct(sc.dur[p.id])}"></span>`
       : "";
     const icon = state === "done" ? ICON.done : state === "locked" ? ICON.lock : `<b>${i + 1}</b>`;
+    const sr = [t.laneState[state], sc.crit.has(p.id) && shown ? t.laneCrit : "", shown ? fmt(t.laneMonths, { n: Math.round(sc.dur[p.id]) }) : ""].filter(Boolean).join(" · ");
     const lockedTitle = fmt(t.phaseLocked, { list: p.after.filter((a) => !st.done.has(a)).map((a) => t.phases[a].short).join(", ") });
-    return `<li><button type="button" class="lane" data-phase="${p.id}" data-state="${state}" aria-pressed="${st.focus === p.id}" title="${esc(state === "locked" ? `${lockedTitle}. ${t.phases[p.id].why}` : t.phases[p.id].name)}"><span class="lane-icon">${icon}</span><span class="lane-name">${esc(t.phases[p.id].short)}</span><span class="track">${bar}</span></button></li>`;
+    return `<li><button type="button" class="lane" data-phase="${p.id}" data-state="${state}" aria-pressed="${st.focus === p.id}" title="${esc(state === "locked" ? `${lockedTitle}. ${t.phases[p.id].why}` : t.phases[p.id].name)}"><span class="lane-icon">${icon}</span><span class="lane-name">${esc(t.phases[p.id].short)}</span><span class="sr"> (${esc(sr)})</span><span class="track">${bar}</span></button></li>`;
   }).join("");
   const ticks = [];
   for (let m = 0; m <= maxM; m += 6) ticks.push(`<span style="left:${pct(m)}">${m}</span>`);
-  $("[data-plan]").innerHTML = `<div class="plan-head"><h2>${esc(t.schedTitle)} <small>(${esc(t.schedAxis)})</small></h2><p class="plan-total">${esc(started("site") ? fmt(t.schedTotal, { n: Math.round(sc.total) }) : t.schedEmpty)}</p></div>
+  // The legend stays visible on short screens, where the longer note is hidden; the bar patterns carry the
+  // meaning without colour (I3, WCAG 1.4.1).
+  const legend = `<p class="legend"><span><i class="sw sw-crit"></i>${esc(t.legendCrit)}</span><span><i class="sw sw-other"></i>${esc(t.legendOther)}</span><span><i class="sw sw-now"></i>${esc(t.legendNow)}</span></p>`;
+  $("[data-plan]").innerHTML = `<div class="plan-head"><h2>${esc(t.schedTitle)} <small>(${esc(t.schedAxis)})</small></h2><p class="plan-total">${esc(started("site") ? fmt(t.schedTotal, { n: Math.round(sc.total), base: M.BASE_MONTHS }) : t.schedEmpty)}</p></div>
     <ol class="lanes">${lanes}</ol><div class="axis"><span class="axis-pad"></span><span class="axis-track">${ticks.join("")}</span></div>
-    <p class="plan-note">${esc(t.schedNote)}</p>`;
+    ${legend}<p class="plan-note">${esc(t.schedNote)}</p>`;
 }
 $("[data-plan]").addEventListener("click", (e) => {
   const b = e.target.closest("[data-phase]");
   if (b) pickPhase(b.dataset.phase);
 });
 
-function chipsHtml(e, siblings) {
+// Effect chips for a choice or an issue-card answer (I4, I5). The schedule chip is the real change in the finish
+// date: the schedule with this answer minus the schedule without it, from where the game stands now. Points are
+// shown as numbers, and neighbor points say when they start to count.
+function withPick(kind, id, o, fn) {
+  const box = kind === "card" ? st.cards : st.choice;
+  const had = Object.prototype.hasOwnProperty.call(box, id);
+  const old = box[id];
+  box[id] = o;
+  try { return fn(); } finally { if (had) box[id] = old; else delete box[id]; }
+}
+const signed = (n) => (n > 0 ? `+${n}` : `−${Math.abs(n)}`);
+function chipsFor(kind, id, o) {
   const t = T();
+  const all = kind === "card" ? CARD[id].opts : EFFECT[id];
+  const e = all[o];
+  const base = withPick(kind, id, null, () => schedule().total);
+  const delta = (k) => Math.round((withPick(kind, id, k, () => schedule().total) - base) * 2) / 2;
+  const d = delta(o);
+  const others = Object.keys(all).filter((k) => k !== o);
   const chips = [];
-  const monthList = Object.values(e.sched || {});
-  const months = monthList.length ? Math.max(...monthList) : 0;
-  const sibDelay = (siblings || []).some((s) => Object.values(s.sched || {}).some((m) => m > 0));
-  if (months) chips.push([t.cardChips.sched, `+${fmt(t.dashMonthsShort, { n: months })}`, "bad"]);
-  else if (sibDelay) chips.push([t.cardChips.sched, t.chipNoDelay, "neutral"]);
-  if (e.budget) chips.push([t.cardChips.budget, `+${e.budget}%`, "bad"]);
-  if (e.safety) chips.push([t.cardChips.safety, e.safety > 0 ? t.chipUp : t.chipDown, e.safety > 0 ? "good" : "bad"]);
-  if (e.hood) chips.push([t.cardChips.hood, e.hood > 0 ? t.chipUp : t.chipDown, e.hood > 0 ? "good" : "bad"]);
-  if (e.tags?.includes("power")) chips.push([t.cardChips.power, "+", "neutral"]);
-  if (e.tags?.includes("water")) chips.push([t.cardChips.water, "+", "neutral"]);
+  if (d > 0) chips.push([t.cardChips.sched, `+${fmt(t.dashMonthsShort, { n: d })}`, "bad"]);
+  else if (others.some((k) => delta(k) > 0)) chips.push([t.cardChips.sched, t.chipNoDelay, "neutral"]);
+  // The budget chip is the real change too: the answer's own cost plus the cost of any delay it causes (I11).
+  const money = Math.round((withPick(kind, id, o, () => scores().budgetRaw) - withPick(kind, id, null, () => scores().budgetRaw)) * 10) / 10;
+  if (money > 0) chips.push([t.cardChips.budget, `+${money}%`, "bad"]);
+  if (e.safety) chips.push([t.cardChips.safety, signed(e.safety), e.safety > 0 ? "good" : "bad"]);
+  const later = started("grade") ? "" : ` · ${t.chipFromGrading}`;
+  if (e.hood) chips.push([t.cardChips.hood, `${signed(e.hood)}${later}`, e.hood > 0 ? "good" : "bad"]);
+  else if (others.some((k) => (all[k].hood || 0) > 0)) chips.push([t.chipNoBonus, "", "neutral"]);
+  // Cooling's power and water use show on the panel once the campus opens.
+  const opening = st.done.has("turn") ? "" : ` · ${t.chipFromOpening}`;
+  if (e.tags?.includes("power")) chips.push([`${t.chipPowerMore}${opening}`, "", "neutral"]);
+  if (e.tags?.includes("water")) chips.push([`${t.chipWaterMore}${opening}`, "", "neutral"]);
   if (e.permit) chips.push([t.chipPermit, "", "bad"]);
   return chips.length ? `<span class="chips">${chips.map(([k, v, tone]) => `<span class="chip" data-tone="${tone}">${esc(v ? `${k} ${v}` : k)}</span>`).join("")}</span>` : "";
 }
@@ -419,7 +570,7 @@ function renderSide() {
     const level = L[key] ?? 0;
     const planned = (key === "water" || key === "power") && started("util") && !ops;
     const word = key === "jobs" ? t.hood.jobsNow[jobsKey()] : planned ? t.hood.planned : kind === "amount" ? t.hood.amounts[level] : t.hood.levels[level];
-    return `<li><button type="button" class="hood-row" data-key="${key}" data-kind="${kind}" aria-pressed="${ui.hot === key}"><span class="hood-name">${esc(t.hood[key].name)}</span><span class="meter" role="img" aria-label="${esc(word)}">${[1, 2, 3, 4].map((n) => `<i${n <= level ? " data-on" : ""}></i>`).join("")}</span><span class="hood-word">${esc(word)}</span></button></li>`;
+    return `<li><button type="button" class="hood-row" data-key="${key}" data-kind="${kind}" aria-pressed="${ui.hot === key}"><span class="hood-name">${esc(t.hood[key].name)}</span><span class="meter" aria-hidden="true">${[1, 2, 3, 4].map((n) => `<i${n <= level ? " data-on" : ""}></i>`).join("")}</span><span class="hood-word">${esc(word)}</span></button></li>`;
   };
   const notice = ["trucks", "noise", "dust", "storm", "gens", "setback"];
   const community = ["jobs", "tax", "power", "water"];
@@ -430,17 +581,43 @@ function renderSide() {
     ? `<b>${esc(t.hood[k].name)}</b><span>${esc(t.hood[k].fact)}</span>${picks.length ? `<span class="you">${esc(t.hoodYou)}${picks.map((c) => esc(t.choices[c][st.choice[c]].label)).join(" · ")}</span>` : ""}`
     : `<span>${esc(t.hoodDetailHint)}</span>`;
   $("[data-hood-score]")?.remove();
-  $("[data-hood-detail]").insertAdjacentHTML("afterend", `<p class="hood-score" data-hood-score>${esc(t.hoodScoreNote)}</p>`);
+  $("[data-hood-detail]").insertAdjacentHTML("afterend", `<div data-hood-score><p class="hood-break">${esc(hoodBreakdown())}</p><p class="hood-score">${esc(t.hoodScoreNote)}</p></div>`);
+  markHoodTab(L);
   $("[data-choices]").innerHTML = CHOICES.map((c) => {
     const locked = choiceLocked(c);
     const v = st.choice[c];
-    const sibs = ["a", "b"].map((o) => EFFECT[c][o]);
     return `<div class="choice"${locked ? " data-locked" : ""}><div class="choice-head"><span class="choice-name">${esc(t.choices[c].name)}</span>${locked ? `<span class="lock">${ICON.lock}${esc(t.lockedAfter)}</span>` : ""}</div>
       <div class="seg" role="group" aria-label="${esc(t.choices[c].name)}">${["a", "b"].map((o) => `<button type="button" data-choice="${c}" data-v="${o}" aria-pressed="${v === o}"${locked && v !== o ? " disabled" : ""}>${esc(t.choices[c][o].label)}</button>`).join("")}</div>
-      <p class="choice-note">${esc(v ? t.choices[c][v].note : t.choiceUnset)} ${v ? chipsHtml(EFFECT[c][v], sibs) : ""}</p></div>`;
+      <p class="choice-note">${esc(v ? t.choices[c][v].note : t.choiceUnset)} ${v ? chipsFor("choice", c, v) : ""}</p></div>`;
   }).join("");
+  $("[data-choices]").insertAdjacentHTML("afterbegin", `<p class="choices-note">${esc(t.choicesNote)}</p>`);
   for (const b of $$("[data-side-tab]")) b.setAttribute("aria-pressed", b.dataset.sideTab === ui.side);
   document.body.dataset.side = ui.side;
+}
+// How the neighbor score is made up right now, so the first reading at grading is explained (I4, C9).
+function hoodBreakdown() {
+  const t = T();
+  const pts = effects().hood;
+  if (!started("grade")) return pts ? fmt(t.hoodBreakWaitPts, { pts: signed(pts) }) : t.hoodBreakWait;
+  const L = hood();
+  const rows = 2 * (L.trucks + L.noiseScore + L.dust);
+  const s = scores().hood;
+  const text = fmt(t.hoodBreak, { score: s, pts: pts ? signed(pts) : "+0", rows });
+  return 35 + pts - rows === s ? text : `${text} ${t.hoodBreakClamp}`;
+}
+// A dot on the Neighbors tab when that panel changed while another panel was showing (I4).
+function markHoodTab(L) {
+  const sig = JSON.stringify([L.trucks, L.noise, L.dust, L.storm, L.gens, L.setback, L.jobs, L.tax, L.power, L.water, started("grade") ? scores().hood : null]);
+  const seen = TABBED.matches ? ui.tab === "hood" : ui.side === "hood" && !document.body.hasAttribute("data-present");
+  if (seen || !st.started) ui.hoodNew = false;
+  else if (ui.hoodSig != null && sig !== ui.hoodSig) ui.hoodNew = true;
+  ui.hoodSig = sig;
+  const t = T();
+  for (const b of $$('[data-side-tab="hood"], .tabs [data-tab="hood"]')) {
+    b.toggleAttribute("data-new", ui.hoodNew);
+    if (ui.hoodNew) b.setAttribute("aria-label", `${b.textContent} · ${t.tabNew}`);
+    else b.removeAttribute("aria-label");
+  }
 }
 function focusHood(key, toggle) {
   if (!key) return;
@@ -484,19 +661,42 @@ function setTab(tab) {
 function renderDash() {
   const t = T();
   const s = scores();
-  const tile = (key, value, word, level, short = value) => {
+  // Every tile shows its rating word at every width, next to the dot (I3, WCAG 1.4.1).
+  const tile = (key, value, word, level, short = value, wordShort = word) => {
     const node = $(`[data-dash="${key}"]`);
     $(".kpi-val", node).innerHTML = `<span class="long">${esc(value)}</span><span class="short">${esc(short)}</span>`;
-    $(".kpi-word", node).textContent = word;
+    $(".kpi-word", node).innerHTML = `<span class="long">${esc(word)}</span><span class="short">${esc(wordShort)}</span>`;
     node.dataset.level = level;
   };
-  const bl = s.budget <= 100.5 ? 4 : s.budget <= 102 ? 3 : s.budget <= 104 ? 2 : 1;
-  const sl = s.months <= D.BASE_MONTHS ? 4 : s.months <= D.BASE_MONTHS + 3 ? 2 : 1;
+  const bl = budgetIdx(s.budget);
+  const sl = schedIdx(s.months);
+  const said = {};
+  const add = (key, name, value, word) => { said[key] = fmt(t.scoreLive, { name, value, word }); };
   tile("schedule", fmt(t.dashMonths, { n: s.months }), t.level[sl], sl, fmt(t.dashMonthsShort, { n: s.months }));
+  add("schedule", t.dashSchedule, fmt(t.dashMonths, { n: s.months }), t.level[sl]);
   tile("budget", fmt(t.dashBudgetVal, { n: s.budget }), t.level[bl], bl, `${Math.round(s.budget)}%`);
-  tile("safety", `${s.safety}/100`, levelWord(s.safety), s.safety < 45 ? 1 : s.safety < 80 ? 2 : 4);
-  if (!started("grade")) tile("hood", "—", t.notStarted, 3, "—");
-  else tile("hood", `${s.hood}/100`, levelWord(s.hood), s.hood < 45 ? 1 : s.hood < 60 ? 2 : 4);
+  add("budget", t.dashBudget, fmt(t.dashBudgetVal, { n: s.budget }), t.level[bl]);
+  tile("safety", `${s.safety}/100`, levelWord(s.safety), scoreIdx(s.safety));
+  add("safety", t.dashSafety, `${s.safety}/100`, levelWord(s.safety));
+  if (!started("grade")) tile("hood", "—", t.notStarted, "none", "—", t.notStartedShort);
+  else {
+    tile("hood", `${s.hood}/100`, levelWord(s.hood), scoreIdx(s.hood));
+    add("hood", t.dashNeighbors, `${s.hood}/100`, levelWord(s.hood));
+  }
+  announceScores(said);
+}
+// A polite summary of the tiles that changed, once things settle (I18).
+let scoresSaid = null, scoreQueue = new Set(), scoreTimer = 0;
+function announceScores(said) {
+  if (!st.started) { scoresSaid = null; return; }
+  if (scoresSaid) for (const k of Object.keys(said)) if (said[k] !== scoresSaid[k]) scoreQueue.add(k);
+  scoresSaid = said;
+  if (!scoreQueue.size) return;
+  clearTimeout(scoreTimer);
+  scoreTimer = setTimeout(() => {
+    $("[data-score-live]").textContent = [...scoreQueue].map((k) => scoresSaid?.[k]).filter(Boolean).join(" ");
+    scoreQueue = new Set();
+  }, 900);
 }
 function renderAll(animate = true) {
   paintScene(animate);
@@ -504,12 +704,15 @@ function renderAll(animate = true) {
   renderPlan();
   renderSide();
   renderDash();
+  autosave();
 }
 
 // ---------- floating tag over a newly built part ----------
 const tagEl = $("[data-tag]");
 let tagFor = null, tagUntil = 0;
 function showTag(id) {
+  // Without the 3D view there is nothing to point at, so no tag (it used to stick in the corner).
+  if (!scene) return;
   tagFor = id;
   tagUntil = performance.now() + 3200;
   tagEl.textContent = fmt(T().builtTag, { name: T().elements[id].name });
@@ -560,7 +763,7 @@ function pickPhase(id) {
   const p = PH.find((q) => q.id === id);
   if (!ready(p)) {
     const list = p.after.filter((a) => !st.done.has(a)).map((a) => t.phases[a].name).join(", ");
-    say(fmt(t.logLocked, { name: t.phases[id].name, list, why: t.phases[id].why }));
+    toast(fmt(t.logLocked, { name: t.phases[id].name, list, why: t.phases[id].why }), { log: true });
     renderBuild();
     return;
   }
@@ -575,11 +778,11 @@ function pickPhase(id) {
 }
 function place(e) {
   const t = T();
-  if (st.placed.has(e) || dlg.open || cardPending) return;
-  stuckHold();
+  if (st.placed.has(e) || dlg.open) return;
+  if (cardPending) { waitForCard(); return; }
   const why = blockReason(e);
   if (why) {
-    say(why);
+    toast(why, { log: true });
     renderBuild();
     return;
   }
@@ -589,6 +792,7 @@ function place(e) {
     openCard("longlead", () => { renderAll(); focusNext(); });
     return;
   }
+  remember();
   if (e === "substation" && !st.xfmr) {
     st.xfmr = 1;
     say(t.logL1);
@@ -617,7 +821,6 @@ function place(e) {
     st.cx[e] = Math.max(st.cx[e], 2);
     say(fmt(t.logL2, { n: gearAt(2) }));
   }
-  if (!st.hold[e]) releaseHold();
   advanceCx().forEach(say);
   say(t.elements[e].log);
   renderAll();
@@ -625,25 +828,48 @@ function place(e) {
   showTag(e);
   const said = speak(`el:${e}`);
   const card = Object.entries(CARD).find(([id, c]) => c.at && !(id in st.cards) && (c.at === e || c.at === phaseOf[e]));
-  const follow = () => {
-    if (l3NeedsTest()) openDecide("test", () => { advanceCx().forEach(say); renderAll(); focusNext(); });
-    else focusNext();
-  };
-  if (card) { st.cards[card[0]] = null; scheduleCard(card[0], said, follow); }
-  else follow();
+  if (card) { st.cards[card[0]] = null; autosave(); scheduleCard(card[0], said, afterPlace); }
+  else afterPlace();
+}
+function afterPlace() {
+  if (l3NeedsTest()) openDecide("test", () => { advanceCx().forEach(say); renderAll(); focusNext(); });
+  else focusNext();
+}
+// An issue card that was due but not answered (after undo or a resumed game) is offered again.
+function reofferCards() {
+  const due = Object.entries(st.cards).find(([, pick]) => pick == null);
+  if (due) scheduleCard(due[0], Promise.resolve(), afterPlace);
+}
+// Undo takes back the last placement or finished phase (I7).
+function undo() {
+  if (!history.length || st.done.has("turn") || dlg.open) return;
+  const back = loadState(JSON.parse(history.pop()));
+  if (!back) return;
+  playGen += 1;
+  clearCardTimers();
+  resume = null;
+  cardAfter = null;
+  cardPending = false;
+  hush();
+  st = back;
+  say(T().logUndo);
+  renderAll(false);
+  reofferCards();
+  focusNext();
 }
 function finishPhase(id) {
   const t = T();
-  if (!id || dlg.open || cardPending) return;
+  if (!id || dlg.open) return;
+  if (cardPending) { waitForCard(); return; }
   const missing = (PHASE_REQUIRED[id] || []).filter((c) => !st.choice[c]);
   if (missing.length) { openDecide(missing[0], () => finishPhase(id)); return; }
   if (!st.done.has(id)) {
+    remember();
     st.frozenSched[id] = effects().sched[id] || 0;
     st.done.add(id);
     say(fmt(t.logPhaseDone, { name: t.phases[id].name }));
   }
   const proceed = () => {
-    releaseHold();
     advanceCx().forEach(say);
     if (id === "cx") { say(t.logCx); speak("cx"); }
     st.focus = null;
@@ -664,7 +890,8 @@ function choose(c, v, opts = {}) {
   $(`[data-choice="${c}"][data-v="${v}"]`)?.focus({ preventScroll: true });
 }
 function next() {
-  if (dlg.open || cardPending) return;
+  if (dlg.open) return;
+  if (cardPending) { waitForCard(); return; }
   const p = PH.find((q) => q.id === st.focus);
   if (p) {
     const open = p.els.filter((x) => !st.placed.has(x));
@@ -706,39 +933,74 @@ function unlockAudio() {
 }
 addEventListener("pointerdown", unlockAudio, { capture: true });
 addEventListener("keydown", unlockAudio, { capture: true });
+// Narration clips (I15). The first time narration plays, the web page loads every clip of the language at once, in
+// a fixed order, so which clips the site serves never depends on how far a player got or which answers they
+// picked (the privacy line). The service worker keeps a copy for offline reloads. Clips are fetched whole and
+// played from memory, so no range requests reach the worker. The offline kiosk file has every clip inside it as a
+// data: URL. A clip that cannot load leaves the caption on screen for a reading-length time instead.
+const clipUrls = new Map();
+const clipsLoaded = new Set();
+function loadAllClips() {
+  if (clipsLoaded.has(lang)) return;
+  clipsLoaded.add(lang);
+  const set = D.VOICE[lang] || {};
+  // The intro and the first phase come first, the rest alphabetically: the same order for every player.
+  const keys = Object.keys(set).sort((a, b) => (a === "intro" ? -1 : b === "intro" ? 1 : a === "phase:site" ? -1 : b === "phase:site" ? 1 : a < b ? -1 : 1));
+  for (const k of keys) loadClip(set[k]).catch(() => {});
+}
+function loadClip(src) {
+  if (/^(data|blob):/.test(src) || location.protocol === "file:") return Promise.resolve(src);
+  if (!clipUrls.has(src)) {
+    const p = fetch(src).then((r) => (r.ok ? r.blob() : Promise.reject(new Error(`clip ${r.status}`)))).then((b) => URL.createObjectURL(b));
+    p.catch(() => clipUrls.delete(src));
+    clipUrls.set(src, p);
+  }
+  return clipUrls.get(src);
+}
+let speakGen = 0;
 function speak(key) {
   // A new line settles the previous one, so a queued issue card is not left waiting on audio that was cut off.
   if (speakSettle) { const prev = speakSettle; speakSettle = null; prev(); }
+  const gen = ++speakGen;
   const text = (D.CAPTIONS[lang] || D.CAPTIONS.en)[key];
   if (!text) return Promise.resolve();
   const clip = (D.VOICE[lang] || {})[key] || (lang === "en" ? null : D.VOICE.en[key]);
   clearTimeout(capTimer);
   if (!voice.on) return Promise.resolve();
+  loadAllClips();
   capEl.textContent = text;
   capEl.hidden = false;
+  const readTime = Math.min(12000, Math.max(2500, text.length * 45));
+  audio.pause();
   if (!clip) {
-    audio.pause();
-    capTimer = setTimeout(() => (capEl.hidden = true), Math.min(12000, Math.max(2500, text.length * 45)));
+    capTimer = setTimeout(() => (capEl.hidden = true), readTime);
     return Promise.resolve();
   }
-  audio.pause();
-  audio.src = clip;
   return new Promise((res) => {
     let finished = false;
-    const done = () => {
+    let backstop = 0;
+    const done = (hideAfter = 600) => {
       if (finished) return;
       finished = true;
       if (speakSettle === done) speakSettle = null;
       clearTimeout(backstop);
       audio.onended = audio.onerror = null;
-      capTimer = setTimeout(() => (capEl.hidden = true), 600);
+      if (gen === speakGen) capTimer = setTimeout(() => (capEl.hidden = true), hideAfter);
       res();
     };
     speakSettle = done;
-    const backstop = setTimeout(done, Math.max(4000, text.length * 85));
-    audio.onended = audio.onerror = done;
-    if (window.__voiceRate) audio.playbackRate = window.__voiceRate;
-    audio.play().then(() => { audioUnlocked = true; }).catch(done);
+    // Waiting for a slow download counts against the issue-card cap in scheduleCard, not against the clip.
+    backstop = setTimeout(done, 15000);
+    loadClip(clip).then((src) => {
+      if (finished || gen !== speakGen || !voice.on) return done();
+      clearTimeout(backstop);
+      backstop = setTimeout(done, Math.max(4000, text.length * 85));
+      audio.src = src;
+      audio.onended = () => done();
+      audio.onerror = () => done(readTime);
+      if (testHooks.voiceRate) audio.playbackRate = testHooks.voiceRate;
+      audio.play().then(() => { audioUnlocked = true; }).catch(() => done(readTime));
+    }, () => done(readTime));
   });
 }
 function hush() {
@@ -747,16 +1009,37 @@ function hush() {
   capEl.hidden = true;
 }
 const voiceBtn = $("[data-voice]");
+const libBox = $("[data-libmode]");
 function renderVoiceBtn() {
-  voiceBtn.textContent = voice.on ? T().voiceOn : T().voiceOff;
+  const t = T();
+  voiceBtn.textContent = voice.on ? t.voiceOn : t.voiceOff;
   voiceBtn.setAttribute("aria-pressed", voice.on);
-  $("[data-libmode]").checked = !voice.on;
+  // The checkbox is the device setting for the next player; the Voice button is this game only.
+  libBox.checked = libraryOn();
+  libBox.disabled = MODE === "library";
+  $("[data-libmode-note]").textContent = MODE === "library" ? t.libraryModeUrl : t.libraryModeNote;
   voiceBtn.hidden = !Object.keys(D.VOICE.en || {}).length;
   $("[data-listen]").hidden = !voice.on || !(D.VOICE.en || {}).intro;
 }
-function setVoice(on) { voice.on = on; if (!on) hush(); renderVoiceBtn(); }
-voiceBtn.addEventListener("click", () => setVoice(!voice.on));
-$("[data-libmode]").addEventListener("change", (e) => setVoice(!e.target.checked));
+function setVoice(on, remember = false) {
+  voice.on = on;
+  if (!on) hush();
+  if (remember && STAFFED) { prefs.voice = on; savePrefs(); }
+  renderVoiceBtn();
+}
+voiceBtn.addEventListener("click", () => setVoice(!voice.on, true));
+libBox.addEventListener("change", (e) => {
+  prefs.library = e.target.checked;
+  savePrefs();
+  setVoice(!e.target.checked, true);
+});
+const keysBox = $("[data-keys-pref]");
+keysBox.checked = prefs.keys;
+// With the shortcuts off, the number hints on the answer buttons are hidden too.
+const renderKeysPref = () => document.documentElement.toggleAttribute("data-nokeys", !prefs.keys);
+renderKeysPref();
+keysBox.addEventListener("change", (e) => { prefs.keys = e.target.checked; savePrefs(); renderKeysPref(); });
+for (const box of presentBoxes()) box.addEventListener("change", (e) => setPresent(e.target.checked, true));
 $("[data-listen]").addEventListener("click", () => speak("intro"));
 
 // ---------- dialogs ----------
@@ -774,6 +1057,29 @@ function later(fn, ms) {
   const id = setTimeout(fn, ms);
   cardTimers.push(id);
   return id;
+}
+// Escape and other close requests never lose the intro, the end screen or an unanswered issue card (I6).
+// The markup sets closedby="none"; this also covers browsers without it. A guarded dialog comes back only while the
+// game still wants it open. Browsers can deliver "close" events late, after the game has closed, reopened and closed
+// the dialog again, so a one-shot "this close was ours" flag is not enough: it let an answered card reappear.
+const wantOpen = new WeakSet();
+function openDlg(d) {
+  wantOpen.add(d);
+  if (!d.open) d.showModal();
+}
+function closeDlg(d) {
+  wantOpen.delete(d);
+  if (d.open) d.close();
+}
+function guard(d, refocus) {
+  d.addEventListener("cancel", (ev) => ev.preventDefault());
+  d.addEventListener("close", () => {
+    if (!wantOpen.has(d)) return;
+    setTimeout(() => {
+      if (d.open || !wantOpen.has(d)) return;
+      try { d.showModal(); refocus(); } catch { /* the page is going away */ }
+    }, 0);
+  });
 }
 function scheduleCard(id, said, after) {
   const gen = playGen;
@@ -793,18 +1099,17 @@ function scheduleCard(id, said, after) {
 function openDecide(id, next) {
   const t = T();
   const choice = t.choices[id];
-  const sibs = ["a", "b"].map((o) => EFFECT[id][o]);
   $(".kicker", dlg).textContent = t.decideKicker;
   $(".card-title", dlg).textContent = choice.name;
   $(".card-body", dlg).textContent = choice.ask;
   $(".card-opts", dlg).previousElementSibling.textContent = t.decideChoose;
   $(".card-opts", dlg).innerHTML = ["a", "b"]
-    .map((o, i) => `<button type="button" class="opt" data-key="${i + 1}" data-o="${o}"><span class="opt-label"><kbd>${i + 1}</kbd>${esc(choice[o].label)}</span><span class="opt-note">${esc(choice[o].note)}</span>${chipsHtml(EFFECT[id][o], sibs)}</button>`)
+    .map((o, i) => `<button type="button" class="opt" data-key="${i + 1}" data-o="${o}"><span class="opt-label"><kbd>${i + 1}</kbd>${esc(choice[o].label)}</span><span class="opt-note">${esc(choice[o].note)}</span>${chipsFor("choice", id, o)}</button>`)
     .join("");
   dlg.dataset.kind = "choice";
   dlg.dataset.id = id;
   resume = next;
-  dlg.showModal();
+  openDlg(dlg);
   $(".opt", dlg).focus();
 }
 function openCard(id, after) {
@@ -815,12 +1120,12 @@ function openCard(id, after) {
   $(".card-body", dlg).textContent = card.body;
   $(".card-opts", dlg).previousElementSibling.textContent = t.cardChoose;
   $(".card-opts", dlg).innerHTML = Object.keys(CARD[id].opts)
-    .map((o, i) => `<button type="button" class="opt" data-key="${i + 1}" data-o="${o}"><span class="opt-label"><kbd>${i + 1}</kbd>${esc(card[o].label)}</span>${chipsHtml(CARD[id].opts[o], Object.values(CARD[id].opts))}</button>`)
+    .map((o, i) => `<button type="button" class="opt" data-key="${i + 1}" data-o="${o}"><span class="opt-label"><kbd>${i + 1}</kbd>${esc(card[o].label)}</span>${chipsFor("card", id, o)}</button>`)
     .join("");
   dlg.dataset.kind = "card";
   dlg.dataset.id = id;
   cardAfter = after || null;
-  dlg.showModal();
+  openDlg(dlg);
   $(".opt", dlg).focus();
   speak(`card:${id}`);
 }
@@ -832,53 +1137,141 @@ $(".card-opts", dlg).addEventListener("click", (e) => {
   if (kind === "choice") {
     const fn = resume;
     resume = null;
-    dlg.close();
+    closeDlg(dlg);
     choose(id, b.dataset.o, { skipCx: true });
     fn?.();
     return;
   }
+  // An issue card is answered once; a stale copy of it never changes the first answer.
+  if (st.cards[id]) { closeDlg(dlg); return; }
   st.cards[id] = b.dataset.o;
-  if (id === "longlead") applyProcurement(b.dataset.o);
   say(T().cards[id][b.dataset.o].log);
   speak(`opt:${id}:${b.dataset.o}`);
   const fn = cardAfter;
   cardAfter = null;
-  dlg.close();
+  closeDlg(dlg);
   renderAll();
   fn?.();
 });
-dlg.addEventListener("cancel", (ev) => ev.preventDefault());
+guard(dlg, () => $(".opt", dlg)?.focus());
 const endDlg = $("[data-end]");
+// The debrief (C11): the results against the plan, with their rating words, the three answers that cost the most,
+// every choice, and three questions to talk over. It prints on its own (Print button, print styles).
+function answerEffects(kind, id, o) {
+  const now = scores({ live: true });
+  const off = withPick(kind, id, null, () => scores({ live: true }));
+  return {
+    months: Math.round((now.total - off.total) * 2) / 2,
+    budget: Math.round((now.budgetRaw - off.budgetRaw) * 10) / 10,
+    safety: now.safetyRaw - off.safetyRaw,
+    hood: (kind === "card" ? CARD[id].opts[o] : EFFECT[id][o]).hood || 0,
+  };
+}
+function costliest() {
+  const t = T();
+  const picks = [
+    ...CHOICES.filter((c) => st.choice[c]).map((c) => ["choice", c, st.choice[c], t.choices[c].name, t.choices[c][st.choice[c]].label]),
+    ...Object.entries(st.cards).filter(([, o]) => o).map(([id, o]) => ["card", id, o, t.cards[id].title, t.cards[id][o].label]),
+  ];
+  // One month weighs about the same as 1% of budget or 5 points of safety or neighbor relations; time costs most.
+  return picks
+    .map(([kind, id, o, name, label]) => {
+      const d = answerEffects(kind, id, o);
+      const cost = Math.max(0, d.months) + Math.max(0, d.budget) + Math.max(0, -d.safety) / 5 + Math.max(0, -d.hood) / 5;
+      return { name, label, d, cost };
+    })
+    .filter((x) => x.cost > 0.01)
+    .sort((x, y) => y.cost - x.cost)
+    .slice(0, 3);
+}
+function effectText(d) {
+  const t = T();
+  const out = [];
+  if (d.months) out.push(`${t.cardChips.sched} ${d.months > 0 ? "+" : "−"}${fmt(t.dashMonthsShort, { n: Math.abs(d.months) })}`);
+  if (d.budget) out.push(`${t.cardChips.budget} ${d.budget > 0 ? "+" : "−"}${Math.abs(d.budget)}%`);
+  if (d.safety) out.push(`${t.cardChips.safety} ${signed(d.safety)}`);
+  if (d.hood) out.push(`${t.cardChips.hood} ${signed(d.hood)}`);
+  return out.join(" · ");
+}
 function openEnd() {
   const t = T();
   const s = scores();
+  const card = (name, value, idx, ref) => `<div data-level="${idx}"><dt>${esc(name)}</dt><dd><span class="end-val">${esc(value)}</span> <span class="end-word"><i class="end-dot" aria-hidden="true"></i>${esc(t.level[idx])}</span><span class="end-ref">${esc(ref)}</span></dd></div>`;
   $(".end-stats", endDlg).innerHTML = [
-    [t.dashSchedule, fmt(t.dashMonths, { n: s.months })],
-    [t.dashBudget, fmt(t.dashBudgetVal, { n: s.budget })],
-    [t.dashSafety, `${s.safety}/100 · ${levelWord(s.safety)}`],
-    [t.dashNeighbors, `${s.hood}/100 · ${levelWord(s.hood)}`],
-  ].map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("");
+    card(t.dashSchedule, fmt(t.dashMonths, { n: s.months }), schedIdx(s.months), fmt(t.endPlanSched, { n: M.BASE_MONTHS })),
+    card(t.dashBudget, fmt(t.dashBudgetVal, { n: s.budget }), budgetIdx(s.budget), fmt(t.endPlanBudget, { n: M.BUDGET_BANDS[0] - 100 })),
+    card(t.dashSafety, `${s.safety}/100`, scoreIdx(s.safety), fmt(t.endStart, { n: M.SCORE_START.safety })),
+    card(t.dashNeighbors, `${s.hood}/100`, scoreIdx(s.hood), fmt(t.endStartHood, { n: M.SCORE_START.hood })),
+  ].join("");
+  const top = costliest();
+  $(".end-costly", endDlg).innerHTML = top.length
+    ? top.map((x) => `<li><b>${esc(x.name)}:</b> ${esc(x.label)}<span class="end-fx">${esc(effectText(x.d))}</span></li>`).join("")
+    : `<li>${esc(t.endCostlyNone)}</li>`;
   const made = [
     ...CHOICES.filter((c) => st.choice[c]).map((c) => `<li><b>${esc(t.choices[c].name)}:</b> ${esc(t.choices[c][st.choice[c]].label)}</li>`),
     ...Object.entries(st.cards).filter(([, o]) => o).map(([id, o]) => `<li><b>${esc(t.cards[id].title)}:</b> ${esc(t.cards[id][o].label)}</li>`),
   ];
   $(".end-chose", endDlg).innerHTML = made.length ? made.join("") : `<li>${esc(t.noDecisions)}</li>`;
-  endDlg.showModal();
+  $(".end-talk", endDlg).innerHTML = t.endTalkQs.map((q) => `<li>${esc(q)}</li>`).join("");
+  openDlg(endDlg);
+  pinPad();
+  endDlg.scrollTop = 0;
+  // Enter on the end screen still means Play again, as before the Print button was added.
+  $("[data-again]").focus({ preventScroll: true });
   speak("end");
 }
-$("[data-again]").addEventListener("click", () => { endDlg.close(); reset(); });
+$("[data-print]").addEventListener("click", () => {
+  keepGoing();
+  window.print();
+});
+$("[data-again]").addEventListener("click", () => { closeDlg(endDlg); reset(); });
+guard(endDlg, () => $("[data-again]").focus());
 const introDlg = $("[data-intro]");
 const aboutDlg = $("[data-about-dlg]");
-$("[data-about]").addEventListener("click", () => aboutDlg.showModal());
+const confirmDlg = $("[data-confirm]");
+// About opens at its title, not on the first link halfway down (on a small phone that scrolled the title away).
+$("[data-about]").addEventListener("click", () => {
+  aboutDlg.showModal();
+  aboutDlg.scrollTop = 0;
+  $("#about-title").focus({ preventScroll: true });
+});
 $("[data-about-close]").addEventListener("click", () => aboutDlg.close());
 $("[data-start]").addEventListener("click", () => {
+  clearSave();
+  history = [];
   st.started = true;
-  introDlg.close();
+  closeDlg(introDlg);
   scene?.setAttract(false);
   scene?.resetView();
   pickPhase("site");
 });
-introDlg.addEventListener("cancel", (ev) => ev.preventDefault());
+// Class and home modes: carry on from the game this tab saved (C6).
+$("[data-resume]").addEventListener("click", () => {
+  let back = null;
+  try { back = loadState(readSave()?.state); } catch { back = null; }
+  if (!back) { clearSave(); $("[data-start]").click(); return; }
+  st = back;
+  history = [];
+  ui.hoodSig = null;
+  closeDlg(introDlg);
+  scene?.setAttract(false);
+  scene?.resetView();
+  say(T().logResume);
+  renderEffectsBtn();
+  renderAll(false);
+  if (st.done.has("turn")) { openEnd(); return; }
+  reofferCards();
+  if (st.focus) focusNext();
+  else $("[data-go]")?.focus({ preventScroll: true });
+});
+guard(introDlg, () => $("[data-start]").focus({ preventScroll: true }));
+function askStartOver() {
+  if (confirmDlg.open) return;
+  confirmDlg.showModal();
+  $("[data-confirm-no]").focus();
+}
+$("[data-confirm-yes]").addEventListener("click", () => { confirmDlg.close(); reset(); });
+$("[data-confirm-no]").addEventListener("click", () => confirmDlg.close());
 
 // ---------- language, tools, keys ----------
 function applyLang() {
@@ -886,8 +1279,14 @@ function applyLang() {
   document.documentElement.lang = t.lang || lang;
   for (const node of $$("[data-t]")) {
     const v = node.dataset.t.split(".").reduce((o, k) => o?.[k], t);
-    if (typeof v === "string") node.textContent = v;
+    if (typeof v === "string") node.textContent = v.replace(/\{(\w+)\}/g, (m, k) => (k in D.FILL ? D.FILL[k] : m));
   }
+  for (const node of $$("[data-t-label]")) {
+    const v = t[node.dataset.tLabel];
+    if (typeof v === "string") { node.setAttribute("aria-label", v); node.title = v; }
+  }
+  canvas.setAttribute("aria-label", t.canvasLabel);
+  onCamMode(!!scene?.zoomed());
   scene?.refreshSigns();
   renderEffectsBtn();
   renderVoiceBtn();
@@ -909,77 +1308,195 @@ function renderEffectsBtn() {
 }
 function toggleFx() { st.ov = !st.ov; renderEffectsBtn(); paintScene(false); }
 fxBtn.addEventListener("click", toggleFx);
-$("[data-reset]").addEventListener("click", () => scene?.resetView());
+// Single-key shortcuts (I2): only outside dialogs and text fields, never on key repeat, and they can be turned
+// off in About. Number keys answer the open issue card; they are single-key shortcuts too and follow the setting.
+const otherDialogOpen = () => [endDlg, aboutDlg, introDlg, idleDlg, confirmDlg].some((d) => d.open);
 document.addEventListener("keydown", (ev) => {
-  if (ev.altKey || ev.ctrlKey || ev.metaKey) return;
-  if (ev.key === "v" || ev.key === "V") { ev.preventDefault(); setVoice(!voice.on); return; }
+  if (ev.altKey || ev.ctrlKey || ev.metaKey || ev.repeat) return;
   if (dlg.open) {
+    if (otherDialogOpen() || !prefs.keys || !/^[1-9]$/.test(ev.key)) return;
     const b = $(`.opt[data-key="${ev.key}"]`, dlg);
     if (b) { ev.preventDefault(); b.click(); }
     return;
   }
-  if (endDlg.open || aboutDlg.open) return;
-  if (introDlg.open) { if (ev.key === "n" || ev.key === "N") { ev.preventDefault(); $("[data-start]").click(); } return; }
-  if (ev.key === "n" || ev.key === "N") { ev.preventDefault(); next(); }
-  if (ev.key === "m" || ev.key === "M") { ev.preventDefault(); toggleFx(); }
+  if (otherDialogOpen() || !prefs.keys) return;
+  if (ev.target instanceof Element && ev.target.closest("input, textarea, select, [contenteditable]")) return;
+  const k = ev.key.toLowerCase();
+  if (k === "v") { ev.preventDefault(); setVoice(!voice.on, true); }
+  else if (k === "n") { ev.preventDefault(); next(); }
+  else if (k === "m") { ev.preventDefault(); toggleFx(); }
 });
-function reset() {
+function reset({ clear = true } = {}) {
+  if (clear) { clearSave(); history = []; }
+  // A service-worker update that arrived mid-game is applied here, when the player starts over (C6).
+  if (swUpdatePending) { location.reload(); return; }
   playGen += 1;
   clearCardTimers();
   resume = null;
   cardAfter = null;
   cardPending = false;
   hush();
-  if (dlg.open) dlg.close();
-  if (endDlg.open) endDlg.close();
+  closeDlg(dlg);
+  closeDlg(endDlg);
   if (aboutDlg.open) aboutDlg.close();
-  if (idleDlg.open) { clearInterval(idleTimer); idleDlg.close(); }
+  if (confirmDlg.open) confirmDlg.close();
+  stopCountdowns();
   st = fresh();
   say(T().log0);
-  ui.hot = null;
+  // The next player starts on the default panels, scrolled to the top.
+  Object.assign(ui, { hot: null, side: "hood", hoodSig: null, hoodNew: false });
+  for (const p of $$(".panel")) p.scrollTop = 0;
+  toastEl.hidden = true;
+  // Each new player starts from this device's setting, whatever the last player pressed (I8).
+  setVoice(deviceVoice());
   renderEffectsBtn();
   renderAll(false);
   setTab("build");
   scene?.setAttract(true);
-  introDlg.showModal();
-  $("[data-start]").focus();
+  const t = T();
+  const saved = readSave();
+  $("[data-resume]").hidden = !saved;
+  $("[data-resume-note]").hidden = !saved;
+  const startBtn = $("[data-start]");
+  startBtn.textContent = saved ? t.startNew : t.start;
+  startBtn.classList.toggle("btn-ghost", !!saved);
+  openDlg(introDlg);
+  pinPad();
+  // Focus without scrolling, so the age line under the title stays in view on small phones (C1).
+  $(saved ? "[data-resume]" : "[data-start]").focus({ preventScroll: true });
+  introDlg.scrollTop = 0;
 }
 
 // Kiosk: after two and a half minutes without input, ask; with no answer, start over for the next player.
-// An open issue or decision stays open. The end screen itself resets after about a minute.
+// The end screen clears after a minute without input, with a visible countdown and a Keep button. Any input,
+// mouse movement included, dismisses either prompt. ?mode=class and ?mode=home suspend both resets (C4).
 const idleDlg = $("[data-idle]");
-let lastInput = performance.now(), idleLeft = 0, idleTimer = 0;
-for (const ev of ["pointerdown", "keydown", "wheel", "touchstart"]) addEventListener(ev, () => { lastInput = performance.now(); }, { capture: true, passive: true });
+const idleBody = $(".idle-body", idleDlg);
+const endClear = $("[data-end-clear]");
+const endKeep = $("[data-end-keep]");
+const alertEl = $("[data-alert]");
+const endAlert = $("[data-alert-end]");
+const idleAlert = $("[data-alert-idle]");
+let lastInput = performance.now(), idleLeft = 0, idleTimer = 0, endLeft = 0, endTimer = 0, endShown = false;
+let dismissing = false, dismissTimer = 0, lastPoint = null;
+let swUpdatePending = false;
+const countText = (key, n) => fmt(T()[n === 1 ? `${key}One` : key] || T()[key], { n });
+// The countdown is announced when it starts and at 10 seconds, not every second (I18, WCAG 2.2.1). While a modal
+// dialog is open, everything outside it is inert to screen readers, so the open dialog's own live region speaks.
+function alertNow(text) {
+  const el = idleDlg.open ? idleAlert : endDlg.open ? endAlert : alertEl;
+  for (const x of [alertEl, endAlert, idleAlert]) x.textContent = "";
+  setTimeout(() => (el.textContent = text), 60);
+}
+const prompting = () => idleDlg.open || endShown;
+function stopCountdowns() {
+  clearInterval(idleTimer);
+  clearInterval(endTimer);
+  clearTimeout(dismissTimer);
+  idleTimer = 0;
+  endTimer = 0;
+  dismissing = false;
+  for (const x of [alertEl, endAlert, idleAlert]) x.textContent = "";
+  if (idleDlg.open) idleDlg.close();
+  const keepHadFocus = document.activeElement === endKeep;
+  endShown = false;
+  endClear.hidden = true;
+  endKeep.hidden = true;
+  if (keepHadFocus && endDlg.open) $("[data-again]").focus();
+}
+function keepGoing() {
+  stopCountdowns();
+  lastInput = performance.now();
+}
+function startEndCountdown() {
+  endLeft = 20;
+  endShown = true;
+  endClear.textContent = countText("endClear", endLeft);
+  endClear.hidden = false;
+  endKeep.hidden = false;
+  // Focus moves to Keep, so Enter keeps the summary instead of starting over.
+  endKeep.focus();
+  alertNow(endClear.textContent);
+  endTimer = setInterval(() => {
+    endLeft -= 1;
+    endClear.textContent = countText("endClear", endLeft);
+    if (endLeft === 10) alertNow(endClear.textContent);
+    if (endLeft <= 0) reset();
+  }, 1000);
+}
+// A tap or press first only pauses the countdown. The prompt goes away after the click has landed, so nothing moves
+// or closes under the finger: a tap on Keep keeps, and a tap never reaches the issue card underneath.
+function deferDismiss() {
+  clearInterval(idleTimer);
+  clearInterval(endTimer);
+  idleTimer = 0;
+  endTimer = 0;
+  if (dismissing) return;
+  dismissing = true;
+  const finish = () => {
+    removeEventListener("click", onClick, true);
+    if (dismissing) keepGoing();
+  };
+  const onClick = () => setTimeout(finish, 0);
+  addEventListener("click", onClick, { capture: true, once: true });
+  dismissTimer = setTimeout(finish, 1200);
+}
+function activity(ev) {
+  if (ev.type === "pointermove") {
+    // Mouse movement counts, but not a few pixels of jitter.
+    const far = !lastPoint || Math.hypot(ev.clientX - lastPoint[0], ev.clientY - lastPoint[1]) > 8;
+    if (!far) return;
+    lastPoint = [ev.clientX, ev.clientY];
+  }
+  lastInput = performance.now();
+  if (!prompting()) return;
+  if (ev.type === "keydown") {
+    // The key that dismisses a prompt does nothing else.
+    ev.preventDefault();
+    ev.stopImmediatePropagation();
+    keepGoing();
+    return;
+  }
+  if (dismissing) return;
+  if (ev.type === "pointerdown" || ev.type === "touchstart") { deferDismiss(); return; }
+  keepGoing();
+}
+for (const type of ["pointerdown", "pointermove", "keydown", "wheel", "touchstart"]) {
+  addEventListener(type, activity, { capture: true, passive: type !== "keydown" });
+}
 setInterval(() => {
-  if (!st.started || introDlg.open || idleDlg.open) return;
+  if (STAFFED || !st.started || introDlg.open || prompting() || dismissing) return;
   const idle = performance.now() - lastInput;
-  if (endDlg.open) { if (idle >= 60000) reset(); return; }
-  if (idle < (window.__idleMs || 150000)) return;
+  if (endDlg.open) { if (idle >= 60000) startEndCountdown(); return; }
+  if (idle < (testHooks.idleMs || 150000)) return;
   if (aboutDlg.open) aboutDlg.close();
+  if (confirmDlg.open) confirmDlg.close();
   idleLeft = 20;
-  $(".idle-body", idleDlg).textContent = fmt(T().idleBody, { n: idleLeft });
+  idleBody.textContent = countText("idleBody", idleLeft);
   try { idleDlg.showModal(); } catch { return; }
   $("[data-idle-keep]").focus();
   idleTimer = setInterval(() => {
     idleLeft -= 1;
-    $(".idle-body", idleDlg).textContent = fmt(T().idleBody, { n: idleLeft });
-    if (idleLeft <= 0) { clearInterval(idleTimer); idleDlg.close(); reset(); }
+    idleBody.textContent = countText("idleBody", idleLeft);
+    if (idleLeft === 10) alertNow(idleBody.textContent);
+    if (idleLeft <= 0) reset();
   }, 1000);
 }, 5000);
-$("[data-idle-keep]").addEventListener("click", () => { clearInterval(idleTimer); idleDlg.close(); lastInput = performance.now(); });
-idleDlg.addEventListener("cancel", (ev) => { ev.preventDefault(); $("[data-idle-keep]").click(); });
+$("[data-idle-keep]").addEventListener("click", keepGoing);
+endKeep.addEventListener("click", keepGoing);
+idleDlg.addEventListener("cancel", (ev) => { ev.preventDefault(); keepGoing(); });
 
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
   // Keep this id identical to CACHE in sw.js. Bump both together when publishing.
   // The file name changes with the id, so a reload installs the new worker immediately.
-  const SW_BUILD = "build-the-campus-v4";
+  const SW_BUILD = "build-the-campus-v5";
   const hadController = !!navigator.serviceWorker.controller;
-  let reloading = false;
   if (hadController) {
+    // A new build took over. On the intro nothing is in progress, so reload now. Mid-game, wait: reset() reloads
+    // when the player starts over, so no game is lost (C6).
     navigator.serviceWorker.addEventListener("controllerchange", () => {
-      if (reloading) return;
-      reloading = true;
-      location.reload();
+      if (st.started) swUpdatePending = true;
+      else location.reload();
     });
   }
   navigator.serviceWorker.register(`./sw-${SW_BUILD}.js`, { updateViaCache: "none" }).then((reg) => {
@@ -990,11 +1507,20 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
       if (!worker) return;
       worker.addEventListener("statechange", () => { if (worker.state === "installed") askSkip(); });
     });
-    reg.update().catch(() => {});
+    // No reg.update() here: with updateViaCache "none", registering and the browser's own check on each page load
+    // already fetch the worker script once; a second call only downloaded it again.
   }).catch(() => {});
 }
 
-// A hook for screenshots and checks.
+// @test-hooks-start
+// Hooks for the checks in tests/. Only the test build (index.test.html) keeps them; build.mjs strips this block
+// from the published pages.
+if (window.__voiceRate) testHooks.voiceRate = window.__voiceRate;
+if (window.__idleMs) testHooks.idleMs = window.__idleMs;
+Object.defineProperties(window, {
+  __voiceRate: { get: () => testHooks.voiceRate, set: (v) => { testHooks.voiceRate = v; }, configurable: true },
+  __idleMs: { get: () => testHooks.idleMs, set: (v) => { testHooks.idleMs = v; }, configurable: true },
+});
 window.__dc = {
   all(opts = {}) {
     Object.assign(st.choice, opts);
@@ -1002,13 +1528,11 @@ window.__dc = {
     for (const id of MEP) st.cx[id] = 4;
     st.xfmr = 1;
     st.cards.longlead = st.cards.longlead || "a";
-    st.hold = { substation: false, switchgear: false };
-    st.holdWhy = { substation: "", switchgear: "" };
     syncCx();
     st.done.delete("turn");
     st.focus = "turn";
     st.started = true;
-    introDlg.open && introDlg.close();
+    closeDlg(introDlg);
     scene?.setAttract(false);
     renderAll(false);
   },
@@ -1024,10 +1548,10 @@ window.__dc = {
     syncCx();
     for (const [cid, c] of Object.entries(CARD)) {
       if (!c.at) continue;
-      if (st.placed.has(c.at) || started(c.at)) st.cards[cid] = st.cards[cid] || "a";
+      if (st.placed.has(c.at) || (PH.some((p) => p.id === c.at) && started(c.at))) st.cards[cid] = st.cards[cid] || "a";
     }
     st.started = true;
-    introDlg.open && introDlg.close();
+    closeDlg(introDlg);
     scene?.setAttract(false);
     renderAll(false);
   },
@@ -1035,6 +1559,11 @@ window.__dc = {
   tab: setTab,
   card: openCard,
   view(o) { if (o) scene?.setView(o); else scene?.resetView(); },
+  cam: () => scene?.cam(),
+  act: (name) => scene?.act(name),
+  groundAt: (x, y) => scene?.groundAt(x, y),
+  mode: MODE,
+  history: () => history.length,
   state: () => st,
   audio: () => ({ unlocked: audioUnlocked, paused: audio.paused, time: audio.currentTime, src: audio.currentSrc ? audio.currentSrc.slice(0, 48) : "" }),
   scores,
@@ -1042,9 +1571,13 @@ window.__dc = {
   hood,
   info: () => scene?.info(),
   meshes: () => scene?.meshes(),
+  lowGpu,
+  render: () => renderAll(false),
 };
+// @test-hooks-end
 
 renderVoiceBtn();
-reset();
+setPresent(URL_PRESENT || prefs.present);
+reset({ clear: false });
 measureSafe();
 scene?.start();

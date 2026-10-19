@@ -3,7 +3,8 @@
 export function lines(t) {
   const L = {};
   L.intro = `${t.introBody} ${t.introHow}`;
-  for (const [id, p] of Object.entries(t.phases)) L[`phase:${id}`] = `${p.name}. ${p.log}`;
+  // A phase can keep a shorter spoken name (phases.mep.spoken), so a longer on-screen name keeps its recorded clip.
+  for (const [id, p] of Object.entries(t.phases)) L[`phase:${id}`] = `${p.spoken || p.name}. ${p.log}`;
   for (const [id, e] of Object.entries(t.elements)) if (e && typeof e.log === "string") L[`el:${id}`] = e.log;
   for (const [id, c] of Object.entries(t.cards)) {
     L[`card:${id}`] = `${c.title}. ${c.body}`;

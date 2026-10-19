@@ -1,14 +1,16 @@
 # GitHub Pages runs Jekyll only so this exclude list is applied.
-# The game itself is the static index.html and the versioned service worker.
+# The site is the static index.html, the offline kiosk file, the educator sheet, the narration clips and the
+# versioned service worker. Sources, notes, tests and the test build stay out of it.
 exclude:
-  - VOICE_HANDOFF_FOR_CLAUDE.md
   - README.md
-  - AUDIT.md
-  - PROMPT-for-Grok.md
-  - voice
+  # voice/<lang>/*.mp3 stays published: the web page loads its narration clips from there (I15).
+  - voice/en/manifest.json
   - vendor
-  - screenshots
   - docs
+  - tests
+  - index.test.html
+  - node_modules
+  - model.mjs
   - strings.mjs
   - game.js
   - scene.js

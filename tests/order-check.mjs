@@ -1,9 +1,6 @@
 // Headless checks for commissioning order, procurement, and the live-verification lows.
-// Run: NODE_PATH=/tmp/shots/node_modules node tests/order-check.mjs
-import { mkdirSync } from "node:fs";
-import { launch, watch, openGame, answerCard, snapshot, finishPhases, axe, assert, cardOpen } from "./drive.mjs";
-
-mkdirSync("/opt/cursor/artifacts/screenshots", { recursive: true });
+// Run: node tests/order-check.mjs (see drive.mjs for the browser and paths)
+import { launch, watch, openGame, startGame, answerCard, snapshot, finishPhases, axe, assert, cardOpen, shot } from "./drive.mjs";
 const browser = await launch();
 const fails = [];
 function check(cond, msg) {
@@ -17,11 +14,12 @@ async function fresh(width, height, extra = {}) {
   await openGame(page);
   return { page, errors };
 }
+const start = (page) => startGame(page);
 
 // ---------- owner repro: phase buttons, utilities never opened ----------
 {
   const { page, errors } = await fresh(1366, 768);
-  await page.keyboard.press("n");
+  await start(page);
   await page.waitForTimeout(200);
   const log = await finishPhases(page, ["site", "grade", "found", "shell", "mep"]);
   const s = await snapshot(page);
@@ -39,9 +37,9 @@ async function fresh(width, height, extra = {}) {
   check(!/Done/.test(s.track.L4 || ""), "owner: L4 row says Done");
   const track = page.locator("[data-build] .cx");
   if (await track.count()) await track.scrollIntoViewIfNeeded();
-  await page.screenshot({ path: "/opt/cursor/artifacts/screenshots/after-commissioning-track.png" });
+  await page.screenshot({ path: shot("after-commissioning-track.png") });
   const box = await page.locator("[data-build]").boundingBox();
-  if (box) await page.screenshot({ path: "/opt/cursor/artifacts/screenshots/after-commissioning-panel.png", clip: box });
+  if (box) await page.screenshot({ path: shot("after-commissioning-panel.png"), clip: box });
   await page.locator('[data-side-tab="choices"]').click();
   const lock = await page.locator(".lock").first().evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
   check(lock >= 12, `choices lock label ${lock}px`);
@@ -49,84 +47,62 @@ async function fresh(width, height, extra = {}) {
   await page.close();
 }
 
-// ---------- procurement is before placement, and no answer awards a level ----------
+// ---------- I11: cooling and long-lead equipment are decided during Site & permits ----------
+// Cooling is asked before zoning or the power study; the long-lead card follows the utility capacity study.
+// No answer places equipment or awards a level, and no answer holds equipment back: waiting is schedule time.
 for (const key of ["1", "2", "3"]) {
   const { page, errors } = await fresh(1366, 768);
-  await page.keyboard.press("n");
-  await finishPhases(page, ["site"]);
-  await page.locator('[data-phase="util"]').click();
+  await start(page);
+  await page.waitForTimeout(150);
+  await page.locator('[data-el="zoning"]').click();
   await page.waitForTimeout(200);
+  check(await cardOpen(page), `procure ${key}: no question before zoning`);
+  check((await page.locator(".card-title").innerText()).includes("Cooling"), `procure ${key}: the first question is not cooling`);
+  await answerCard(page, () => "1");
   const before = await snapshot(page);
-  await page.locator('[data-el="substation"]').click();
-  await page.waitForTimeout(250);
-  check(await cardOpen(page), `procure ${key}: card did not open before placement`);
+  await page.locator('[data-el="capacity"]').click();
+  for (let n = 0; n < 40 && !(await cardOpen(page)); n++) await page.waitForTimeout(100);
+  check(await cardOpen(page), `procure ${key}: no long-lead card after the capacity study`);
+  check((await page.locator(".card-title").innerText()).includes("Long-lead"), `procure ${key}: the card after the study is not long-lead`);
   const mid = await snapshot(page);
-  check(!mid.placed.includes("substation"), `procure ${key}: substation placed before the answer`);
-  check(!mid.placed.includes("L1") && mid.xfmr === 0, `procure ${key}: level already recorded`);
+  check(!mid.done.includes("site"), `procure ${key}: site finished before the long-lead answer`);
+  check(!mid.placed.includes("substation") && mid.xfmr === 0 && !mid.placed.includes("L1"), `procure ${key}: equipment moved before the answer`);
   const title = await answerCard(page, () => key);
   const after = await snapshot(page);
-  console.log("procure", key, title, { durU: after.dur.util - before.dur.util, durM: after.dur.mep - before.dur.mep, hold: after.hold, xfmr: after.xfmr });
-  check(!after.placed.includes("substation"), `procure ${key}: answering placed the substation`);
+  console.log("procure", key, title, { durU: after.dur.util - before.dur.util, durM: after.dur.mep - before.dur.mep, xfmr: after.xfmr });
   check(after.xfmr === 0 && !after.placed.includes("L1"), `procure ${key}: answering awarded L1`);
   check(Object.values(after.cx).every((n) => n === 0), `procure ${key}: answering moved equipment`);
   if (key === "2") {
     check(after.dur.util - before.dur.util === 9, `wait did not add 9 months to utilities (${after.dur.util - before.dur.util})`);
     check(after.dur.mep - before.dur.mep === 4, `wait did not add 4 months to MEP (${after.dur.mep - before.dur.mep})`);
-    check(after.hold.substation && after.hold.switchgear, "wait did not hold the substation and switchgear");
-    const sub = page.locator('[data-el="substation"]');
-    check(await sub.isDisabled(), "substation stayed available after waiting");
   }
-  if (key === "3") {
-    check(after.dur.mep - before.dur.mep === 4, "switchgear-later did not add 4 months to MEP");
-    check(!after.hold.substation && after.hold.switchgear, "option c should hold switchgear only");
-    check(!(await page.locator('[data-el="substation"]').isDisabled()), "transformers ordered now should allow the factory test");
-  }
-  if (key === "1") {
-    check(after.dur.util === before.dur.util && after.dur.mep === before.dur.mep, "order-now changed the schedule");
-    check(!after.hold.substation && !after.hold.switchgear, "order-now held equipment");
-    await page.locator('[data-el="substation"]').click();
-    await page.waitForTimeout(150);
-    const tested = await snapshot(page);
-    check(tested.xfmr === 1 && !tested.placed.includes("substation"), "factory test did not record L1 before placement");
-    check(!tested.placed.includes("L1"), "transformer test marked every system level 1");
-    await page.locator('[data-el="substation"]').click();
-    await page.waitForTimeout(200);
-    const placed = await snapshot(page);
-    check(placed.placed.includes("substation"), "substation did not place after its factory test");
-  }
-  check(errors.length === 0, `procure ${key} console: ${errors.join(" | ")}`);
-  await page.close();
-}
-
-// Waiting blocks the substation until the shell is finished, then the factory test is its own step.
-{
-  const { page, errors } = await fresh(1366, 768);
-  await page.keyboard.press("n");
+  if (key === "3") check(after.dur.mep - before.dur.mep === 4 && after.dur.util === before.dur.util, "switchgear-later did not add 4 months to MEP only");
+  if (key === "1") check(after.dur.util === before.dur.util && after.dur.mep === before.dur.mep, "order-now changed the schedule");
+  // The cooling choice locks once the permits are approved.
   await finishPhases(page, ["site"]);
+  await page.locator('[data-side-tab="choices"]').click();
+  check(await page.locator('[data-choice="cool"][data-v="b"]').isDisabled(), `procure ${key}: cooling still open after Site & permits`);
+  // Utilities: the substation is never held back; its factory test is its own step, then it is placed.
   await page.locator('[data-phase="util"]').click();
   await page.waitForTimeout(150);
-  await page.locator('[data-el="substation"]').click();
-  await answerCard(page, (title) => (title.includes("Long-lead") ? "2" : "1"));
-  await finishPhases(page, ["grade", "found"]);
-  let s = await snapshot(page);
-  check(s.hold.substation && !s.placed.includes("substation"), "substation became available before the shell");
-  await finishPhases(page, ["shell"]);
-  s = await snapshot(page);
-  check(!s.hold.substation, "substation stayed on hold after the shell");
-  check(s.hold.switchgear, "switchgear was released at the same moment as the substation");
-  await page.locator('[data-phase="util"]').click();
+  const sub = page.locator('[data-el="substation"]');
+  check(!(await sub.isDisabled()), `procure ${key}: the substation is held back`);
+  check(!(await cardOpen(page)), `procure ${key}: a card opened again in utilities`);
+  await sub.click();
   await page.waitForTimeout(150);
-  await page.locator('[data-el="substation"]:not([disabled])').click();
-  s = await snapshot(page);
-  check(s.xfmr === 1 && !s.placed.includes("substation") && !s.placed.includes("L1"), "shell release skipped the factory test or awarded global L1");
-  check(errors.length === 0, `wait-shell console: ${errors.join(" | ")}`);
+  const tested = await snapshot(page);
+  check(tested.xfmr === 1 && !tested.placed.includes("substation") && !tested.placed.includes("L1"), `procure ${key}: factory test did not come first`);
+  await sub.click();
+  await page.waitForTimeout(200);
+  check((await snapshot(page)).placed.includes("substation"), `procure ${key}: substation did not place after its factory test`);
+  check(errors.length === 0, `procure ${key} console: ${errors.join(" | ")}`);
   await page.close();
 }
 
 // ---------- clearing requires the construction exit on the click path ----------
 {
   const { page, errors } = await fresh(1366, 768);
-  await page.keyboard.press("n");
+  await start(page);
   await finishPhases(page, ["site"]);
   await page.locator('[data-phase="grade"]').click();
   await page.waitForTimeout(150);
@@ -164,7 +140,7 @@ for (const key of ["1", "2", "3"]) {
 // ---------- L3 is per system, and L4 is not the same action ----------
 {
   const { page, errors } = await fresh(1366, 768);
-  await page.keyboard.press("n");
+  await start(page);
   await finishPhases(page, ["site", "grade", "found", "shell"]);
   await page.locator('[data-phase="util"]').click();
   await page.waitForTimeout(150);
@@ -231,21 +207,25 @@ for (const key of ["1", "2", "3"]) {
   check(introAxe.length === 0, `axe intro: ${JSON.stringify(introAxe)}`);
   const label = await page.locator(".kpi-label").first().evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
   check(label >= 12, `kpi label ${label}px at 1366`);
-  await page.keyboard.press("n");
+  await start(page);
   await finishPhases(page, ["site"]);
   await page.locator('[data-phase="grade"]').click();
   await page.waitForTimeout(150);
   await page.locator("[data-build] [data-el]:not([disabled])").first().click();
   await page.waitForTimeout(200);
   check(await cardOpen(page), "expected a decision dialog");
+  // Single-key shortcuts act only outside dialogs (I2): V leaves the voice alone while a card is open.
   await page.keyboard.press("v");
   await page.waitForTimeout(100);
   let s = await snapshot(page);
-  check(s.voice === "false" && (await cardOpen(page)), "V did not toggle voice while the dialog stayed open");
+  check(s.voice === "true" && (await cardOpen(page)), "V changed the voice while a dialog was open");
+  for (let n = 0; n < 6 && (await cardOpen(page)); n++) await answerCard(page);
+  await page.keyboard.press("v");
+  s = await snapshot(page);
+  check(s.voice === "false", "V did not turn the voice off outside dialogs");
   await page.keyboard.press("v");
   s = await snapshot(page);
   check(s.voice === "true", "V did not turn voice back on");
-  for (let n = 0; n < 6 && (await cardOpen(page)); n++) await answerCard(page);
   await page.locator('[data-key="noise"]').evaluate((el) => {
     el.dispatchEvent(new PointerEvent("pointerover", { bubbles: true, pointerType: "mouse" }));
   });

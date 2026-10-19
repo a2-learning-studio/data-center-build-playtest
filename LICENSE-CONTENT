@@ -1,0 +1,36 @@
+Build the Campus: content licence
+
+Copyright (c) 2026 Ali Keyvanfar
+
+The game's content (its text, graphics and game design) is licensed under the
+Creative Commons Attribution-NonCommercial 4.0 International licence
+(CC BY-NC 4.0).
+
+Summary: https://creativecommons.org/licenses/by-nc/4.0/
+Legal code (the licence itself):
+https://creativecommons.org/licenses/by-nc/4.0/legalcode.en
+
+You may copy, share and adapt the content for non-commercial purposes, as long
+as you give credit, link to the licence, and say if you changed anything. The
+summary above is a plain-language aid only; the legal code is the licence.
+
+Suggested credit:
+  "Build the Campus" by Ali Keyvanfar, Ph.D., licensed under CC BY-NC 4.0
+  (https://creativecommons.org/licenses/by-nc/4.0/).
+
+The game's source code is licensed separately under the MIT License; see
+LICENSE.
+
+
+What this does not cover
+------------------------
+
+- three.js r170 is used under its own MIT License (vendor/three-LICENSE.txt).
+- The Geist and Inter fonts are used under the SIL Open Font License 1.1
+  (vendor/fonts/LICENSE.txt).
+- The narration clips (the audio files in voice/) were recorded in advance
+  with ElevenLabs under its Impact Program. They are not covered by this
+  licence or by the MIT License, and they follow the ElevenLabs Impact Program
+  terms. Do not reuse them outside this game without checking those terms.
+
+Questions or corrections: akeyvanf@kennesaw.edu

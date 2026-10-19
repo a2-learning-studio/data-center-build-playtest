@@ -1,23 +1,38 @@
 // scene.js — the Red Clay Ridge campus in 3D (three.js, inlined as THREE). Units are metres.
 // World plan x runs toward the county road, plan y toward Pecan Street; in three.js that is x, z, with y up.
 // Every part sits in a tagged group { show, hide, opt, keep } that the game shows or hides.
+// Reduced detail for weak graphics (I17). ?quality=low or ?quality=high in the address overrides the guess.
 function detectLowQ() {
-  const cores = navigator.hardwareConcurrency || 4;
+  const q = new URLSearchParams(location.search).get("quality");
+  if (q === "low") return true;
+  if (q === "high") return false;
   let gpu = "";
   try {
     const probe = document.createElement("canvas");
-    const gl = probe.getContext("webgl", { powerPreference: "high-performance" });
+    const gl = probe.getContext("webgl2") || probe.getContext("webgl");
     if (gl) {
       const ext = gl.getExtension("WEBGL_debug_renderer_info");
-      if (ext) gpu = String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) || "");
+      gpu = String((ext && gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) || gl.getParameter(gl.RENDERER) || "");
       gl.getExtension("WEBGL_lose_context")?.loseContext();
     }
   } catch { /* keep the default quality if the probe fails */ }
-  const integrated = /intel|uhd|iris|hd graphics|swiftshader|llvmpipe|microsoft basic/i.test(gpu);
-  return cores <= 4 || integrated;
+  return lowGpu(gpu, navigator.hardwareConcurrency || 4, navigator.deviceMemory || 8);
+}
+// gpu is the renderer string, cores the thread count, mem the memory in GB (Chrome reports 0.25 to 8).
+function lowGpu(gpu, cores, mem) {
+  const g = String(gpu).toLowerCase();
+  const small = cores <= 4 && mem <= 4;
+  // Software rendering, or a very small machine.
+  if (/swiftshader|llvmpipe|softpipe|software|microsoft basic render/.test(g) || cores <= 2 || mem <= 2) return true;
+  // Intel: Iris Xe, Iris Plus and Arc keep full detail unless the machine is small; older HD and UHD graphics get less.
+  if (/intel/.test(g)) return /iris\s*\(?r?\)?\s*(xe|plus)|iris xe|\barc\b|xe graphics/.test(g) ? small : true;
+  // Entry-level phone, tablet and Chromebook graphics (ARM Mali T and G31-G57, Adreno 100-500, PowerVR and others).
+  if (/mali-(t|4|g[1-5]\d\b)|adreno\s*(\(tm\)\s*)?[1-5]\d\d\b|powervr|videocore|vivante/.test(g)) return true;
+  // Everything else, AMD, NVIDIA and Apple graphics included: less detail only on a small machine.
+  return small;
 }
 
-function createScene(canvas, { reduced = () => false, signs = null } = {}) {
+function createScene(canvas, { reduced = () => false, signs = null, onMode = null } = {}) {
   const T3 = THREE;
   const lowQ = detectLowQ();
   const signMats = {};
@@ -922,7 +937,15 @@ function createScene(canvas, { reduced = () => false, signs = null } = {}) {
     }
   })();
   canvas.addEventListener("webglcontextlost", (e) => { e.preventDefault(); stop(); document.body.dataset.nogl = ""; });
-  canvas.addEventListener("webglcontextrestored", () => location.reload());
+  canvas.addEventListener("webglcontextrestored", () => {
+    // Rebuild the GPU state in place. A reload would wipe the game in progress (C6).
+    const env = new T3.PMREMGenerator(renderer);
+    scene.environment = env.fromScene(envScene, 0.04).texture;
+    env.dispose();
+    renderer.shadowMap.needsUpdate = true;
+    delete document.body.dataset.nogl;
+    start();
+  });
 
   // ---------- neighborhood overlays ----------
   const ov = new T3.Group();
@@ -1025,54 +1048,201 @@ function createScene(canvas, { reduced = () => false, signs = null } = {}) {
     routeCurve[k] = { path, len: path.getLength() };
   }
 
-  // ---------- camera control ----------
-  const view = { az: 0.78, el: 0.6, dist: 640, target: new T3.Vector3(-10, 0, -20) };
-  const want = { az: 0.78, el: 0.6, dist: 640, target: new T3.Vector3(-10, 0, -20) };
+  // ---------- camera control (drag-to-pan, report section 3.0b) ----------
+  // HOME is the one place the overview looks at. Zoomed in means want.dist < 0.8 x fitDist, decided at pointer-down:
+  // then a plain drag moves the view. Right-drag, Shift-drag and a two-finger twist turn it; wheel and pinch zoom
+  // toward the pointer. The target may only wander as far as the zoom allows, so zooming out eases it home.
+  const HOME = { x: -10, z: -20, az: 0.78, el: 0.6 };
+  const MIN_DIST = 120;
+  const EL_MIN = 0.28, EL_MAX = 1.25;
+  const PAUSE_MS = 10000;
+  const view = { az: HOME.az, el: HOME.el, dist: 640, target: new T3.Vector3(HOME.x, 0, HOME.z) };
+  const want = { az: HOME.az, el: HOME.el, dist: 640, target: new T3.Vector3(HOME.x, 0, HOME.z) };
   const safe = { x: 0, y: 0, w: 1, h: 1, W: 1, Ht: 1 };
   let fitDist = 640;
   let attract = true;
-  let dragging = null;
+  let manualAt = -Infinity;
+  let zoomedNow = false;
+  const isZoomed = () => want.dist < 0.8 * fitDist;
+  function bounds() {
+    const f = Math.max(0, 1 - want.dist / fitDist), rx = 250 * f, rz = 175 * f;
+    return { x0: Math.max(TILE.x0 + 20, HOME.x - rx), x1: Math.min(TILE.x1 - 20, HOME.x + rx), z0: Math.max(TILE.z0 + 20, HOME.z - rz), z1: Math.min(TILE.z1 - 20, HOME.z + rz) };
+  }
+  function clampTarget() {
+    const b = bounds(), t = want.target;
+    t.x = Math.min(b.x1, Math.max(b.x0, t.x));
+    t.z = Math.min(b.z1, Math.max(b.z0, t.z));
+  }
+  function notifyMode() {
+    const z = isZoomed();
+    canvas.toggleAttribute("data-zoomed", z);
+    if (z === zoomedNow) return;
+    zoomedNow = z;
+    onMode?.(z);
+  }
+  function manual() { manualAt = performance.now(); attract = false; }
+  // Move by a screen distance in pixels; the ground stays under the pointer.
+  function pan(dx, dy) {
+    const s = (2 * want.dist * Math.tan((camera.fov * Math.PI) / 360)) / Math.max(1, canvas.clientHeight);
+    const k = 1 / Math.sin(view.el), sa = Math.sin(view.az), ca = Math.cos(view.az), t = want.target;
+    t.x += (-dx * ca - dy * sa * k) * s;
+    t.z += (dx * sa - dy * ca * k) * s;
+    clampTarget();
+    manual();
+    kick();
+  }
+  const ray = new T3.Raycaster(), ndc = new T3.Vector2(), ground = new T3.Plane(new T3.Vector3(0, 1, 0), 0), hitPt = new T3.Vector3();
+  // The camera as it will be once it settles, so quick drags and wheel turns anchor to the right spot.
+  const scratch = new T3.PerspectiveCamera();
+  function wantCamera() {
+    scratch.copy(camera, false);
+    const ce = Math.cos(want.el);
+    scratch.position.set(want.target.x + Math.sin(want.az) * ce * want.dist, want.target.y + Math.sin(want.el) * want.dist, want.target.z + Math.cos(want.az) * ce * want.dist);
+    scratch.lookAt(want.target);
+    scratch.updateMatrixWorld(true);
+    return scratch;
+  }
+  function groundAt(cx, cy, cam = camera) {
+    const r = canvas.getBoundingClientRect();
+    if (!r.width || !r.height) return null;
+    ndc.set(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1);
+    ray.setFromCamera(ndc, cam);
+    return ray.ray.intersectPlane(ground, hitPt);
+  }
+  // A drag from (x0, y0) to (x1, y1): the ground point under the pointer stays under it.
+  function dragMove(x0, y0, x1, y1) {
+    const cam = wantCamera();
+    const a = groundAt(x0, y0, cam)?.clone();
+    const b = a && groundAt(x1, y1, cam);
+    if (!a || !b) { pan(x1 - x0, y1 - y0); return; }
+    want.target.x += a.x - b.x;
+    want.target.z += a.z - b.z;
+    clampTarget();
+    manual();
+    kick();
+  }
+  // Zoom by a factor (below 1 zooms in), toward the ground under (cx, cy) when given.
+  function zoomBy(factor, cx, cy) {
+    const d0 = want.dist;
+    const d1 = Math.min(fitDist * 1.4, Math.max(MIN_DIST, d0 * factor));
+    const p = cx != null ? groundAt(cx, cy, wantCamera())?.clone() : null;
+    want.dist = d1;
+    {
+      if (p) {
+        const a = 1 - d1 / d0;
+        want.target.x += (p.x - want.target.x) * a;
+        want.target.z += (p.z - want.target.z) * a;
+      }
+    }
+    clampTarget();
+    manual();
+    notifyMode();
+    kick();
+  }
+  function turn(daz, del) {
+    want.az += daz;
+    want.el = Math.min(EL_MAX, Math.max(EL_MIN, want.el + del));
+    manual();
+    kick();
+  }
+
   const pointers = new Map();
+  // The current drag. It is re-baselined whenever the number of fingers changes, so lifting one finger
+  // after a pinch does not swing the view (I16).
+  let gesture = null;
+  function baseline() {
+    const pts = [...pointers.values()];
+    if (!pts.length) { gesture = null; return; }
+    const mode1 = gesture?.mode1 || "turn";
+    if (pts.length === 1) {
+      const p = pts[0];
+      gesture = { mode1, mode: mode1, x: p.x, y: p.y, lx: p.x, ly: p.y, az: want.az, el: want.el };
+    } else {
+      const [a, b] = pts;
+      gesture = { mode1, mode: "multi", mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2, d: Math.hypot(a.x - b.x, a.y - b.y), ang: Math.atan2(b.y - a.y, b.x - a.x) };
+    }
+  }
+  canvas.addEventListener("contextmenu", (e) => e.preventDefault());
   canvas.addEventListener("pointerdown", (e) => {
-    canvas.setPointerCapture(e.pointerId);
-    pointers.set(e.pointerId, [e.clientX, e.clientY]);
-    dragging = { x: e.clientX, y: e.clientY, az: want.az, el: want.el };
+    if (e.button === 1) return;
+    try { canvas.setPointerCapture(e.pointerId); } catch { /* the pointer may already be gone */ }
+    // The mode is fixed at pointer-down and does not change mid-drag.
+    if (!pointers.size) gesture = { mode1: e.button === 2 || e.shiftKey ? "turn" : isZoomed() ? "move" : "turn" };
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    baseline();
     attract = false;
     kick();
   });
   canvas.addEventListener("pointermove", (e) => {
-    if (!pointers.has(e.pointerId)) return;
-    const prev = pointers.get(e.pointerId);
-    pointers.set(e.pointerId, [e.clientX, e.clientY]);
-    if (pointers.size === 2) {
+    if (!pointers.has(e.pointerId) || !gesture) return;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (gesture.mode === "multi") {
       const [a, b] = [...pointers.values()];
-      const other = [...pointers.entries()].find(([id]) => id !== e.pointerId)[1];
-      const before = Math.hypot(prev[0] - other[0], prev[1] - other[1]);
-      const after = Math.hypot(a[0] - b[0], a[1] - b[1]);
-      if (before > 0) want.dist = Math.min(fitDist * 1.4, Math.max(120, want.dist * (before / after)));
+      const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2, d = Math.hypot(a.x - b.x, a.y - b.y), ang = Math.atan2(b.y - a.y, b.x - a.x);
+      let dAng = ang - gesture.ang;
+      if (dAng > Math.PI) dAng -= 2 * Math.PI;
+      if (dAng < -Math.PI) dAng += 2 * Math.PI;
+      if (isZoomed()) dragMove(gesture.mx, gesture.my, mx, my);
+      if (d > 0 && gesture.d > 0) zoomBy(gesture.d / d, mx, my);
+      if (Math.abs(dAng) < 0.5) turn(dAng, 0);
+      Object.assign(gesture, { mx, my, d, ang });
       return;
     }
-    if (!dragging) return;
-    want.az = dragging.az - (e.clientX - dragging.x) * 0.006;
-    want.el = Math.min(1.25, Math.max(0.28, dragging.el + (e.clientY - dragging.y) * 0.004));
+    if (gesture.mode === "move") {
+      dragMove(gesture.lx, gesture.ly, e.clientX, e.clientY);
+      gesture.lx = e.clientX;
+      gesture.ly = e.clientY;
+      return;
+    }
+    want.az = gesture.az - (e.clientX - gesture.x) * 0.006;
+    want.el = Math.min(EL_MAX, Math.max(EL_MIN, gesture.el + (e.clientY - gesture.y) * 0.004));
+    manual();
     kick();
   });
-  const up = (e) => { pointers.delete(e.pointerId); if (pointers.size < 1) dragging = null; };
+  const up = (e) => {
+    if (!pointers.has(e.pointerId)) return;
+    pointers.delete(e.pointerId);
+    baseline();
+  };
   canvas.addEventListener("pointerup", up);
   canvas.addEventListener("pointercancel", up);
-  canvas.addEventListener("wheel", (e) => { e.preventDefault(); attract = false; want.dist = Math.min(fitDist * 1.4, Math.max(120, want.dist * Math.exp(e.deltaY * 0.0012))); kick(); }, { passive: false });
-  canvas.addEventListener("keydown", (e) => {
-    const k = e.key;
-    if (k === "ArrowLeft") want.az += 0.12;
-    else if (k === "ArrowRight") want.az -= 0.12;
-    else if (k === "ArrowUp") want.el = Math.min(1.25, want.el + 0.08);
-    else if (k === "ArrowDown") want.el = Math.max(0.28, want.el - 0.08);
-    else if (k === "+" || k === "=") want.dist = Math.max(120, want.dist * 0.85);
-    else if (k === "-" || k === "_") want.dist = Math.min(fitDist * 1.4, want.dist / 0.85);
-    else return;
-    attract = false;
+  canvas.addEventListener("lostpointercapture", up);
+  canvas.addEventListener("wheel", (e) => {
     e.preventDefault();
-    kick();
+    const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY;
+    zoomBy(Math.exp(Math.max(-200, Math.min(200, dy)) * 0.0012), e.clientX, e.clientY);
+  }, { passive: false });
+  const STEP_PX = 80;
+  // The on-screen buttons and the keys share these actions. Moving the view applies only when zoomed in.
+  function act(name) {
+    switch (name) {
+      case "in": zoomBy(0.8); break;
+      case "out": zoomBy(1 / 0.8); break;
+      case "left": turn(0.2, 0); break;
+      case "right": turn(-0.2, 0); break;
+      case "up": turn(0, 0.08); break;
+      case "down": turn(0, -0.08); break;
+      case "panL": if (isZoomed()) pan(STEP_PX, 0); break;
+      case "panR": if (isZoomed()) pan(-STEP_PX, 0); break;
+      case "panU": if (isZoomed()) pan(0, STEP_PX); break;
+      case "panD": if (isZoomed()) pan(0, -STEP_PX); break;
+      case "reset": resetView(); break;
+      default: return false;
+    }
+    return true;
+  }
+  canvas.addEventListener("keydown", (e) => {
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
+    const k = e.key;
+    const arrow = { ArrowLeft: "L", ArrowRight: "R", ArrowUp: "U", ArrowDown: "D" }[k];
+    let name = "";
+    if (arrow && e.shiftKey) name = `pan${arrow}`;
+    else if (arrow) name = { L: "left", R: "right", U: "up", D: "down" }[arrow];
+    else if (k === "+" || k === "=") name = "in";
+    else if (k === "-" || k === "_") name = "out";
+    else return;
+    e.preventDefault();
+    act(name);
   });
 
   function resize() {
@@ -1091,6 +1261,8 @@ function createScene(canvas, { reduced = () => false, signs = null } = {}) {
     if (!fitted || Math.abs(want.dist - lastFit) < 1) { want.dist = fitDist; view.dist = view.dist || fitDist; }
     lastFit = fitDist;
     fitted = true;
+    clampTarget();
+    notifyMode();
     camera.updateProjectionMatrix();
     kick();
   }
@@ -1131,13 +1303,20 @@ function createScene(canvas, { reduced = () => false, signs = null } = {}) {
     for (const g of groups) if (g.userData.show === id && g.visible) box3.expandByObject(g);
     return box3.isEmpty() ? null : box3;
   }
+  // The game frames a placed part or a hovered panel row, but never right after the player moved the view,
+  // and never past the bounds the current zoom allows (at the overview that means it stays home).
+  function aim(x, z) {
+    attract = false;
+    if (performance.now() - manualAt < PAUSE_MS) { kick(); return; }
+    want.target.set(x, 0, z);
+    clampTarget();
+    kick();
+  }
   function focus(id) {
     const b = boundsOf(id);
     if (!b || reduced()) return;
     const c = b.getCenter(new T3.Vector3());
-    want.target.set(c.x * 0.55 - 10 * 0.45, 0, c.z * 0.55 - 20 * 0.45);
-    attract = false;
-    kick();
+    aim(c.x * 0.55 + HOME.x * 0.45, c.z * 0.55 + HOME.z * 0.45);
   }
   function screenOf(id) {
     const b = boundsOf(id);
@@ -1147,8 +1326,10 @@ function createScene(canvas, { reduced = () => false, signs = null } = {}) {
     return [((p.x + 1) / 2) * canvas.clientWidth, ((1 - p.y) / 2) * canvas.clientHeight];
   }
   function resetView() {
-    Object.assign(want, { az: 0.78, el: 0.6, dist: fitDist });
-    want.target.set(-10, 0, -20);
+    Object.assign(want, { az: HOME.az, el: HOME.el, dist: fitDist });
+    want.target.set(HOME.x, 0, HOME.z);
+    manualAt = -Infinity;
+    notifyMode();
     kick();
   }
 
@@ -1251,7 +1432,7 @@ function createScene(canvas, { reduced = () => false, signs = null } = {}) {
   function needsFrame() {
     if (document.hidden) return false;
     if (attract && !reduced()) return true;
-    if (dragging || pointers.size) return true;
+    if (gesture || pointers.size) return true;
     if (Math.abs(want.az - view.az) > 0.001) return true;
     if (Math.abs(want.el - view.el) > 0.001) return true;
     if (Math.abs(want.dist - view.dist) > 0.5) return true;
@@ -1270,9 +1451,17 @@ function createScene(canvas, { reduced = () => false, signs = null } = {}) {
     lastDraw = 0;
     raf = requestAnimationFrame(loop);
   }
+  // The camera is still easing, the player is dragging, or a part is rising: draw every frame then.
+  function moving() {
+    if (gesture || pointers.size) return true;
+    if (Math.abs(want.az - view.az) > 0.001 || Math.abs(want.el - view.el) > 0.001) return true;
+    if (Math.abs(want.dist - view.dist) > 0.5 || view.target.distanceTo(want.target) > 0.5) return true;
+    return groups.some((g) => g.visible && g.userData.rise < 1);
+  }
   function loop(now) {
     if (!running) return;
-    const cap = attract && !dragging ? 1000 / 30 : 0;
+    // Idle animation (the slow intro turn, fans, trucks, effect rings) runs at 30 frames a second at most.
+    const cap = (attract && !gesture) || !moving() ? 1000 / 30 : 0;
     if (cap && lastDraw && now - lastDraw < cap - 1) { raf = requestAnimationFrame(loop); return; }
     lastDraw = now || performance.now();
     frame();
@@ -1291,7 +1480,9 @@ function createScene(canvas, { reduced = () => false, signs = null } = {}) {
     screenOf,
     resetView,
     setSafe(r) { Object.assign(safe, r); resize(); },
-    setAttract(v) { attract = v; kick(); },
+    setAttract(v) { if (v) resetView(); attract = v; kick(); },
+    act,
+    zoomed: isZoomed,
     refreshSigns() {
       const src = signLines();
       const swap = (mat, map) => { if (!mat) return; const old = mat.map; mat.map = map; mat.needsUpdate = true; old?.dispose(); };
@@ -1300,8 +1491,11 @@ function createScene(canvas, { reduced = () => false, signs = null } = {}) {
       renderer.shadowMap.needsUpdate = true;
       kick();
     },
-    lookAt(x, z) { want.target.set(x * 0.6 - 10 * 0.4, 0, z * 0.6 - 20 * 0.4); attract = false; kick(); },
-    setView(o) { if (o.az != null) want.az = o.az; if (o.el != null) want.el = o.el; if (o.dist != null) want.dist = o.dist; if (o.x != null) want.target.set(o.x, 0, o.z); attract = false; kick(); },
+    lookAt(x, z) { aim(x * 0.6 + HOME.x * 0.4, z * 0.6 + HOME.z * 0.4); },
+    setView(o) { if (o.az != null) want.az = o.az; if (o.el != null) want.el = o.el; if (o.dist != null) want.dist = o.dist; if (o.x != null) want.target.set(o.x, 0, o.z); clampTarget(); manual(); notifyMode(); kick(); },
+    // For checks: where the camera is headed, and the bounds it may move within.
+    cam: () => ({ az: want.az, el: want.el, dist: want.dist, x: want.target.x, z: want.target.z, vx: view.target.x, vz: view.target.z, vdist: view.dist, vaz: view.az, vel: view.el, fitDist, zoomed: isZoomed(), bounds: bounds(), manualAt }),
+    groundAt: (cx, cy) => { const p = groundAt(cx, cy); return p ? { x: p.x, z: p.z } : null; },
     start,
     renderOnce: frame,
     meshes: () => { const out = {}; scene.traverse((o) => { if (o.isMesh && o.visible) { let g = o; while (g.parent && g.parent !== scene) g = g.parent; const k = (g.userData && g.userData.key) || g.type; const m = Array.isArray(o.material) ? 'multi' : (o.material.transparent ? 'T' : '') + o.material.type.slice(4, 9); out[k] = out[k] || {}; out[k][m] = (out[k][m] || 0) + 1; } }); return out; },
