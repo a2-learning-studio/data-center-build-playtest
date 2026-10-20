@@ -28,7 +28,7 @@ for (const file of ["index.html", "build-the-campus-offline.html", "docs/index.h
 }
 const edu = readFileSync(join(ROOT, "educator.html"), "utf8");
 check("educator sheet is published in docs/ too", edu === readFileSync(join(ROOT, "docs/educator.html"), "utf8"));
-check("educator sheet credit, contact, licence and version", edu.includes("A personal project by Ali Keyvanfar, Ph.D.") && edu.includes("mailto:akeyvanf@kennesaw.edu") && edu.includes("BY-NC 4.0") && edu.includes("Play-test v1.4") && !/Spanish|Español|Kennesaw State/.test(edu));
+check("educator sheet credit, contact, licence and version", edu.includes("A personal project by Ali Keyvanfar, Ph.D.") && edu.includes("mailto:akeyvanf@kennesaw.edu") && edu.includes("BY-NC 4.0") && edu.includes("Play-test v1.5") && !/Spanish|Español|Kennesaw State/.test(edu));
 const cfg = readFileSync(join(ROOT, "_config.yml"), "utf8");
 check("tests/ and the test build are kept out of GitHub Pages", /^\s+- tests$/m.test(cfg) && /^\s+- index\.test\.html$/m.test(cfg));
 

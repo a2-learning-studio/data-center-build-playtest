@@ -59,7 +59,28 @@ const isText = (v) => typeof v === "string" && v.trim().length > 0;
     for (const k of ["title", "body"]) need(isText(t.cards?.[id]?.[k]), `strings: cards.${id}.${k} is missing`);
     for (const o of Object.keys(card.opts)) for (const k of ["label", "log"]) need(isText(t.cards?.[id]?.[o]?.[k]), `strings: cards.${id}.${o}.${k} is missing`);
     need(!card.at || elIds.includes(card.at) || phaseIds.includes(card.at), `model: card ${id} comes at unknown ${card.at}`);
+    need(!card.roll || phaseIds.includes(card.roll), `model: card ${id} rolls on unknown phase ${card.roll}`);
+    need(!card.roll || (typeof card.chance === "number" && card.chance > 0 && card.chance < 1), `model: card ${id} needs a chance between 0 and 1`);
     for (const o of Object.values(card.opts)) for (const ph of Object.keys(o.sched || {})) need(phaseIds.includes(ph), `model: card ${id} delays unknown phase ${ph}`);
+  }
+  {
+    const rolls = {};
+    for (const [id, card] of Object.entries(MODEL.CARD)) {
+      if (!card.roll) continue;
+      need(!rolls[card.roll], `model: phase ${card.roll} rolls both ${rolls[card.roll]} and ${id}`);
+      rolls[card.roll] = id;
+    }
+  }
+  if (MODEL.LAYOUT) {
+    const placed = Object.fromEntries(Object.keys(MODEL.LAYOUT).map((id) => [id, { x: 0, z: 0 }]));
+    for (const [id, spec] of Object.entries(MODEL.LAYOUT)) {
+      need(elIds.includes(id), `model: layout piece ${id} is not an element`);
+      need(Array.isArray(spec.rects) && spec.rects.length > 0, `model: layout ${id} needs a footprint`);
+      need(isText(t.placeHint?.[id]), `strings: placeHint.${id} is missing`);
+      const issue = MODEL.layoutIssue(id, 0, 0, placed);
+      need(!issue, `model: the suggested spot for ${id} does not fit (${issue})`);
+    }
+    need(String(t.placeBadNear).includes(String(MODEL.LAYOUT_NEAR)), `strings: placeBadNear must quote the ${MODEL.LAYOUT_NEAR} m limit`);
   }
   for (const [c, opts] of Object.entries(MODEL.EFFECT)) for (const o of Object.values(opts)) for (const ph of Object.keys(o.sched || {})) need(phaseIds.includes(ph), `model: choice ${c} delays unknown phase ${ph}`);
   for (const [name, table, keyKind] of [["PHASE_START", MODEL.PHASE_START, "phase"], ["PHASE_REQUIRED", MODEL.PHASE_REQUIRED, "phase"], ["BEFORE_EL", MODEL.BEFORE_EL, "element"]]) {
@@ -88,6 +109,11 @@ const isText = (v) => typeof v === "string" && v.trim().length > 0;
     }
   }
   for (const e of elIds) if (!MODEL.NO_SCENE_PART.includes(e)) need(shown.has(e), `scene: element ${e} has no part on the map (no show: "${e}" tag)`);
+  if (MODEL.LAYOUT) {
+    const shifts = new Set();
+    for (const m of scene.matchAll(/shift:\s*"([^"]+)"/g)) if (m[1]) shifts.add(m[1]);
+    for (const [id, spec] of Object.entries(MODEL.LAYOUT)) need(shifts.has(spec.shift), `scene: layout ${id} shift "${spec.shift}" has no group`);
+  }
   for (const k of ["trucks", "noise", "dust", "storm", "water", "power", "gens", "jobs", "tax", "setback"]) for (const f of ["name", "fact"]) need(isText(t.hood?.[k]?.[f]), `strings: hood.${k}.${f} is missing`);
   // Every string the code asks for exists in English.
   const code = read("game.js") + read("build.mjs");
@@ -254,7 +280,10 @@ const pageFor = (kind) => {
   const offline = kind === "offline";
   const game = kind === "test" ? read("game.js") : read("game.js").replace(HOOKS, "");
   const data = { MODEL: { ...MODEL }, FILL, VOICE: offline ? VOICE : VOICE_WEB, CAPTIONS };
-  const LIVE = game.replace("__DATA__", JSON.stringify(data)).replace("__STRINGS__", JSON.stringify(STRINGS));
+  const LIVE = game
+    .replace("__DATA__", JSON.stringify(data))
+    .replace("__STRINGS__", JSON.stringify(STRINGS))
+    .replace("__LAYOUT_FNS__", MODEL.createLayout.toString());
   // Line endings are normalised to LF first: the HTML parser does the same before the browser checks the hash, and
   // a checkout with core.autocrlf=true has CRLF sources.
   const script = (THREE_JS + read("scene.js") + "\n" + LIVE).replace(/\r\n?/g, "\n").replace(/<\/(script)/gi, "<\\/$1");
