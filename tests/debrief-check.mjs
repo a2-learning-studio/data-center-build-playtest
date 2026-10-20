@@ -53,6 +53,7 @@ for (const file of ["index.html", "build-the-campus-offline.html", "docs/index.h
     && html.includes(`<meta name="twitter:image" content="${imageUrl}">`)
     && html.includes(`<meta property="og:title" content="Build the Campus`));
   check(`${file}: no Kennesaw State University credit`, !/Kennesaw State University|construction research/i.test(html.replace(/akeyvanf@kennesaw\.edu/g, "")));
+  check(`${file}: credits name A2 Learning Studio`, html.includes("A project by A2 Learning Studio") && html.includes("© 2026 A2 Learning Studio") && !html.includes("Ali Keyvanfar"));
 }
 const edu = readFileSync(join(ROOT, "educator.html"), "utf8");
 check("educator sheet is published in docs/ too", edu === readFileSync(join(ROOT, "docs/educator.html"), "utf8"));
@@ -67,7 +68,7 @@ for (const file of ["social-preview.jpg", "docs/social-preview.jpg"]) {
   const size = jpegSize(buf);
   check(`${file}: 1200x630 JPEG under 1 MB`, buf.length < 1024 * 1024 && size.width === 1200 && size.height === 630, `${size.width}x${size.height}, ${buf.length} bytes`);
 }
-check("educator sheet credit, contact, licence and version", edu.includes("A personal project by Ali Keyvanfar, Ph.D.") && edu.includes("mailto:akeyvanf@kennesaw.edu") && edu.includes("BY-NC 4.0") && edu.includes("Play-test v1.5") && !/Spanish|Español|Kennesaw State/.test(edu));
+check("educator sheet credit, contact, licence and version", edu.includes("A project by A2 Learning Studio") && !edu.includes("Ali Keyvanfar") && edu.includes("mailto:akeyvanf@kennesaw.edu") && edu.includes("BY-NC 4.0") && edu.includes("Play-test v1.5") && !/Spanish|Español|Kennesaw State/.test(edu));
 const cfg = readFileSync(join(ROOT, "_config.yml"), "utf8");
 check("tests/ and the test build are kept out of GitHub Pages", /^\s+- tests$/m.test(cfg) && /^\s+- index\.test\.html$/m.test(cfg));
 
@@ -99,7 +100,7 @@ const about = await p.evaluate(() => {
 check("About: Words to know", about.gloss >= 15 && /CM \(construction manager\)/.test(about.terms) && /MEP/.test(about.terms) && /UPS/.test(about.terms), `${about.gloss} terms`);
 check("About: educator sheet link", /educator sheet/.test(about.educator));
 check("About: one licence line", /MIT License/.test(about.licence) && /BY-NC 4\.0/.test(about.licence) && /ElevenLabs Impact Program/.test(about.licence));
-check("About and footer credit", about.credit === "A personal project by Ali Keyvanfar, Ph.D." && about.footer === "A personal project by Ali Keyvanfar, Ph.D.");
+check("About and footer credit", about.credit === "A project by A2 Learning Studio" && about.footer === "A project by A2 Learning Studio" && /© 2026 A2 Learning Studio/.test(about.licence) && !/Ali Keyvanfar/.test(about.licence));
 check("About: narration credit", about.voice === "Narration recorded in advance with ElevenLabs (Impact Program); the game contacts no service while you play.");
 check("About: mailto contact and dated sources", about.mail && about.sources >= 7 && about.sourcesTitle === "Sources (as of October 2026)");
 check("About: score help quotes the model's numbers", /0\.3% for every month/.test(about.help) && /103% of plan/.test(about.help) && /45-month plan/.test(about.help) && !/\{\w+\}/.test(about.help), about.help.slice(0, 60));
