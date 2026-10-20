@@ -81,7 +81,7 @@ export const STRINGS = {
       { text: "Electricity use of large data centers compared with homes: U.S. Energy Information Administration", url: "https://www.eia.gov/todayinEnergy/detail.php?id=65244" },
     ],
     sourcesNote: "Durations are typical ranges, simplified for the game; they vary by project. Real projects overlap their phases; the game runs them one after another, except that utilities run alongside grading and building. The five commissioning levels are common industry practice, not a law or standard.",
-    licences: "Licence: code under the MIT License, and text, graphics and game design under Creative Commons BY-NC 4.0, © 2026 Ali Keyvanfar. three.js r170 (MIT) and the Geist and Inter fonts (SIL Open Font License) keep their own licences; the narration clips follow the ElevenLabs Impact Program terms.",
+    licences: "Licence: code under the MIT License, and text, graphics and game design under Creative Commons BY-NC 4.0, © 2026 A2 Learning Studio. three.js r170 (MIT) and the Geist and Inter fonts (SIL Open Font License) keep their own licences; the narration clips follow the ElevenLabs Impact Program terms.",
     educatorNote: "For teachers and facilitators: a one-page sheet with learning goals, how to run a session, words to know and debrief questions.",
     educatorLink: "Open the educator sheet",
     educatorNoteOffline: "The one-page educator sheet is on the game's web page, at educator.html.",
@@ -250,7 +250,7 @@ export const STRINGS = {
     endPrint: "Print this summary",
     printHead: "Build the Campus · debrief",
 
-    credits: "A personal project by Ali Keyvanfar, Ph.D.",
+    credits: "A project by A2 Learning Studio",
     creditsBody: "The site, company and neighbors are made up; the rules and figures in the game are real as of October 2026. Durations are typical ranges and vary by project.",
     audienceAbout: "Ages 12 and up (grade 7 to adult); younger players with an adult. Asks no names and stores nothing about you.",
     creditsSet: "A companion to Community Builders of Pecan Grove.",
