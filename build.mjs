@@ -6,7 +6,7 @@
 // plus index.test.html at the root only: the web page with the hooks the checks in tests/ use (never published).
 // Before writing, it checks the model, the strings and the scene tags against each other (I19) and stops on a gap.
 // node build.mjs --test   also runs every script in tests/ against the fresh test build.
-import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, unlinkSync, copyFileSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, unlinkSync, copyFileSync, statSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { dirname, join } from "node:path";
@@ -271,6 +271,12 @@ const bodyFor = (offline) => `
 // A small campus icon: a dark green tile with a building and a roof line.
 const FAVICON = `data:image/svg+xml,${encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='#163a30'/><path d='M10 28 32 14l22 14' fill='none' stroke='#e0763c' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/><rect x='14' y='28' width='36' height='24' rx='3' fill='#f7f4ee'/><path d='M20 35h24M20 41h24M20 47h24' stroke='#163a30' stroke-width='3'/></svg>")}`;
 const DESCRIPTION = `${t.audience} Build a made-up data center campus in Georgia, one phase at a time, and see how each choice moves the schedule, the budget, crew safety and the neighbors.`;
+// Link previews (LinkedIn, X, and other social apps) read these from the published page. The image is a
+// captured view of the finished campus plus the game's name; GitHub Pages serves it from the site root.
+const SITE = "https://a2-learning-studio.github.io/data-center-build-playtest/";
+const SOCIAL_IMAGE = "social-preview.jpg";
+const SOCIAL_URL = `${SITE}${SOCIAL_IMAGE}`;
+const SOCIAL_ALT = "The Red Clay Ridge data center campus in Build the Campus: a white data hall, cooling yard, ponds and a neighboring street of homes.";
 // The test hooks (window.__dc and the idle and voice-speed settings) live between these markers in game.js.
 const HOOKS = /\/\/ @test-hooks-start[\s\S]*?\/\/ @test-hooks-end\n?/;
 if (!HOOKS.test(read("game.js"))) throw new Error("test-hook markers not found in game.js");
@@ -318,9 +324,20 @@ const pageFor = (kind) => {
     `<meta property="og:title" content="${t.pageTitle}">`,
     `<meta property="og:description" content="${DESCRIPTION}">`,
     '<meta property="og:type" content="website">',
+    `<meta property="og:url" content="${offline ? `${SITE}build-the-campus-offline.html` : SITE}">`,
     '<meta property="og:locale" content="en_US">',
     `<meta property="og:site_name" content="${t.gameName}">`,
-    '<meta name="twitter:card" content="summary">',
+    `<meta property="og:image" content="${SOCIAL_URL}">`,
+    `<meta property="og:image:secure_url" content="${SOCIAL_URL}">`,
+    '<meta property="og:image:type" content="image/jpeg">',
+    '<meta property="og:image:width" content="1200">',
+    '<meta property="og:image:height" content="630">',
+    `<meta property="og:image:alt" content="${SOCIAL_ALT}">`,
+    '<meta name="twitter:card" content="summary_large_image">',
+    `<meta name="twitter:title" content="${t.pageTitle}">`,
+    `<meta name="twitter:description" content="${DESCRIPTION}">`,
+    `<meta name="twitter:image" content="${SOCIAL_URL}">`,
+    `<meta name="twitter:image:alt" content="${SOCIAL_ALT}">`,
   ].join("");
   return `<!doctype html><html lang="en"><head>${head}<style>${FONTS}${read("style.css")}</style></head><body data-view="build" data-side="hood">${body}<script type="module">${script}</script></body></html>`;
 };
@@ -342,6 +359,32 @@ for (const dir of [HERE, docs]) {
   writeFileSync(join(dir, OFFLINE_FILE), offlinePage);
 }
 writeFileSync(join(HERE, "index.test.html"), testPage);
+// Width and height from the JPEG SOF marker, so the meta tags cannot drift from the file.
+function jpegSize(buf) {
+  if (buf[0] !== 0xff || buf[1] !== 0xd8) throw new Error(`${SOCIAL_IMAGE} is not a JPEG`);
+  let i = 2;
+  while (i + 8 < buf.length) {
+    if (buf[i] !== 0xff) break;
+    const marker = buf[i + 1];
+    const len = buf.readUInt16BE(i + 2);
+    if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
+      return { height: buf.readUInt16BE(i + 5), width: buf.readUInt16BE(i + 7) };
+    }
+    if (marker === 0xd9 || marker === 0xda) break;
+    i += 2 + len;
+  }
+  throw new Error(`could not read the size of ${SOCIAL_IMAGE}`);
+}
+// social-preview.jpg is the link-preview image. It stays at the repo root (GitHub Pages publishes /) and is
+// copied into docs/ so a docs/ publish serves the same card.
+const socialPath = join(HERE, SOCIAL_IMAGE);
+const socialBytes = statSync(socialPath).size;
+if (socialBytes > 1024 * 1024) throw new Error(`${SOCIAL_IMAGE} is ${socialBytes} bytes; keep it under 1 MB`);
+const socialSize = jpegSize(readFileSync(socialPath));
+if (socialSize.width !== 1200 || socialSize.height !== 630) {
+  throw new Error(`${SOCIAL_IMAGE} is ${socialSize.width}x${socialSize.height}; expected 1200x630`);
+}
+copyFileSync(socialPath, join(docs, SOCIAL_IMAGE));
 // The one-page educator sheet (C11) is a hand-written static page; docs/ gets a copy.
 copyFileSync(join(HERE, "educator.html"), join(docs, "educator.html"));
 // docs/voice/ holds exactly the clips the web page uses; the root page uses voice/ itself.

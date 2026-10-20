@@ -12,6 +12,20 @@ const check = (name, ok, detail = "") => {
   if (!ok) failed += 1;
   console.log(`${ok ? "ok  " : "FAIL"} ${name}${detail ? ` — ${detail}` : ""}`);
 };
+function jpegSize(buf) {
+  let i = 2;
+  while (i + 8 < buf.length) {
+    if (buf[i] !== 0xff) break;
+    const marker = buf[i + 1];
+    const len = buf.readUInt16BE(i + 2);
+    if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
+      return { height: buf.readUInt16BE(i + 5), width: buf.readUInt16BE(i + 7) };
+    }
+    if (marker === 0xd9 || marker === 0xda) break;
+    i += 2 + len;
+  }
+  return { width: 0, height: 0 };
+}
 
 // ---------- the published pages (no browser needed) ----------
 for (const file of ["index.html", "build-the-campus-offline.html", "docs/index.html"]) {
@@ -24,10 +38,35 @@ for (const file of ["index.html", "build-the-campus-offline.html", "docs/index.h
   check(`${file}: no test hooks`, !/__dc|__idleMs|__voiceRate|@test-hooks/.test(html));
   check(`${file}: referrer, description, Open Graph and favicon carry the age line`,
     html.includes('<meta name="referrer" content="no-referrer">') && /<meta name="description" content="For ages 12 and up/.test(html) && /<meta property="og:description" content="For ages 12 and up/.test(html) && /<link rel="icon" type="image\/svg\+xml" href="data:image\/svg\+xml,/.test(html));
+  const pageUrl = file.endsWith("build-the-campus-offline.html")
+    ? "https://a2-learning-studio.github.io/data-center-build-playtest/build-the-campus-offline.html"
+    : "https://a2-learning-studio.github.io/data-center-build-playtest/";
+  const imageUrl = "https://a2-learning-studio.github.io/data-center-build-playtest/social-preview.jpg";
+  check(`${file}: link-preview image, size and large Twitter card`,
+    html.includes(`<meta property="og:url" content="${pageUrl}">`)
+    && html.includes('<meta property="og:type" content="website">')
+    && html.includes(`<meta property="og:image" content="${imageUrl}">`)
+    && html.includes('<meta property="og:image:width" content="1200">')
+    && html.includes('<meta property="og:image:height" content="630">')
+    && html.includes('<meta property="og:image:alt" content="The Red Clay Ridge data center campus')
+    && html.includes('<meta name="twitter:card" content="summary_large_image">')
+    && html.includes(`<meta name="twitter:image" content="${imageUrl}">`)
+    && html.includes(`<meta property="og:title" content="Build the Campus`));
   check(`${file}: no Kennesaw State University credit`, !/Kennesaw State University|construction research/i.test(html.replace(/akeyvanf@kennesaw\.edu/g, "")));
 }
 const edu = readFileSync(join(ROOT, "educator.html"), "utf8");
 check("educator sheet is published in docs/ too", edu === readFileSync(join(ROOT, "docs/educator.html"), "utf8"));
+check("educator sheet link preview",
+  edu.includes('<meta property="og:image" content="https://a2-learning-studio.github.io/data-center-build-playtest/social-preview.jpg">')
+  && edu.includes('<meta property="og:image:width" content="1200">')
+  && edu.includes('<meta property="og:image:height" content="630">')
+  && edu.includes('<meta property="og:url" content="https://a2-learning-studio.github.io/data-center-build-playtest/educator.html">')
+  && edu.includes('<meta name="twitter:card" content="summary_large_image">'));
+for (const file of ["social-preview.jpg", "docs/social-preview.jpg"]) {
+  const buf = readFileSync(join(ROOT, file));
+  const size = jpegSize(buf);
+  check(`${file}: 1200x630 JPEG under 1 MB`, buf.length < 1024 * 1024 && size.width === 1200 && size.height === 630, `${size.width}x${size.height}, ${buf.length} bytes`);
+}
 check("educator sheet credit, contact, licence and version", edu.includes("A personal project by Ali Keyvanfar, Ph.D.") && edu.includes("mailto:akeyvanf@kennesaw.edu") && edu.includes("BY-NC 4.0") && edu.includes("Play-test v1.5") && !/Spanish|Español|Kennesaw State/.test(edu));
 const cfg = readFileSync(join(ROOT, "_config.yml"), "utf8");
 check("tests/ and the test build are kept out of GitHub Pages", /^\s+- tests$/m.test(cfg) && /^\s+- index\.test\.html$/m.test(cfg));
