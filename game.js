@@ -1,5 +1,6 @@
 // Runtime for Build the Campus: state, rules, panels and the 3D scene. One screen, no page scroll.
 const D = __DATA__;
+Object.assign(D.MODEL, (__LAYOUT_FNS__)(D.MODEL));
 const STR = __STRINGS__;
 let lang = "en";
 const T = () => ({ ...STR.en, ...(STR[lang] || {}) });

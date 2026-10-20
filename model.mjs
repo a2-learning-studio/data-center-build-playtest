@@ -85,62 +85,70 @@ export const LAYOUT = {
     rects: [{ x: 37, z: -136, w: 32, h: 49 }, { x: 79, z: -139, w: 14, h: 75 }, { x: 37, z: -55, w: 32, h: 16 }],
   },
 };
-const LAYOUT_BOX = {
+export const LAYOUT_BOX = {
   pad: { x0: -170, x1: 130, z0: -158, z1: 18 },
   site: { x0: -236, x1: 220, z0: -170, z1: 92 },
   pond: { x0: -242, x1: 214, z0: -170, z1: 118 },
   road: { x0: -240, x1: 250, z0: -90, z1: 78 },
 };
-const LAYOUT_EASE = { x0: 150, x1: 260, z0: -180, z1: -80 };
+export const LAYOUT_EASE = { x0: 150, x1: 260, z0: -180, z1: -80 };
 
-export function layoutRects(id, dx, dz) {
-  const spec = LAYOUT[id];
-  if (!spec) return [];
-  return spec.rects.map((r) => ({ x: r.x + dx, z: r.z + dz, w: r.w, h: r.h }));
-}
-function layoutInside(r, b) {
-  return r.x >= b.x0 - 0.01 && r.z >= b.z0 - 0.01 && r.x + r.w <= b.x1 + 0.01 && r.z + r.h <= b.z1 + 0.01;
-}
-function layoutOverlap(a, b) {
-  return a.x < b.x + b.w - 0.05 && a.x + a.w > b.x + 0.05 && a.z < b.z + b.h - 0.05 && a.z + a.h > b.z + 0.05;
-}
-function layoutGap(a, b) {
-  const dx = Math.max(0, Math.max(a.x - (b.x + b.w), b.x - (a.x + a.w)));
-  const dz = Math.max(0, Math.max(a.z - (b.z + b.h), b.z - (a.z + a.h)));
-  return Math.hypot(dx, dz);
-}
-function layoutHits(r, b) {
-  return r.x < b.x1 && r.x + r.w > b.x0 && r.z < b.z1 && r.z + r.h > b.z0;
-}
-// `placed` maps other piece ids to the offset already chosen. A missing neighbor is the suggested spot, for the
-// near check only. Returns "" or a short reason code the strings table names.
-export function layoutIssue(id, dx, dz, placed = {}) {
-  const spec = LAYOUT[id];
-  if (!spec) return "";
-  if (spec.axis === "z" && Math.abs(dx) > 0.01) return "road";
-  const mine = layoutRects(id, dx, dz);
-  const box = LAYOUT_BOX[spec.box] || LAYOUT_BOX.site;
-  for (const r of mine) {
-    if (!layoutInside(r, box)) {
-      if ((spec.box === "pond" || spec.box === "site") && r.z + r.h > box.z1) return "setback";
-      if (spec.box === "road" && r.x + r.w < 220) return "road";
-      return spec.box === "pad" ? "pad" : "site";
+// One function so the build can paste it into the page. The model is stored as JSON, which drops functions.
+export function createLayout(tables) {
+  const { LAYOUT, LAYOUT_BOX, LAYOUT_EASE, LAYOUT_NEAR } = tables;
+  function layoutRects(id, dx, dz) {
+    const spec = LAYOUT[id];
+    if (!spec) return [];
+    return spec.rects.map((r) => ({ x: r.x + dx, z: r.z + dz, w: r.w, h: r.h }));
+  }
+  function layoutInside(r, b) {
+    return r.x >= b.x0 - 0.01 && r.z >= b.z0 - 0.01 && r.x + r.w <= b.x1 + 0.01 && r.z + r.h <= b.z1 + 0.01;
+  }
+  function layoutOverlap(a, b) {
+    return a.x < b.x + b.w - 0.05 && a.x + a.w > b.x + 0.05 && a.z < b.z + b.h - 0.05 && a.z + a.h > b.z + 0.05;
+  }
+  function layoutGap(a, b) {
+    const dx = Math.max(0, Math.max(a.x - (b.x + b.w), b.x - (a.x + a.w)));
+    const dz = Math.max(0, Math.max(a.z - (b.z + b.h), b.z - (a.z + a.h)));
+    return Math.hypot(dx, dz);
+  }
+  function layoutHits(r, b) {
+    return r.x < b.x1 && r.x + r.w > b.x0 && r.z < b.z1 && r.z + r.h > b.z0;
+  }
+  // `placed` maps other piece ids to the offset already chosen. A missing neighbor is the suggested spot, for the
+  // near check only. Returns "" or a short reason code the strings table names.
+  function layoutIssue(id, dx, dz, placed = {}) {
+    const spec = LAYOUT[id];
+    if (!spec) return "";
+    if (spec.axis === "z" && Math.abs(dx) > 0.01) return "road";
+    const mine = layoutRects(id, dx, dz);
+    const box = LAYOUT_BOX[spec.box] || LAYOUT_BOX.site;
+    for (const r of mine) {
+      if (!layoutInside(r, box)) {
+        if ((spec.box === "pond" || spec.box === "site") && r.z + r.h > box.z1) return "setback";
+        if (spec.box === "road" && r.x + r.w < 220) return "road";
+        return spec.box === "pad" ? "pad" : "site";
+      }
     }
+    if (spec.ease && !mine.some((r) => layoutHits(r, LAYOUT_EASE))) return "utility";
+    if (spec.near) {
+      const pos = placed[spec.near] || { x: 0, z: 0 };
+      const theirs = layoutRects(spec.near, pos.x, pos.z);
+      let best = Infinity;
+      for (const a of mine) for (const b of theirs) best = Math.min(best, layoutGap(a, b));
+      if (best > LAYOUT_NEAR) return "near";
+    }
+    for (const [oid, pos] of Object.entries(placed)) {
+      if (oid === id || !pos || !LAYOUT[oid]) continue;
+      for (const a of mine) for (const b of layoutRects(oid, pos.x, pos.z)) if (layoutOverlap(a, b)) return "overlap";
+    }
+    return "";
   }
-  if (spec.ease && !mine.some((r) => layoutHits(r, LAYOUT_EASE))) return "utility";
-  if (spec.near) {
-    const pos = placed[spec.near] || { x: 0, z: 0 };
-    const theirs = layoutRects(spec.near, pos.x, pos.z);
-    let best = Infinity;
-    for (const a of mine) for (const b of theirs) best = Math.min(best, layoutGap(a, b));
-    if (best > LAYOUT_NEAR) return "near";
-  }
-  for (const [oid, pos] of Object.entries(placed)) {
-    if (oid === id || !pos || !LAYOUT[oid]) continue;
-    for (const a of mine) for (const b of layoutRects(oid, pos.x, pos.z)) if (layoutOverlap(a, b)) return "overlap";
-  }
-  return "";
+  return { layoutRects, layoutIssue };
 }
+const layoutApi = createLayout({ LAYOUT, LAYOUT_BOX, LAYOUT_EASE, LAYOUT_NEAR });
+export const layoutRects = layoutApi.layoutRects;
+export const layoutIssue = layoutApi.layoutIssue;
 
 // When each question is asked: nothing is filled in ahead of time.
 export const PHASE_START = { grade: ["route", "hours"], shell: ["light"] }; // asked when that phase's first element is placed

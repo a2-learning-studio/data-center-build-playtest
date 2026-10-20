@@ -280,7 +280,10 @@ const pageFor = (kind) => {
   const offline = kind === "offline";
   const game = kind === "test" ? read("game.js") : read("game.js").replace(HOOKS, "");
   const data = { MODEL: { ...MODEL }, FILL, VOICE: offline ? VOICE : VOICE_WEB, CAPTIONS };
-  const LIVE = game.replace("__DATA__", JSON.stringify(data)).replace("__STRINGS__", JSON.stringify(STRINGS));
+  const LIVE = game
+    .replace("__DATA__", JSON.stringify(data))
+    .replace("__STRINGS__", JSON.stringify(STRINGS))
+    .replace("__LAYOUT_FNS__", MODEL.createLayout.toString());
   // Line endings are normalised to LF first: the HTML parser does the same before the browser checks the hash, and
   // a checkout with core.autocrlf=true has CRLF sources.
   const script = (THREE_JS + read("scene.js") + "\n" + LIVE).replace(/\r\n?/g, "\n").replace(/<\/(script)/gi, "<\\/$1");
