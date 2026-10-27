@@ -8,6 +8,8 @@ const PREFIX = "build-the-campus-";
 // is served only when it matches; this file itself is out of their reach (SA-2). Files not listed are never stored.
 const DIGESTS = __DIGESTS__;
 const SCOPE = new URL("./", self.registration.scope).pathname;
+// How long a page already saved waits for the network before its saved copy opens instead.
+const NAV_WAIT = 4000;
 
 // Where a request is stored, and the name its digest is listed under. The game page, whatever query string it was
 // opened with (?mode=class, ?src=qr), is stored once, under "index.html", and also answers "./" (it used to be stored
@@ -110,11 +112,14 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(saved().then((hit) => hit || fetch(req).then(store)));
     return;
   }
-  event.respondWith(
-    fetch(req, { cache: "no-cache" })
-      .then(store)
-      // Offline: each file falls back to its own saved copy, never to another file, and never to a copy that does not
-      // match (the browser's own error shows instead).
-      .catch(() => saved().then((hit) => hit || Response.error())),
-  );
+  // Offline, and when the host answers with an error (404, 5xx), each file falls back to its own saved copy, never to
+  // another file, and never to a copy that does not match (the network's answer or the browser's error shows instead).
+  // A page already saved also opens from that copy when the network has not answered in NAV_WAIT ms: a stalled
+  // connection used to leave a kiosk on a blank page (review). With no saved copy, as on a first visit, the page
+  // waits for the network as long as the browser does.
+  const net = fetch(req, { cache: "no-cache" }).then(store);
+  const fallback = (res) => saved().then((hit) => hit || res || Response.error());
+  const answer = net.then((res) => (res.ok ? res : fallback(res)), () => fallback());
+  if (req.mode !== "navigate") { event.respondWith(answer); return; }
+  event.respondWith(saved().then((hit) => (hit ? Promise.race([answer, new Promise((r) => setTimeout(() => r(hit), NAV_WAIT))]) : answer)));
 });

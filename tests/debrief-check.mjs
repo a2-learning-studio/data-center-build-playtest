@@ -72,6 +72,12 @@ for (const file of ["social-preview.jpg", "docs/social-preview.jpg"]) {
   check(`${file}: 1200x630 JPEG under 1 MB`, buf.length < 1024 * 1024 && size.width === 1200 && size.height === 630, `${size.width}x${size.height}, ${buf.length} bytes`);
 }
 check("educator sheet credit, contact, licence and version", edu.includes("A project by A2 Learning Studio") && !edu.includes("Ali Keyvanfar") && edu.includes("mailto:akeyvanf@kennesaw.edu") && edu.includes("BY-NC 4.0") && edu.includes("Play-test v1.5") && !/Spanish|Español|Kennesaw State/.test(edu));
+// The sheet's privacy line says what About's says the game stores (review: it had a kiosk keep settings): nothing on a
+// kiosk; in class and home modes the four settings, the game and its timed steps, and results files only if downloaded.
+const eduPrivacy = edu.match(/<p><b>Privacy:<\/b>([^<]*)<\/p>/)?.[1] || "";
+check("educator sheet privacy line matches what the game stores",
+  ["A kiosk stores nothing.", "Class and home modes keep the voice, Library mode, presenter and shortcut settings", "timed steps until the tab closes", "results files only if downloaded"].every((w) => eduPrivacy.includes(w)),
+  eduPrivacy);
 // A printed or forwarded sheet still leads to the game, in class mode too; the offline copy gives the sheet's address.
 const SITE = "https://a2-learning-studio.github.io/data-center-build-playtest/";
 check("educator sheet prints the game and class-mode addresses",

@@ -2,8 +2,10 @@
 // saving and Resume, undo and Start over, live score summary, WebGL context loss; and (PA-1, DE-7, FEU-2, FEU-6) kiosk
 // settings that last one game, settings from the address, two tabs, and how the mode is read; (FEU-1, DE-3, DE-4,
 // DE-5, QL-5, QL-7) the class end screen and kept games, undo of a Choices-panel change and storage that will not
-// save, the idle prompt over About, the zoom tip for every visitor and the number-keys line; and (QL-1) a double-click
-// answers one question. Any uncaught page error fails the check that follows it (QL-3).
+// save, the idle prompt over About, the zoom tip for every visitor and the number-keys line; (QL-1) a double-click
+// answers one question; and (review) a held or doubled Enter neither plays on by itself nor clears the kiosk summary,
+// undo leaves the map-effects switch alone, and the class-mode Library note tells the truth about the Voice button.
+// Any uncaught page error fails the check that follows it (QL-3).
 // Run: node tests/session-check.mjs (see drive.mjs for the browser and paths). Takes a few minutes: it waits out real countdowns.
 import { launch, GAME_URL } from "./drive.mjs";
 const URL = GAME_URL;
@@ -23,7 +25,9 @@ const check = (name, ok, extra = "") => {
 };
 const skew = () => {
   const o = performance.now.bind(performance);
-  performance.now = () => o() + (window.__skew || 0);
+  // __pin holds the page's clock at one reading, so a check that times a press against one of the game's windows
+  // does not depend on how busy the machine is (review: a slow runner could push a click past the 400 ms window).
+  performance.now = () => window.__pin ?? o() + (window.__skew || 0);
 };
 async function page(opts = {}, q = "") {
   const ctx = opts.ctx || (await b.newContext({ viewport: { width: opts.w || 1366, height: opts.h || 768 }, hasTouch: !!opts.touch }));
@@ -41,6 +45,12 @@ const finishGame = async (p) => {
   await ev(p, () => { document.querySelector("[data-start]").click(); window.__dc.all({ route: "a", hours: "a", buffer: "a", wall: "a", cool: "a", light: "a", test: "a" }); });
   await p.click("[data-finish]");
   await p.waitForTimeout(300);
+};
+// Acts with the page's clock held at `ms` after a time the game noted (the __dc hooks shownAt and againAt).
+const pinned = async (p, hook, ms, act) => {
+  await ev(p, ([h, n]) => { window.__pin = window.__dc[h]() + n; }, [hook, ms]);
+  await act();
+  await ev(p, () => { delete window.__pin; });
 };
 const center = async (p, sel) => { const r = await p.locator(sel).boundingBox(); return [r.x + r.width / 2, r.y + r.height / 2]; };
 // Leave the game idle until the kiosk prompt counts down and the intro opens for the next player.
@@ -223,6 +233,18 @@ for (const [w, h] of [[390, 844], [820, 1180], [1366, 900]]) {
   const s = await ev(p, () => ({ box: document.querySelector("[data-libmode]").checked, voice: document.querySelector("[data-voice]").getAttribute("aria-pressed") }));
   check("Library mode remembered in class mode", s.box && s.voice === "false", JSON.stringify(s));
   await ctx.close();
+  // The class-mode note says the device remembers the Voice button too, and it does (review: it said the button
+  // changed only the game being played). The kiosk note still says this game only.
+  const { ctx: c3, p: p3 } = await page({}, "?mode=class");
+  const note = await ev(p3, () => document.querySelector("[data-libmode-note]").textContent);
+  await p3.click("[data-start]");
+  await p3.waitForTimeout(200);
+  await p3.click("[data-voice]");
+  await p3.reload();
+  await p3.waitForTimeout(400);
+  const kept = await ev(p3, () => document.querySelector("[data-voice]").getAttribute("aria-pressed"));
+  check("class mode: the Library note says the Voice button is remembered too, and it is", /remembers/.test(note) && /Voice button/.test(note) && !/only the game/.test(note) && kept === "false", JSON.stringify({ note, kept }));
+  await c3.close();
   const { ctx: c2, p: p2 } = await page({}, "?mode=library");
   const s2 = await ev(p2, () => ({ box: document.querySelector("[data-libmode]").checked, dis: document.querySelector("[data-libmode]").disabled, voice: document.querySelector("[data-voice]").getAttribute("aria-pressed") }));
   check("?mode=library starts voice off", s2.box && s2.voice === "false", JSON.stringify(s2));
@@ -513,6 +535,23 @@ for (const [q, want] of [["?mode=Class", "class"], ["?mode=%20HOME%20", "home"],
   check("undo takes back a Choices-panel change first, then the placement", s1.cool === "b" && s1.zoning && s2.cool === "a" && s2.zoning && s3.cool === "a" && !s3.zoning, JSON.stringify([s1, s2, s3]));
   await ctx.close();
 }
+// The map-effects switch is a view, not a move: undo leaves it, and its button, as the player set them (review: undo
+// brought back an older setting while the button still showed the new one).
+{
+  const { ctx, p } = await page();
+  await p.keyboard.press("Enter");
+  await p.waitForTimeout(200);
+  await p.keyboard.press("n");
+  await p.waitForTimeout(200);
+  await p.keyboard.press("1");
+  await p.waitForTimeout(300);
+  await p.click("[data-fx]");
+  await ev(p, () => document.querySelector("[data-undo]").click());
+  await p.waitForTimeout(150);
+  const fx = await ev(p, () => ({ zoning: window.__dc.state().placed.has("zoning"), ov: window.__dc.state().ov, pressed: document.querySelector("[data-fx]").getAttribute("aria-pressed"), text: document.querySelector("[data-fx]").textContent }));
+  check("undo leaves the map-effects switch and its button as the player set them", !fx.zoning && fx.ov === false && fx.pressed === "false" && /off/.test(fx.text), JSON.stringify(fx));
+  await ctx.close();
+}
 
 // 17. Class mode with storage that will not save (QL-5): the game says so once. The note is not about a click, so a
 // question that opens over it (the cooling question comes at once) only puts it off: it shows again, for its full
@@ -652,9 +691,10 @@ for (const [q, want] of [["?mode=Class", "class"], ["?mode=%20HOME%20", "home"],
     await p.click('[data-el="clear"]');
     await p.waitForTimeout(500);
     const [x, y] = await optAt(p);
-    await p.mouse.click(x, y);
-    await p.waitForTimeout(150);
-    await p.mouse.click(x, y);
+    // Each click is timed from when its question showed, by the page's own clock, held while the click lands.
+    await pinned(p, "shownAt", 500, () => p.mouse.click(x, y));
+    await p.waitForFunction(() => /weather/i.test(document.querySelector(".card-title").textContent), null, { timeout: 5000 }).catch(() => {});
+    await pinned(p, "shownAt", 150, () => p.mouse.click(x, y));
     await p.waitForTimeout(300);
     const s = await state(p);
     check("a second click 150 ms after the Weather card opens does not answer it", s.open && /weather/i.test(s.title) && s.buffer === "a" && s.weather === null, JSON.stringify(s));
@@ -666,13 +706,76 @@ for (const [q, want] of [["?mode=Class", "class"], ["?mode=%20HOME%20", "home"],
     await p.click('[data-el="clear"]');
     await p.waitForTimeout(500);
     await p.keyboard.press("1");
-    await p.waitForTimeout(100);
-    await p.keyboard.press("1");
+    await p.waitForFunction(() => /weather/i.test(document.querySelector(".card-title").textContent), null, { timeout: 5000 }).catch(() => {});
+    await pinned(p, "shownAt", 100, () => p.keyboard.press("1"));
     await p.waitForTimeout(200);
     const s = await state(p);
     check("a key answers an issue card at once, even 100 ms after it opens", !s.open && s.buffer === "a" && s.weather === "a", JSON.stringify(s));
     await ctx.close();
   }
+}
+
+// 20. Enter and Space (review). A held key repeats, and each answer or step moves focus on to the next button or
+// question: about 1.5 s of held Enter played the game by itself, shortcuts on or off. A repeat presses nothing, Enter
+// or Space within 400 ms of a new question does not answer it, and a later press does.
+for (const q of ["", "?keys=off"]) {
+  const { ctx, p } = await page({}, q);
+  const answers = () => ev(p, () => { const s = window.__dc.state(); return Object.values(s.choice).filter(Boolean).length + Object.keys(s.cards).length; });
+  await p.locator("[data-start]").focus();
+  for (let i = 0; i < 45; i++) { await p.keyboard.down("Enter"); await p.waitForTimeout(33); }
+  await p.keyboard.up("Enter");
+  await p.waitForTimeout(300);
+  const held = await ev(p, () => ({ started: window.__dc.state().started, placed: window.__dc.state().placed.size, intro: document.querySelector("[data-intro]").open }));
+  const none = await answers();
+  check(`held Enter${q} presses Start once and nothing else`, held.started && !held.intro && held.placed === 0 && none === 0, JSON.stringify({ ...held, answers: none }));
+  await p.keyboard.press("Enter");
+  await p.waitForFunction(() => document.querySelector("[data-card]").open, null, { timeout: 5000 }).catch(() => {});
+  const asked = await ev(p, () => document.querySelector("[data-card]").open && document.querySelector(".card-title").textContent);
+  await pinned(p, "shownAt", 80, () => p.keyboard.press("Enter"));
+  await pinned(p, "shownAt", 80, () => p.keyboard.press(" "));
+  await p.waitForTimeout(150);
+  const early = await ev(p, () => ({ open: document.querySelector("[data-card]").open, title: document.querySelector(".card-title").textContent }));
+  const before = await answers();
+  await pinned(p, "shownAt", 500, () => p.keyboard.press("Enter"));
+  await p.waitForTimeout(300);
+  const after = await answers();
+  check(`Enter${q}: a new question ignores Enter and Space for 400 ms, then Enter answers it`, !!asked && early.open && early.title === asked && before === 0 && after === 1, JSON.stringify({ asked, early, before, after }));
+  await ctx.close();
+}
+
+// 21. Kiosk end screen (review): the game puts focus on Play again, so a held or doubled Enter on Finish turnover or
+// on Keep this summary cleared the summary unseen. Enter waits a second after the game moves focus there; after
+// that, Enter on Play again still starts the next game at once.
+{
+  const { ctx, p } = await page();
+  const s = () => ev(p, () => ({ end: document.querySelector("[data-end]").open, intro: document.querySelector("[data-intro]").open, again: !!document.activeElement?.matches("[data-again]") }));
+  await ev(p, () => { document.querySelector("[data-start]").click(); window.__dc.all({ route: "a", hours: "a", buffer: "a", wall: "a", cool: "a", light: "a", test: "a" }); });
+  await p.waitForTimeout(200);
+  await p.locator("[data-finish]").focus();
+  await p.keyboard.down("Enter");
+  await p.waitForTimeout(60);
+  await p.keyboard.down("Enter");
+  await p.keyboard.up("Enter");
+  await p.waitForTimeout(300);
+  const held = await s();
+  await pinned(p, "againAt", 80, () => p.keyboard.press("Enter"));
+  await p.waitForTimeout(300);
+  const twice = await s();
+  check("kiosk: Enter held on Finish turnover, or pressed again at once, keeps the summary", held.end && held.again && twice.end && !twice.intro, JSON.stringify({ held, twice }));
+  await ev(p, () => { window.__skew = 61000; });
+  await p.waitForFunction(() => !document.querySelector("[data-end-keep]").hidden, null, { timeout: 8000 });
+  await p.keyboard.press("Enter");
+  await p.waitForTimeout(200);
+  const kept = await s();
+  await pinned(p, "againAt", 80, async () => { await p.keyboard.down("Enter"); await p.keyboard.down("Enter"); await p.keyboard.up("Enter"); });
+  await p.waitForTimeout(300);
+  const after = await s();
+  check("kiosk: Enter on Keep this summary, then held or pressed again at once, keeps the summary", kept.end && kept.again && after.end && !after.intro, JSON.stringify({ kept, after }));
+  await pinned(p, "againAt", 1200, () => p.keyboard.press("Enter"));
+  await p.waitForTimeout(300);
+  const next = await s();
+  check("kiosk: a second later, Enter on Play again starts the next game at once", !next.end && next.intro, JSON.stringify(next));
+  await ctx.close();
 }
 
 await b.close();

@@ -1182,9 +1182,11 @@ function undo() {
   cardPending = false;
   endPlace();
   hush();
-  // The steps keep what was undone, and the undo itself (BTC-01).
+  // The steps keep what was undone, and the undo itself (BTC-01). The map-effects switch is a view, not a move, so it
+  // stays as the player left it: undo used to bring back an older setting while its button still showed this one.
   back.t0 = st.t0;
   back.steps = st.steps;
+  back.ov = st.ov;
   st = back;
   logStep("undo");
   say(T().logUndo);
@@ -1292,11 +1294,25 @@ addEventListener("keydown", unlockAudio, { capture: true });
 // again only with the next narration, together with any other clip still missing and in the same order, never on
 // its own when its line comes up: that lone request told the host which answer was picked (critic).
 const clipUrls = new Map();
-function loadAllClips() {
-  const set = D.VOICE[lang] || {};
-  // The intro and the first phase come first, the rest alphabetically: the same order for every player.
+// A language's clips, the intro and the first phase first, the rest alphabetically: the same order for every player.
+function clipOrder(l = lang) {
+  const set = D.VOICE[l] || {};
   const keys = Object.keys(set).sort((a, b) => (a === "intro" ? -1 : b === "intro" ? 1 : a === "phase:site" ? -1 : b === "phase:site" ? 1 : a < b ? -1 : 1));
-  for (const k of keys) loadClip(set[k]).catch(() => {});
+  return keys.map((k) => set[k]);
+}
+function loadAllClips() {
+  for (const src of clipOrder()) loadClip(src).catch(() => {});
+}
+// Clips loaded before this build's worker controlled the page went past it, so it kept none of them, and a reload
+// with no network had no narration (review). When it takes control, the clips already loaded are asked for once more,
+// through it, after the first batch has settled and in the same fixed order, so the requests still never depend on
+// play. The copy the page gets back is not used: the one in memory plays.
+function keepClips() {
+  const asked = [...clipUrls.values()];
+  if (!asked.length) return;
+  Promise.allSettled(asked).then(() => {
+    for (const l of Object.keys(D.VOICE)) for (const src of clipOrder(l)) if (clipUrls.has(src)) fetch(src).then((r) => r.blob()).catch(() => {});
+  });
 }
 function loadClip(src) {
   if (/^(data|blob):/.test(src) || location.protocol === "file:") return Promise.resolve(src);
@@ -1473,7 +1489,8 @@ function scheduleCard(id, after) {
 }
 // When the card dialog last showed a new question. A click that lands within 400 ms of that, or the second click of
 // a double-click, was aimed at the question before: a double-click answered one question and then the next one
-// unseen (QL-1). Keys and other clicks with no click count (detail 0) still answer at once.
+// unseen (QL-1). The number keys and other clicks with no click count (detail 0) still answer at once; Enter and
+// Space on a new question's buttons wait the same 400 ms (the keydown guard by the shortcuts).
 let dlgShownAt = 0;
 const tooSoon = (e) => e.detail > 1 || (e.detail > 0 && performance.now() - dlgShownAt < 400);
 function openDecide(id, next) {
@@ -1609,8 +1626,14 @@ function stampPrint() {
 }
 addEventListener("beforeprint", stampPrint);
 // On a kiosk, Enter on the end screen still means Play again. In class and home modes the summary is the class's
-// record, so focus starts on its title and Play again asks first (FEU-1).
-const endFocus = () => $(STAFFED ? "#end-title" : "[data-again]").focus({ preventScroll: true });
+// record, so focus starts on its title and Play again asks first (FEU-1). When the game puts focus on Play again
+// (here, and after Keep this summary), Enter or Space within a second of that was meant for the button before: a
+// held or doubled Enter on Finish or on Keep cleared the summary unseen (review; the keydown guard by the shortcuts).
+let againAt = 0;
+const endFocus = () => {
+  if (!STAFFED) againAt = performance.now();
+  $(STAFFED ? "#end-title" : "[data-again]").focus({ preventScroll: true });
+};
 // This game's debrief as plain data, in the words and numbers the player saw (BTC-01). The end screen shows it and a
 // results file saves it, so a file opened later shows the same summary, whichever version of the game opens it.
 function resultsRecord() {
@@ -1913,6 +1936,16 @@ function renderEffectsBtn() {
 }
 function toggleFx() { st.ov = !st.ov; renderEffectsBtn(); paintScene(false); }
 fxBtn.addEventListener("click", toggleFx);
+// Enter and Space press the focused button, and a held key repeats. Each answer or step moves focus on to the next
+// button or question, so about 1.5 s of held Enter played the game by itself, with the shortcuts off too (review).
+// A repeat never presses anything; nor does a press within 400 ms of a new question, on its answer buttons, or within
+// a second of the game putting focus on Play again: it was meant for what was there before. Later presses work.
+addEventListener("keydown", (ev) => {
+  if (ev.key !== "Enter" && ev.key !== " ") return;
+  const on = (sel) => ev.target instanceof Element && ev.target.matches(sel);
+  const now = performance.now();
+  if (ev.repeat || (on(".opt") && now - dlgShownAt < 400) || (on("[data-again]") && now - againAt < 1000)) ev.preventDefault();
+}, { capture: true });
 // Single-key shortcuts (I2): only outside dialogs and text fields, never on key repeat, and they can be turned
 // off in About. Number keys answer the open issue card; they are single-key shortcuts too and follow the setting.
 const otherDialogOpen = () => [endDlg, aboutDlg, introDlg, idleDlg, confirmDlg].some((d) => d.open);
@@ -2022,7 +2055,10 @@ function stopCountdowns() {
   endShown = false;
   endClear.hidden = true;
   endKeep.hidden = true;
-  if (keepHadFocus && endDlg.open) $("[data-again]").focus();
+  if (keepHadFocus && endDlg.open) {
+    againAt = performance.now();
+    $("[data-again]").focus();
+  }
 }
 function keepGoing() {
   stopCountdowns();
@@ -2120,7 +2156,7 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
   navigator.serviceWorker.addEventListener("controllerchange", () => {
     const was = ctl;
     ctl = navigator.serviceWorker.controller?.scriptURL || "";
-    if (ctl === own && was !== own) return;
+    if (ctl === own && was !== own) { keepClips(); return; }
     if (st.started) swUpdatePending = true;
     else location.reload();
   });
@@ -2189,6 +2225,9 @@ window.__dc = {
   groundAt: (x, y) => scene?.groundAt(x, y),
   mode: MODE,
   history: () => history.length,
+  // When the card dialog last showed a question, and when the end screen last put focus on Play again.
+  shownAt: () => dlgShownAt,
+  againAt: () => againAt,
   state: () => st,
   audio: () => ({ unlocked: audioUnlocked, paused: audio.paused, ended: audio.ended, time: audio.currentTime, src: audio.currentSrc ? audio.currentSrc.slice(0, 48) : "" }),
   scores,

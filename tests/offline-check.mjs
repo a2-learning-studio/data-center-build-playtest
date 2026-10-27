@@ -2,7 +2,9 @@
 // narration from the clips inside it, with no request and no console error. The web page, served here on 127.0.0.1,
 // has its service worker keep the page once and every clip; reload offline with narration; carry unchanged clips over
 // to a new build; take that build in a tab first opened before any worker existed (at Start over, not mid-game); not
-// reload a tab already on the new build; and never serve a saved page or clip that another page swapped.
+// reload a tab already on the new build; and never serve a saved page or clip that another page swapped. It keeps the
+// clips a first visit loaded before its worker took control, and opens the saved page when the host answers with an
+// error or does not answer, but never gives up on the network while nothing is saved (review).
 // node tests/offline-check.mjs   (see drive.mjs for the browser and paths)
 import { createServer } from "node:http";
 import { readFileSync, existsSync, statSync } from "node:fs";
@@ -70,15 +72,26 @@ const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", "
 const served = [];
 const override = new Map();
 let down = false;
+// held: worker scripts wait here until released (a slow network on a first visit). stalled: the game page is never
+// answered (a stalled connection). slow: the game page is answered this many ms late.
+let holdSw = false, stall = false, slow = 0;
+const held = [], stalled = [];
 const server = createServer((req, res) => {
   // Offline: the connection drops, as with no network.
   if (down) { req.socket.destroy(); return; }
   const path = decodeURIComponent(new URL(req.url, "http://x").pathname);
   served.push(req.url);
   const name = path === "/" ? "/index.html" : path;
+  if (holdSw && name.startsWith("/sw-")) { held.push(() => serve(name, res)); return; }
+  if (stall && name === "/index.html") { stalled.push(res); return; }
+  if (slow && name === "/index.html") { setTimeout(() => serve(name, res), slow); return; }
+  serve(name, res);
+});
+function serve(name, res) {
   if (override.has(name)) {
     const body = override.get(name);
     if (body === null) { res.writeHead(404); res.end(); return; }
+    if (typeof body === "number") { res.writeHead(body); res.end(); return; }
     res.writeHead(200, { "content-type": TYPES[extname(name)] || "application/octet-stream" });
     res.end(body);
     return;
@@ -87,7 +100,7 @@ const server = createServer((req, res) => {
   if (!file.startsWith(ROOT + sep) || !existsSync(file) || !statSync(file).isFile()) { res.writeHead(404); res.end(); return; }
   res.writeHead(200, { "content-type": TYPES[extname(file)] || "application/octet-stream" });
   res.end(readFileSync(file));
-});
+}
 await new Promise((r) => server.listen(0, "127.0.0.1", r));
 // Class mode, so no idle reset starts a game over while the checks wait.
 const SITE = `http://127.0.0.1:${server.address().port}/`;
@@ -139,6 +152,34 @@ const navCount = (p) => {
   await ctx.close();
 }
 
+// A first visit on a slow network (review): narration starts before the worker controls the page, so its clips went
+// past the worker and none was kept. Once the worker takes control, the page asks for them again through it.
+{
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 } });
+  await ctx.addInitScript(hookPlay);
+  const p = await ctx.newPage();
+  const clips = () => served.filter((u) => u.includes("/voice/")).length;
+  const v0 = clips();
+  holdSw = true;
+  // A kiosk, so the reload below starts a new game (class mode would offer to resume this one).
+  await p.goto(SITE, { waitUntil: "domcontentloaded", timeout: 120000 });
+  await p.locator("[data-start]").click();
+  await until(() => clips() - v0 >= CLIPS.length, 60000);
+  const early = await p.evaluate(() => !navigator.serviceWorker.controller);
+  holdSw = false;
+  for (const go of held.splice(0)) go();
+  const ctl = await p.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 30000 }).then(() => true, () => false);
+  await until(async () => summary(await cacheState(p))[NOW]?.clips >= CLIPS.length, 60000);
+  const kept = summary(await cacheState(p))[NOW]?.clips || 0;
+  down = true;
+  await p.reload({ waitUntil: "domcontentloaded", timeout: 60000 });
+  await p.locator("[data-start]").click();
+  const offline = await played(p, "blob:");
+  down = false;
+  check("slow first visit: clips loaded before the worker took control are kept, and play offline", early && ctl && kept === CLIPS.length && offline, JSON.stringify({ early, ctl, kept, of: CLIPS.length, offline }));
+  await ctx.close();
+}
+
 const problems = [];
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 } });
 await ctx.addInitScript(hookPlay);
@@ -166,6 +207,38 @@ await until(async () => summary(await cacheState(a))[NOW]?.clips >= CLIPS.length
 const c1 = summary(await cacheState(a));
 check("first visit: the worker took control without reloading the page", navA.count === 0, `${navA.count} navigations`);
 check("first visit: the page is saved once and every clip is saved", JSON.stringify(c1) === JSON.stringify({ [NOW]: { clips: CLIPS.length, other: ["index.html"] } }), JSON.stringify(c1));
+
+// The host answers with an error, or not at all (review): a page already saved opens from that copy. With nothing
+// saved, the page waits for the network however long it takes.
+const TITLE = await a.title();
+const opens = async () => {
+  const t = await tab();
+  const t0 = Date.now();
+  const title = await t.goto(BASE, { waitUntil: "domcontentloaded", timeout: 30000 }).then(() => t.title(), () => "(no page)");
+  const ms = Date.now() - t0;
+  await t.close();
+  return { title, ms };
+};
+for (const status of [404, 503]) {
+  override.set("/index.html", status);
+  const o = await opens();
+  override.delete("/index.html");
+  check(`the host answers ${status}: the saved page opens`, o.title === TITLE, JSON.stringify(o));
+}
+// With the saved page gone, a host 6 s late is still waited for; the page it sends is saved again.
+await a.evaluate(async (name) => (await caches.open(name)).delete(new URL("index.html", location.href).href), NOW);
+const gone = !summary(await cacheState(a))[NOW]?.other.includes("index.html");
+slow = 6000;
+const slowOpen = await opens();
+slow = 0;
+check("nothing saved: a slow host is waited for, with no time limit", gone && slowOpen.title === TITLE && slowOpen.ms >= 6000, JSON.stringify({ gone, ...slowOpen }));
+const resaved = await until(async () => summary(await cacheState(a))[NOW]?.other.includes("index.html"), 15000);
+stall = true;
+const stalledOpen = await opens();
+stall = false;
+// The held requests are answered now, so nothing is left waiting on them.
+for (const r of stalled.splice(0)) serve("/index.html", r);
+check("the host does not answer: the saved page opens after a few seconds", resaved && stalledOpen.title === TITLE && stalledOpen.ms >= 3500, JSON.stringify({ resaved, ...stalledOpen }));
 
 // Offline, a new tab opens the saved page and plays its narration from the saved clips.
 down = true;

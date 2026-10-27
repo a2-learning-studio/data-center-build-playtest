@@ -61,7 +61,7 @@ export const STRINGS = {
     voiceOff: "Voice: off",
     listen: "Listen",
     libraryMode: "Library mode · no voice",
-    libraryModeNote: "Written text stays on screen. This device remembers the setting for the next player. The Voice button changes only the game being played.",
+    libraryModeNote: "Written text stays on screen. This device remembers it for the next player, as it does the Voice button.",
     libraryModeKiosk: "Written text stays on screen. Like the Voice button, it changes only the game being played.",
     libraryModeUrl: "Set by the address (?mode=library).",
     srVoice: "Using a screen reader? Turn the recorded voice off for this game, so it does not talk over your reader.",
