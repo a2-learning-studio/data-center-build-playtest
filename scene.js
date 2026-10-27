@@ -936,8 +936,12 @@ function createScene(canvas, { reduced = () => false, signs = null, onMode = nul
       }
     }
   })();
-  canvas.addEventListener("webglcontextlost", (e) => { e.preventDefault(); stop(); document.body.dataset.nogl = ""; });
+  // A lost context draws nothing until it is restored: the loop stops, and kick() starts nothing meanwhile (FE-1).
+  let lost = false;
+  const gl = renderer.getContext();
+  canvas.addEventListener("webglcontextlost", (e) => { e.preventDefault(); lost = true; stop(); document.body.dataset.nogl = ""; });
   canvas.addEventListener("webglcontextrestored", () => {
+    lost = false;
     // Rebuild the GPU state in place. A reload would wipe the game in progress (C6).
     const env = new T3.PMREMGenerator(renderer);
     scene.environment = env.fromScene(envScene, 0.04).texture;
@@ -1293,16 +1297,20 @@ function createScene(canvas, { reduced = () => false, signs = null, onMode = nul
   // ---------- visibility and rise ----------
   let firstApply = true;
   function apply(isVisible, animate = true) {
+    // Shadows are drawn again only when a part comes or goes: a hover on a Neighbors row repaints the scene but
+    // changes no part (FE-3).
+    let changed = firstApply;
     for (const g of groups) {
       const on = isVisible(g.userData);
       if (on && !g.visible && animate && !firstApply && !reduced()) {
         g.userData.rise = 0;
         g.userData.riseT = 0;
       }
+      if (g.visible !== on) changed = true;
       g.visible = on;
     }
     firstApply = false;
-    renderer.shadowMap.needsUpdate = true;
+    if (changed) renderer.shadowMap.needsUpdate = true;
     kick();
   }
   function overlays(state) {
@@ -1460,13 +1468,16 @@ function createScene(canvas, { reduced = () => false, signs = null, onMode = nul
     if (Math.abs(want.dist - view.dist) > 0.5) return true;
     if (view.target.distanceTo(want.target) > 0.5) return true;
     if (groups.some((g) => g.visible && g.userData.rise < 1)) return true;
-    if (!reduced() && fans.some(shown)) return true;
+    // With reduced motion the fans, effect rings and trucks stand still, so once drawn the frame does not change
+    // (FE-3): the loop stops instead of redrawing it.
+    if (reduced()) return false;
+    if (fans.some(shown)) return true;
     if (ov.visible && Object.values(OV).some((g) => g.visible)) return true;
     if (trucks.count > 0) return true;
     return false;
   }
   function kick() {
-    if (document.hidden) return;
+    if (document.hidden || lost || gl.isContextLost()) return;
     if (running) return;
     running = true;
     clock.getDelta();
@@ -1482,13 +1493,23 @@ function createScene(canvas, { reduced = () => false, signs = null, onMode = nul
   }
   function loop(now) {
     if (!running) return;
+    // The context can be lost a few hundred milliseconds before its event arrives. Drawing then threw from inside
+    // three.js (a new shader's log is null on a lost context), so the loop stops here (FE-1, QL-3).
+    if (gl.isContextLost()) { stop(); return; }
     // Idle animation (the slow intro turn, fans, trucks, effect rings) runs at 30 frames a second at most.
     const cap = (attract && !gesture) || !moving() ? 1000 / 30 : 0;
     if (cap && lastDraw && now - lastDraw < cap - 1) { raf = requestAnimationFrame(loop); return; }
     lastDraw = now || performance.now();
-    frame();
-    if (!needsFrame()) { running = false; return; }
-    raf = requestAnimationFrame(loop);
+    // A frame that throws ends the loop instead of leaving it marked as running, which kept kick() from ever
+    // starting it again and left the map frozen for the rest of the game (FE-1).
+    let more = false;
+    try {
+      frame();
+      more = needsFrame();
+    } finally {
+      if (more) raf = requestAnimationFrame(loop);
+      else running = false;
+    }
   }
   function start() { kick(); }
   function stop() { running = false; if (raf) cancelAnimationFrame(raf); raf = 0; }

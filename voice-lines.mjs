@@ -1,5 +1,9 @@
 // The narration script, keyed by game event, built from the strings table (so Spanish follows the same keys).
 // lines(t) gives the on-screen caption; speakable(text) is what the voice engine is sent.
+// merge(STRINGS.en, STRINGS[lang]) is a language's table: English fills each key it lacks. Tables merge key by key;
+// strings and lists come whole. build.mjs and voice.mjs use it, and game.js merges the same way (PA-2).
+const isTable = (v) => !!v && typeof v === "object" && !Array.isArray(v);
+export const merge = (a, b) => (isTable(a) && isTable(b) ? Object.fromEntries([...new Set([...Object.keys(a), ...Object.keys(b)])].map((k) => [k, k in b ? merge(a[k], b[k]) : a[k]])) : b ?? a);
 export function lines(t) {
   const L = {};
   L.intro = `${t.introBody} ${t.introHow}`;

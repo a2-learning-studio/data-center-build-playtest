@@ -1,10 +1,11 @@
 // Accessibility and layout check (October 2026 persona audit: AS-1, AS-2, AS-5, AS-6, AS-7, AS-10, AS-11, UD-1, UD-4,
-// UD-6, UD-8): the skip link, Voice before the panels and on the intro, siting feedback that is read out and readable,
-// the Neighbors fact written only when it changes, the longest caption at 320 x 568, pinned dialog buttons at 400%
-// zoom, lane names with text spacing, touch siting help, one meter ink, the schedule as a row of phases on short
-// laptop windows, and axe-core in the states the checks pass through.
+// UD-6, UD-8, EA-1): the skip link, Voice before the panels and on the intro, siting feedback that is read out and
+// readable, siting keys with the shortcuts off, the Neighbors fact written only when it changes, the longest caption
+// at 320 x 568, pinned dialog buttons at 400% zoom, lane names with text spacing, touch siting help, one meter ink,
+// the schedule as a row of phases on short laptop windows, axe-core in the states the checks pass through, and
+// Windows contrast themes (forced colors).
 // node tests/a11y-check.mjs   (see drive.mjs for the browser and paths)
-import { launch, watch, openGame, axe } from "./drive.mjs";
+import { launch, watch, openGame, axe, shot } from "./drive.mjs";
 
 const browser = await launch();
 const errors = [];
@@ -13,8 +14,8 @@ const check = (name, ok, detail = "") => {
   if (!ok) failed += 1;
   console.log(`${ok ? "ok  " : "FAIL"} ${name}${detail ? ` — ${detail}` : ""}`);
 };
-async function page({ w = 1366, h = 768, query = "", touch = false } = {}) {
-  const ctx = await browser.newContext({ viewport: { width: w, height: h }, hasTouch: touch, isMobile: touch });
+async function page({ w = 1366, h = 768, query = "", touch = false, forcedColors = "none" } = {}) {
+  const ctx = await browser.newContext({ viewport: { width: w, height: h }, hasTouch: touch, isMobile: touch, forcedColors });
   const p = await ctx.newPage();
   watch(p, errors);
   await openGame(p, query);
@@ -146,6 +147,25 @@ const axeOk = async (p, label) => {
   await ctx.close();
 }
 
+// EA-1, AS-4 (WCAG 2.1.1): the arrow keys and Escape are not single-key shortcuts, so with the shortcuts off they
+// still nudge a piece and cancel siting. N is one, so it stays off.
+{
+  const { ctx, p } = await page({ query: "?keys=off" });
+  await siteBasins(p);
+  await p.locator("[data-place-set]").focus();
+  await nudge(p, "ArrowUp", 8);
+  await p.waitForTimeout(300);
+  const moved = await p.evaluate(() => document.querySelector("[data-place-why]").textContent);
+  await p.keyboard.press("Escape");
+  await p.waitForTimeout(200);
+  const placed = await p.evaluate(() => window.__dc.state().placed.size);
+  await p.keyboard.press("n");
+  await p.waitForTimeout(200);
+  const s = await p.evaluate(() => ({ off: document.documentElement.hasAttribute("data-nokeys"), box: !!document.querySelector("[data-place-box]"), ponds: window.__dc.state().placed.has("ponds"), placed: window.__dc.state().placed.size }));
+  check("with the shortcuts off, the arrow keys still nudge a piece and Escape cancels siting; N stays off", s.off && /setback/.test(moved) && !s.box && !s.ponds && s.placed === placed, JSON.stringify({ moved, ...s }));
+  await ctx.close();
+}
+
 // UD-8: on a touch screen the siting box gives the touch line instead of mouse and arrow-key help.
 {
   const { ctx, p } = await page({ w: 375, h: 667, touch: true });
@@ -261,6 +281,18 @@ for (const [w, h, pinned] of [[320, 180, false], [320, 256, false], [390, 844, t
   await ctx.close();
 }
 
+// FEU-1: in class mode the debrief opens on its title, and Play again asks first (session-check has the behavior).
+{
+  const { ctx, p } = await page({ query: "?mode=class" });
+  await p.evaluate((all) => { document.querySelector("[data-start]").click(); window.__dc.all(all); }, ALL_CHOICES);
+  await p.evaluate(() => document.querySelector("[data-build] [data-finish]").click());
+  await p.waitForTimeout(400);
+  await axeOk(p, "class debrief 1366x768");
+  await p.evaluate(() => document.querySelector("[data-again]").click());
+  await axeOk(p, "class debrief, Play again question 1366x768");
+  await ctx.close();
+}
+
 // AS-7: with WCAG 1.4.12 text spacing, no schedule lane name is cut off on a phone.
 {
   const { ctx, p } = await page({ w: 390, h: 844, touch: true });
@@ -308,6 +340,95 @@ for (const [w, h, pinned] of [[320, 180, false], [320, 256, false], [390, 844, t
   await p.evaluate(() => document.querySelector("[data-build] [data-finish]").click());
   await p.waitForTimeout(400);
   await axeOk(p, "debrief 1366x768");
+  await ctx.close();
+}
+
+// Windows contrast themes (forced colors, critic): the browser drops author backgrounds, gradients and shadows. The
+// schedule's bars and critical path, the meters, every pressed state and the main buttons' outline must survive.
+{
+  const { ctx, p } = await page({ w: 1440, h: 960, forcedColors: "active" });
+  await p.evaluate(() => { document.querySelector("[data-start]").click(); window.__dc.upTo("mep", { route: "b", hours: "b", buffer: "a", wall: "a", cool: "a", light: "a" }); });
+  await p.waitForTimeout(300);
+  const fc = await p.evaluate(() => {
+    const look = (sel, pseudo) => {
+      const n = document.querySelector(sel);
+      if (!n) return null;
+      const c = getComputedStyle(n, pseudo);
+      return { bg: c.backgroundColor, image: c.backgroundImage.slice(0, 26), border: `${c.borderTopWidth} ${c.borderTopStyle}`, outline: c.outlineStyle, content: c.content, adjust: c.forcedColorAdjust };
+    };
+    return {
+      matches: matchMedia("(forced-colors: active)").matches,
+      panel: getComputedStyle(document.querySelector(".p-plan")).backgroundColor,
+      bar: look('.gbar[data-crit="0"]'),
+      crit: look('.gbar[data-crit="1"]'),
+      now: look('.gbar[data-state="now"]'),
+      swCrit: look(".sw-crit"),
+      swOther: look(".sw-other"),
+      lit: look(".meter i[data-on]"),
+      unlit: look(".meter i:not([data-on])"),
+      sideOn: look('[data-side-tab][aria-pressed="true"]'),
+      sideOff: look('[data-side-tab][aria-pressed="false"]'),
+      laneOn: look('.lane[aria-pressed="true"]', "::after"),
+      laneOff: look('.lane[aria-pressed="false"]', "::after"),
+      btn: look("[data-build] .btn:not(.btn-ghost)"),
+    };
+  });
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  const show = (...keys) => JSON.stringify(Object.fromEntries(keys.map((k) => [k, fc[k]])));
+  check("forced colors: the media query applies", fc.matches);
+  check("forced colors: schedule bars are drawn, critical ones hatched, the phase in progress outlined", fc.bar.bg !== fc.panel && /gradient/.test(fc.crit.image) && fc.now.outline === "solid", show("panel", "bar", "crit", "now"));
+  check("forced colors: the legend matches the bars", /gradient/.test(fc.swCrit.image) && fc.swOther.bg !== fc.panel, show("swCrit", "swOther"));
+  check("forced colors: a lit meter segment differs from an unlit one", !same(fc.lit, fc.unlit), show("lit", "unlit"));
+  // A pressed tab is filled with Highlight and keeps its own text colour: forced text sits on a Canvas backplate,
+  // which made HighlightText words invisible.
+  check("forced colors: the pressed side tab and the pressed lane stand out", fc.sideOn.bg !== fc.sideOff.bg && fc.sideOn.adjust === "none" && fc.laneOn.border === "2px solid" && fc.laneOff.content === "none", show("sideOn", "sideOff", "laneOn", "laneOff"));
+  check("forced colors: the main buttons keep an outline", fc.btn.border === "2px solid", show("btn"));
+  await p.screenshot({ path: shot("forced-colors-1440x960.png") });
+  await p.evaluate(() => document.querySelector('[data-side-tab="choices"]').click());
+  const seg = await p.evaluate(() => {
+    const on = getComputedStyle(document.querySelector('.seg [aria-pressed="true"]')), off = getComputedStyle(document.querySelector('.seg [aria-pressed="false"]'));
+    return { on: `${on.backgroundColor} ${on.color}`, off: `${off.backgroundColor} ${off.color}`, adjust: on.forcedColorAdjust };
+  });
+  check("forced colors: a chosen answer under Your choices stands out", seg.on !== seg.off && seg.adjust === "none", JSON.stringify(seg));
+  await p.screenshot({ path: shot("forced-colors-choices.png") });
+  await ctx.close();
+}
+{
+  const { ctx, p } = await page({ w: 1280, h: 720, forcedColors: "active" });
+  await p.evaluate(() => { document.querySelector("[data-start]").click(); window.__dc.upTo("grade", { route: "a", hours: "a", cool: "a" }); });
+  await p.waitForTimeout(300);
+  const row = await p.evaluate(() => {
+    const c = getComputedStyle(document.querySelector(".lane[data-crit]"), "::before"), o = getComputedStyle(document.querySelector(".lane:not([data-crit])"), "::before");
+    return { crit: c.backgroundImage.slice(0, 26), other: o.content };
+  });
+  check("forced colors: in the row of phases the critical path keeps its hatched underline", /gradient/.test(row.crit) && row.other === "none", JSON.stringify(row));
+  await ctx.close();
+}
+{
+  const { ctx, p } = await page({ w: 390, h: 844, touch: true, forcedColors: "active" });
+  await start(p);
+  await p.evaluate(() => window.__dc.tab("plan"));
+  const tabs = await p.evaluate(() => {
+    const on = getComputedStyle(document.querySelector('.tabs [aria-pressed="true"]')), off = getComputedStyle(document.querySelector('.tabs [aria-pressed="false"]'));
+    return { on: `${on.backgroundColor} ${on.color}`, off: `${off.backgroundColor} ${off.color}`, adjust: on.forcedColorAdjust };
+  });
+  check("forced colors: on a phone the open tab stands out", tabs.on !== tabs.off && tabs.adjust === "none", JSON.stringify(tabs));
+  await p.screenshot({ path: shot("forced-colors-390x844.png") });
+  await ctx.close();
+}
+// Class mode's results-file controls (BTC-01) in a contrast theme: Open results file on the intro, Save results file
+// and Save as CSV on the end screen, and a results file's "read only" label keep their outlines.
+{
+  const { ctx, p } = await page({ w: 1366, h: 768, query: "?mode=class", forcedColors: "active" });
+  const border = (sel) => p.evaluate((sel) => { const c = getComputedStyle(document.querySelector(sel)); return `${c.borderTopWidth} ${c.borderTopStyle}`; }, sel);
+  const open = await border("[data-open-file]");
+  await p.evaluate((all) => { document.querySelector("[data-start]").click(); window.__dc.all(all); }, ALL_CHOICES);
+  await p.evaluate(() => document.querySelector("[data-build] [data-finish]").click());
+  await p.waitForTimeout(400);
+  const save = await border("[data-save-file]"), csv = await border("[data-save-csv]");
+  await p.evaluate(() => { const from = document.querySelector("[data-end-from]"); from.textContent = "From a results file. Read only."; from.hidden = false; });
+  const from = await border("[data-end-from]");
+  check("forced colors: the results-file buttons and the read-only label keep their outlines", [open, save, csv].every((b) => b === "2px solid") && from === "1px solid", JSON.stringify({ open, save, csv, from }));
   await ctx.close();
 }
 

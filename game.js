@@ -1,9 +1,17 @@
 // Runtime for Build the Campus: state, rules, panels and the 3D scene. One screen, no page scroll.
+// A browser older than the stated minimum has no <dialog>: the game stops here, and the page keeps its note that this
+// browser cannot run it, instead of a dashboard that does nothing (critic).
+if (!window.HTMLDialogElement?.prototype.showModal) throw new Error("This browser has no <dialog>: the game cannot run.");
 const D = __DATA__;
 Object.assign(D.MODEL, (__LAYOUT_FNS__)(D.MODEL));
 const STR = __STRINGS__;
 let lang = "en";
-const T = () => ({ ...STR.en, ...(STR[lang] || {}) });
+// Another language falls back to English key by key, as merge() in voice-lines.mjs does for the build: tables merge,
+// strings and lists come whole (PA-2).
+const isTable = (v) => !!v && typeof v === "object" && !Array.isArray(v);
+const merge = (a, b) => (isTable(a) && isTable(b) ? Object.fromEntries([...new Set([...Object.keys(a), ...Object.keys(b)])].map((k) => [k, k in b ? merge(a[k], b[k]) : a[k]])) : b ?? a);
+const TABLES = {};
+const T = () => (TABLES[lang] ??= merge(STR.en, STR[lang] || {}));
 const fmt = (s, o = {}) => String(s).replace(/\{(\w+)\}/g, (_, key) => o[key] ?? "");
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -35,11 +43,25 @@ for (const node of $$("[data-mode-line]")) node.hidden = node.dataset.modeLine !
 // About's links leave the game (SA-1, PC-2). On a kiosk a new tab, a mail app or a download outlasts the idle reset,
 // so a kiosk keeps their plain-text form, with the address printed; class and home modes keep the links.
 for (const node of $$(STAFFED ? "[data-nolink]" : "[data-link]")) node.remove();
+// Results files are for class and home modes (BTC-01). A kiosk keeps no record of play, so it has no such buttons.
+if (!STAFFED) for (const node of $$("[data-staffed-only]")) node.remove();
 const NS = "build-the-campus:v1:";
 const SAVE_VERSION = 1;
+// Saves carry the build that wrote them (the model and the version badge), and only that build resumes them (DE-5).
+const SAVE_BUILD = (() => {
+  let h = 0x811c9dc5;
+  for (const c of JSON.stringify(D.MODEL) + STR.en.badge) h = Math.imul(h ^ c.charCodeAt(0), 16777619) >>> 0;
+  return h.toString(36);
+})();
+// A results file (BTC-01): a finished class or home game saved as JSON on this device, which the intro opens again.
+const RESULTS_FORMAT = "build-the-campus-results";
+const RESULTS_VERSION = 1;
+// The timed steps a class or home game keeps for its results file: at most this many, of these kinds.
+const STEP_CAP = 400;
+const STEP_KINDS = ["phase", "place", "factory", "choice", "card", "done", "undo", "resume", "end"];
 const store = {
   get(area, key) { try { const v = window[area].getItem(NS + key); return v ? JSON.parse(v) : null; } catch { return null; } },
-  set(area, key, value) { try { window[area].setItem(NS + key, JSON.stringify(value)); } catch { /* storage can be blocked or full */ } },
+  set(area, key, value) { try { window[area].setItem(NS + key, JSON.stringify(value)); return true; } catch { return false; /* storage can be blocked or full */ } },
   del(area, key) { try { window[area].removeItem(NS + key); } catch { /* storage can be blocked */ } },
 };
 // Device settings: what every new game starts from. The address sets them: ?mode=library or ?voice=off (voice off),
@@ -95,6 +117,9 @@ const fresh = () => ({
   layout: {},
   seed: (Math.floor(Math.random() * 0xffffffff) >>> 0) || 1,
   rolled: {},
+  // Class and home modes: when the game started and its timed steps, for its results file. A kiosk keeps none.
+  t0: 0,
+  steps: [],
 });
 const ui = { tab: "build", side: "hood", hot: null, picked: null, hoodSig: null, hoodNew: false, planOpen: false };
 // The piece the player is siting on the map, or null. Not saved: a reload returns to the button.
@@ -116,7 +141,7 @@ function loadState(o) {
     focus: PH.some((p) => p.id === o.focus) ? o.focus : null,
     choice,
     cards,
-    frozenSched: { ...(o.frozenSched || {}) },
+    frozenSched: cleanSched(o.frozenSched),
     cx: Object.fromEntries(MEP.map((id) => [id, clamp(Number(o.cx?.[id]) || 0, 0, 4)])),
     xfmr: o.xfmr ? 1 : 0,
     log: Array.isArray(o.log) ? o.log.slice(0, 6).map(String) : [],
@@ -125,6 +150,8 @@ function loadState(o) {
     layout: cleanLayout(o.layout),
     seed: Number.isFinite(Number(o.seed)) ? (Number(o.seed) >>> 0) || 1 : 1,
     rolled: cleanRolled(o.rolled),
+    t0: Number(o.t0) > 0 ? Number(o.t0) : 0,
+    steps: cleanSteps(o.steps),
   };
 }
 function cleanLayout(raw) {
@@ -136,10 +163,31 @@ function cleanLayout(raw) {
   }
   return out;
 }
+// Months frozen when a phase finished: numbers only, for known phases, so a damaged save cannot turn the schedule
+// sums into text (DE-5, QL-7).
+function cleanSched(raw) {
+  const out = {};
+  if (!raw || typeof raw !== "object") return out;
+  for (const p of PH) if (typeof raw[p.id] === "number" && Number.isFinite(raw[p.id]) && raw[p.id] >= 0) out[p.id] = raw[p.id];
+  return out;
+}
 function cleanRolled(raw) {
   const out = {};
   if (!raw || typeof raw !== "object") return out;
   for (const p of PH) if (typeof raw[p.id] === "string") out[p.id] = raw[p.id];
+  return out;
+}
+// Steps from a save: known kinds with a time, and no more than the cap, so a damaged save cannot grow the list.
+function cleanSteps(raw) {
+  if (!Array.isArray(raw)) return [];
+  const out = [];
+  for (const x of raw.slice(0, STEP_CAP)) {
+    if (!x || !STEP_KINDS.includes(x.step) || !Number.isFinite(x.t) || x.t < 0) continue;
+    const step = { t: x.t, step: x.step };
+    if (typeof x.id === "string") step.id = x.id.slice(0, 40);
+    if (typeof x.v === "string") step.v = x.v.slice(0, 8);
+    out.push(step);
+  }
   return out;
 }
 function rng() {
@@ -151,15 +199,33 @@ function remember() {
   history.push(JSON.stringify(snapState()));
   if (history.length > 30) history.shift();
 }
+// One timed step of a class or home game, for its results file (BTC-01): the seconds since the game started, what
+// happened and to what. The list lives in the game, so the class/home save keeps it too; a kiosk records nothing.
+function logStep(step, id, v) {
+  if (!STAFFED) return;
+  if (!st.t0) st.t0 = Date.now();
+  if (st.steps.length >= STEP_CAP - 1 && step !== "end") return;
+  const x = { t: Math.round((Date.now() - st.t0) / 1000), step };
+  if (id) x.id = id;
+  if (v) x.v = v;
+  st.steps.push(x);
+}
+// A browser that will not save (site data blocked, storage full) says so once, as a reload would start over (QL-5).
+let saveFailSaid = false;
 function autosave() {
   if (!STAFFED || !st?.started) return;
-  store.set("sessionStorage", "save", { v: SAVE_VERSION, at: Date.now(), state: snapState() });
+  if (store.set("sessionStorage", "save", { v: SAVE_VERSION, build: SAVE_BUILD, at: Date.now(), state: snapState() }) || saveFailSaid) return;
+  saveFailSaid = true;
+  toast(T().saveFailed, { keep: true });
 }
 const clearSave = () => store.del("sessionStorage", "save");
-function readSave() {
-  if (!STAFFED) return null;
-  const s = store.get("sessionStorage", "save");
-  return s && s.v === SAVE_VERSION && s.state ? s : null;
+// The game this tab kept, if this build can resume it. bad: a save is there that it cannot resume (DE-5).
+function savedGame() {
+  const s = STAFFED ? store.get("sessionStorage", "save") : null;
+  if (!s) return { back: null, bad: false };
+  let back = null;
+  try { back = s.v === SAVE_VERSION && s.build === SAVE_BUILD ? loadState(s.state) : null; } catch { back = null; }
+  return { back, bad: !back };
 }
 const started = (id) => PH.find((p) => p.id === id).els.some((e) => st.placed.has(e));
 const ready = (p) => p.after.every((a) => st.done.has(a));
@@ -438,13 +504,30 @@ function say(text) {
 // seen on every tab and on touch screens, where tooltips never show. Screen readers get it from the status line.
 const toastEl = $("[data-toast]");
 let toastTimer = 0;
-function toast(text, { log = false } = {}) {
+// A lasting note (keep: the browser is not saving, QL-5) is about no click, so a dialog that opens over it only puts
+// it off (openDlg): it shows again, for its full time, once no dialog covers it.
+let toastKeep = "";
+function toast(text, { log = false, keep = false } = {}) {
   if (log) say(text);
   else status.textContent = text;
   toastEl.textContent = text;
+  toastKeep = keep ? text : "";
+  if (keep && $$("dialog").some((d) => d.open)) { toastEl.hidden = true; toastAfterDialogs(); }
+  else showToast();
+}
+function showToast() {
   toastEl.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => (toastEl.hidden = true), Math.min(9000, Math.max(3500, text.length * 55)));
+  toastTimer = setTimeout(() => { toastEl.hidden = true; toastKeep = ""; }, Math.min(9000, Math.max(3500, toastEl.textContent.length * 55)));
+}
+function toastAfterDialogs() {
+  clearTimeout(toastTimer);
+  const wait = () => {
+    if (!toastKeep || toastEl.textContent !== toastKeep) return;
+    if ($$("dialog").some((d) => d.open)) { toastTimer = setTimeout(wait, 300); return; }
+    showToast();
+  };
+  toastTimer = setTimeout(wait, 300);
 }
 const waitForCard = () => toast(T().waitCard);
 const ICON = {
@@ -745,7 +828,7 @@ $("[data-hood]").addEventListener("click", (e) => {
 });
 $("[data-choices]").addEventListener("click", (e) => {
   const b = e.target.closest("[data-choice]");
-  if (b && !b.disabled) choose(b.dataset.choice, b.dataset.v);
+  if (b && !b.disabled) choose(b.dataset.choice, b.dataset.v, { step: true });
 });
 for (const b of $$("[data-side-tab]")) b.addEventListener("click", () => { ui.side = b.dataset.sideTab; renderSide(); });
 for (const b of $$(".tabs [data-tab]")) b.addEventListener("click", () => setTab(b.dataset.tab));
@@ -814,23 +897,29 @@ function renderAll(animate = true) {
 
 // ---------- floating tag over a newly built part ----------
 const tagEl = $("[data-tag]");
-let tagFor = null, tagUntil = 0;
+let tagFor = null, tagUntil = 0, tagH = 0, tagRaf = 0;
 function showTag(id) {
-  // Without the 3D view there is nothing to point at, so no tag (it used to stick in the corner).
-  if (!scene) return;
+  // Without the 3D view, or with its context lost, there is nothing to point at, so no tag (it used to stick in the
+  // corner, FE-2).
+  if (!scene || document.body.hasAttribute("data-nogl")) return;
   tagFor = id;
   tagUntil = performance.now() + 3200;
   tagEl.textContent = fmt(T().builtTag, { name: T().elements[id].name });
   tagEl.hidden = false;
+  tagH = tagEl.offsetHeight;
+  // The tag follows its part only while it shows, so no frame loop runs between tags (FE-3).
+  if (!tagRaf) followTag(performance.now());
 }
-(function followTag(now) {
-  if (tagFor && scene) {
-    const p = scene.screenOf(tagFor);
-    if (!p || now > tagUntil) { tagEl.hidden = true; if (now > tagUntil) tagFor = null; }
-    else { tagEl.hidden = false; tagEl.style.transform = `translate(${p[0].toFixed(0)}px, ${p[1].toFixed(0)}px) translate(-50%, -100%)`; }
-  }
-  requestAnimationFrame(followTag);
-})(0);
+function followTag(now) {
+  tagRaf = 0;
+  if (!tagFor || now > tagUntil || document.body.hasAttribute("data-nogl")) { tagEl.hidden = true; tagFor = null; return; }
+  const p = scene.screenOf(tagFor);
+  // Under the toolbar the tag could not be read, so it stays out of sight while its part is that high (UD-11).
+  const top = parseFloat(document.documentElement.style.getPropertyValue("--tools-b")) || 0;
+  if (!p || p[1] - tagH < top) tagEl.hidden = true;
+  else { tagEl.hidden = false; tagEl.style.transform = `translate(${p[0].toFixed(0)}px, ${p[1].toFixed(0)}px) translate(-50%, -100%)`; }
+  tagRaf = requestAnimationFrame(followTag);
+}
 
 // ---------- actions ----------
 function focusNext() {
@@ -876,6 +965,7 @@ function pickPhase(id) {
   const opening = st.focus !== id && !started(id);
   if (placing && phaseOf[placing.id] !== id) endPlace();
   st.focus = id;
+  if (opening) logStep("phase", id);
   advanceCx().forEach(say);
   renderAll();
   if (opening) speak(`phase:${id}`);
@@ -1003,6 +1093,7 @@ function place(e) {
   if (e === "substation" && !st.xfmr) {
     remember();
     st.xfmr = 1;
+    logStep("factory", e);
     say(t.logL1);
     renderAll();
     focusNext();
@@ -1011,6 +1102,7 @@ function place(e) {
   if (MEP.includes(e) && !st.cx[e]) {
     remember();
     st.cx[e] = 1;
+    logStep("factory", e);
     syncCx();
     say(t.logL1);
     renderAll();
@@ -1038,6 +1130,7 @@ function commitElement(e, offset) {
   remember();
   if (offset) st.layout[e] = { x: offset.x, z: offset.z };
   st.placed.add(e);
+  logStep("place", e);
   if (MEP.includes(e)) {
     st.cx[e] = Math.max(st.cx[e], 2);
     say(fmt(t.logL2, { n: gearAt(2) }));
@@ -1047,9 +1140,9 @@ function commitElement(e, offset) {
   renderAll();
   scene?.focus(e);
   showTag(e);
-  const said = speak(`el:${e}`);
+  speak(`el:${e}`);
   const card = Object.entries(CARD).find(([id, c]) => c.at && !(id in st.cards) && (c.at === e || c.at === phaseOf[e]));
-  if (card) { st.cards[card[0]] = null; autosave(); scheduleCard(card[0], said, afterPlace); }
+  if (card) { st.cards[card[0]] = null; autosave(); scheduleCard(card[0], afterPlace); }
   else afterPlace();
 }
 function afterPlace() {
@@ -1063,6 +1156,7 @@ function phaseSettled(id) {
   advanceCx().forEach(say);
   if (id === "cx") { say(t.logCx); speak("cx"); }
   st.focus = null;
+  if (id === "turn") logStep("end");
   renderAll();
   if (id === "turn") openEnd();
   else $("[data-go]")?.focus({ preventScroll: true });
@@ -1074,9 +1168,9 @@ function reofferCards() {
   if (!due) return;
   const rollPhase = CARD[due[0]]?.roll;
   const after = rollPhase && st.done.has(rollPhase) ? () => phaseSettled(rollPhase) : afterPlace;
-  scheduleCard(due[0], Promise.resolve(), after);
+  scheduleCard(due[0], after);
 }
-// Undo takes back the last placement or finished phase (I7).
+// Undo takes back the last placement, finished phase or change in the Choices panel (I7, DE-4).
 function undo() {
   if (!history.length || st.done.has("turn") || dlg.open) return;
   const back = loadState(JSON.parse(history.pop()));
@@ -1088,7 +1182,11 @@ function undo() {
   cardPending = false;
   endPlace();
   hush();
+  // The steps keep what was undone, and the undo itself (BTC-01).
+  back.t0 = st.t0;
+  back.steps = st.steps;
   st = back;
+  logStep("undo");
   say(T().logUndo);
   renderAll(false);
   reofferCards();
@@ -1103,6 +1201,7 @@ function finishPhase(id) {
   if (!st.done.has(id)) {
     remember();
     st.done.add(id);
+    logStep("done", id);
     say(fmt(t.logPhaseDone, { name: t.phases[id].name }));
   }
   // Freeze after the setback, if one opened, so that answer's months stay on the schedule.
@@ -1129,7 +1228,10 @@ function maybeSetback(id, proceed) {
 function choose(c, v, opts = {}) {
   const t = T();
   if (choiceLocked(c) || st.choice[c] === v || !EFFECT[c]?.[v]) return;
+  // A change in the Choices panel is a step of its own, so Undo takes back that change first (DE-4).
+  if (opts.step) remember();
   st.choice[c] = v;
+  logStep("choice", c, v);
   say(fmt(t.logChoice, { name: t.choices[c].name, value: t.choices[c][v].label }));
   if (c === "test" && !opts.skipCx) advanceCx().forEach(say);
   renderAll();
@@ -1163,6 +1265,8 @@ const capEl = $("[data-caption]");
 const voice = { on: true };
 let capTimer = 0;
 let speakSettle = null;
+// The clip line in progress, which settles when it ends, is cut off or is replaced.
+let speaking = Promise.resolve();
 // iOS and Android allow later clips only after play() runs inside a tap or key press.
 function unlockAudio() {
   if (audioUnlocked || audio.getAttribute("src")) return;
@@ -1184,12 +1288,11 @@ addEventListener("keydown", unlockAudio, { capture: true });
 // a fixed order, so which clips the site serves never depends on how far a player got or which answers they
 // picked (the privacy line). The service worker keeps a copy for offline reloads. Clips are fetched whole and
 // played from memory, so no range requests reach the worker. The offline kiosk file has every clip inside it as a
-// data: URL. A clip that cannot load leaves the caption on screen for a reading-length time instead.
+// data: URL. A clip that cannot load leaves the caption on screen for a reading-length time instead. It is asked for
+// again only with the next narration, together with any other clip still missing and in the same order, never on
+// its own when its line comes up: that lone request told the host which answer was picked (critic).
 const clipUrls = new Map();
-const clipsLoaded = new Set();
 function loadAllClips() {
-  if (clipsLoaded.has(lang)) return;
-  clipsLoaded.add(lang);
   const set = D.VOICE[lang] || {};
   // The intro and the first phase come first, the rest alphabetically: the same order for every player.
   const keys = Object.keys(set).sort((a, b) => (a === "intro" ? -1 : b === "intro" ? 1 : a === "phase:site" ? -1 : b === "phase:site" ? 1 : a < b ? -1 : 1));
@@ -1211,7 +1314,8 @@ function speak(key) {
   const gen = ++speakGen;
   const text = (D.CAPTIONS[lang] || D.CAPTIONS.en)[key];
   if (!text) return Promise.resolve();
-  const clip = (D.VOICE[lang] || {})[key] || (lang === "en" ? null : D.VOICE.en[key]);
+  // A line with no clip in this language shows its caption only, never another language's voice (PA-2).
+  const clip = (D.VOICE[lang] || {})[key] || null;
   clearTimeout(capTimer);
   if (!voice.on) return Promise.resolve();
   loadAllClips();
@@ -1223,7 +1327,7 @@ function speak(key) {
     capTimer = setTimeout(() => (capEl.hidden = true), readTime);
     return Promise.resolve();
   }
-  return new Promise((res) => {
+  return (speaking = new Promise((res) => {
     let finished = false;
     let backstop = 0;
     const done = (hideAfter = 600) => {
@@ -1236,7 +1340,7 @@ function speak(key) {
       res();
     };
     speakSettle = done;
-    // Waiting for a slow download counts against the issue-card cap in scheduleCard, not against the clip.
+    // Waiting for a slow download counts against the issue-card cap in speakAfter, not against the clip.
     backstop = setTimeout(done, 15000);
     loadClip(clip).then((src) => {
       if (finished || gen !== speakGen || !voice.on) return done();
@@ -1248,7 +1352,22 @@ function speak(key) {
       if (testHooks.voiceRate) audio.playbackRate = testHooks.voiceRate;
       audio.play().then(() => { audioUnlocked = true; }).catch(() => done(readTime));
     }, () => done(readTime));
-  });
+  }));
+}
+// An issue card opens at once, and its line follows the clip in progress instead of cutting it off, so two clips
+// never play together and the narration never holds the game up (UD-5, QL-6, AS-3). The line is dropped when
+// another line starts first or when still() says its card is gone; after 7 s it plays anyway (the old cap).
+function speakAfter(key, still) {
+  if (!speakSettle) { speak(key); return; }
+  const gen = speakGen;
+  let sent = false;
+  const go = () => {
+    if (sent) return;
+    sent = true;
+    if (gen === speakGen && still()) speak(key);
+  };
+  later(go, 7000);
+  speaking.then(go);
 }
 function hush() {
   if (speakSettle) { const prev = speakSettle; speakSettle = null; prev(); }
@@ -1319,6 +1438,9 @@ function later(fn, ms) {
 const wantOpen = new WeakSet();
 function openDlg(d) {
   wantOpen.add(d);
+  // A message about a click that did nothing is over once a dialog takes the screen (UD-5); a lasting note waits.
+  if (toastKeep && !toastEl.hidden) toastAfterDialogs();
+  toastEl.hidden = true;
   if (!d.open) d.showModal();
 }
 function closeDlg(d) {
@@ -1335,28 +1457,33 @@ function guard(d, refocus) {
     }, 0);
   });
 }
-function scheduleCard(id, said, after) {
+// A card that is due opens at once, while the line before it is still being read: its own line waits for that clip
+// (openCard, speakAfter). It used to wait 3 to 7 s for the narration, refusing every other action meanwhile and
+// leaving focus on the page body (UD-5, QL-6, AS-3). Only another open dialog, such as the idle prompt, holds it.
+function scheduleCard(id, after) {
   const gen = playGen;
-  let opened = false;
   cardPending = true;
   const open = () => {
     if (gen !== playGen || !st.started) { cardPending = false; return; }
-    if (opened) return;
     if (dlg.open || endDlg.open || idleDlg.open || introDlg.open) { later(open, 300); return; }
-    opened = true;
     cardPending = false;
     openCard(id, after);
   };
-  const cap = later(open, 7000);
-  Promise.resolve(said).then(() => { clearTimeout(cap); open(); });
+  open();
 }
+// When the card dialog last showed a new question. A click that lands within 400 ms of that, or the second click of
+// a double-click, was aimed at the question before: a double-click answered one question and then the next one
+// unseen (QL-1). Keys and other clicks with no click count (detail 0) still answer at once.
+let dlgShownAt = 0;
+const tooSoon = (e) => e.detail > 1 || (e.detail > 0 && performance.now() - dlgShownAt < 400);
 function openDecide(id, next) {
   const t = T();
   const choice = t.choices[id];
   $(".kicker", dlg).textContent = t.decideKicker;
   $(".card-title", dlg).textContent = choice.name;
   $(".card-body", dlg).textContent = choice.ask;
-  $(".card-opts", dlg).previousElementSibling.textContent = t.decideChoose;
+  // The number keys are named only while the single-key shortcuts are on.
+  $(".card-opts", dlg).previousElementSibling.textContent = prefs.keys ? t.decideChoose : t.cardChoose;
   $(".card-opts", dlg).innerHTML = ["a", "b"]
     .map((o, i) => `<button type="button" class="opt" data-key="${i + 1}" data-o="${o}"><span class="opt-label"><kbd>${i + 1}</kbd>${esc(choice[o].label)}</span><span class="opt-note">${esc(choice[o].note)}</span>${chipsFor("choice", id, o)}</button>`)
     .join("");
@@ -1364,6 +1491,7 @@ function openDecide(id, next) {
   dlg.dataset.id = id;
   resume = next;
   openDlg(dlg);
+  dlgShownAt = performance.now();
   $(".opt", dlg).focus();
 }
 function openCard(id, after) {
@@ -1373,19 +1501,26 @@ function openCard(id, after) {
   $(".card-title", dlg).textContent = card.title;
   $(".card-body", dlg).textContent = card.body;
   $(".card-opts", dlg).previousElementSibling.textContent = t.cardChoose;
+  // Where the finish moves less than the months the card names, a line under the chips says why (UD-7).
+  const why = (o) => {
+    const n = Math.max(0, ...Object.values(CARD[id].opts[o].sched || {}));
+    const moved = withPick("card", id, o, () => schedule().total) - withPick("card", id, null, () => schedule().total);
+    return t.cardWhy[id]?.[o] && moved < n - 0.25 ? `<span class="opt-note">${esc(fmt(t.cardWhy[id][o], { n }))}</span>` : "";
+  };
   $(".card-opts", dlg).innerHTML = Object.keys(CARD[id].opts)
-    .map((o, i) => `<button type="button" class="opt" data-key="${i + 1}" data-o="${o}"><span class="opt-label"><kbd>${i + 1}</kbd>${esc(card[o].label)}</span>${chipsFor("card", id, o)}</button>`)
+    .map((o, i) => `<button type="button" class="opt" data-key="${i + 1}" data-o="${o}"><span class="opt-label"><kbd>${i + 1}</kbd>${esc(card[o].label)}</span>${chipsFor("card", id, o)}${why(o)}</button>`)
     .join("");
   dlg.dataset.kind = "card";
   dlg.dataset.id = id;
   cardAfter = after || null;
   openDlg(dlg);
+  dlgShownAt = performance.now();
   $(".opt", dlg).focus();
-  speak(`card:${id}`);
+  speakAfter(`card:${id}`, () => dlg.open && dlg.dataset.kind === "card" && dlg.dataset.id === id && st.cards[id] == null);
 }
 $(".card-opts", dlg).addEventListener("click", (e) => {
   const b = e.target.closest("[data-o]");
-  if (!b) return;
+  if (!b || tooSoon(e)) return;
   const kind = dlg.dataset.kind;
   const id = dlg.dataset.id;
   if (kind === "choice") {
@@ -1399,6 +1534,7 @@ $(".card-opts", dlg).addEventListener("click", (e) => {
   // An issue card is answered once; a stale copy of it never changes the first answer.
   if (st.cards[id]) { closeDlg(dlg); return; }
   st.cards[id] = b.dataset.o;
+  logStep("card", id, b.dataset.o);
   say(T().cards[id][b.dataset.o].log);
   speak(`opt:${id}:${b.dataset.o}`);
   const fn = cardAfter;
@@ -1411,75 +1547,247 @@ guard(dlg, () => $(".opt", dlg)?.focus());
 const endDlg = $("[data-end]");
 // The debrief (C11): the results against the plan, with their rating words, the three answers that cost the most,
 // every choice, and three questions to talk over. It prints on its own (Print button, print styles).
+// Every question has to be answered, so an answer is measured against the best other answer to the same question,
+// never against leaving it out (IA-3, DE-6). Months and budget are the whole game's, with each answer in turn;
+// safety and neighbor points are the answers' own, as on their chips. One month weighs about the same as 1% of
+// budget or 5 points of safety or neighbor relations, so cost is the net of the four, and the best other answer is
+// the one the answer given costs the most against.
 function answerEffects(kind, id, o) {
-  const now = scores({ live: true });
-  const off = withPick(kind, id, null, () => scores({ live: true }));
-  return {
-    months: Math.round((now.total - off.total) * 2) / 2,
-    budget: Math.round((now.budgetRaw - off.budgetRaw) * 10) / 10,
-    safety: now.safetyRaw - off.safetyRaw,
-    hood: (kind === "card" ? CARD[id].opts[o] : EFFECT[id][o]).hood || 0,
-  };
+  const opts = kind === "card" ? CARD[id].opts : EFFECT[id];
+  const at = (k) => withPick(kind, id, k, () => scores({ live: true }));
+  const mine = at(o);
+  let vsBest = null;
+  for (const k of Object.keys(opts)) {
+    if (k === o) continue;
+    const other = at(k);
+    const d = {
+      vs: k,
+      months: Math.round((mine.total - other.total) * 2) / 2,
+      budget: Math.round((mine.budgetRaw - other.budgetRaw) * 10) / 10,
+      safety: (opts[o].safety || 0) - (opts[k].safety || 0),
+      hood: (opts[o].hood || 0) - (opts[k].hood || 0),
+    };
+    d.cost = d.months + d.budget - d.safety / 5 - d.hood / 5;
+    if (!vsBest || d.cost > vsBest.cost) vsBest = d;
+  }
+  return vsBest;
 }
+// The three answers that cost the most on balance. An answer that was the best for its question is left out.
 function costliest() {
   const t = T();
   const picks = [
-    ...CHOICES.filter((c) => st.choice[c]).map((c) => ["choice", c, st.choice[c], t.choices[c].name, t.choices[c][st.choice[c]].label]),
-    ...Object.entries(st.cards).filter(([, o]) => o).map(([id, o]) => ["card", id, o, t.cards[id].title, t.cards[id][o].label]),
+    ...CHOICES.filter((c) => st.choice[c]).map((c) => ["choice", c, st.choice[c], t.choices[c].name, t.choices[c]]),
+    ...Object.entries(st.cards).filter(([, o]) => o).map(([id, o]) => ["card", id, o, t.cards[id].title, t.cards[id]]),
   ];
-  // One month weighs about the same as 1% of budget or 5 points of safety or neighbor relations; time costs most.
   return picks
-    .map(([kind, id, o, name, label]) => {
+    .map(([kind, id, o, name, words]) => {
       const d = answerEffects(kind, id, o);
-      const cost = Math.max(0, d.months) + Math.max(0, d.budget) + Math.max(0, -d.safety) / 5 + Math.max(0, -d.hood) / 5;
-      return { name, label, d, cost };
+      return { id, answer: o, name, label: words[o].label, vs: d && words[d.vs].label, d };
     })
-    .filter((x) => x.cost > 0.01)
-    .sort((x, y) => y.cost - x.cost)
+    .filter((x) => x.d && x.d.cost > 0.01)
+    .sort((x, y) => y.d.cost - x.d.cost)
     .slice(0, 3);
 }
+// In words, so a printed "+8" is never read as one more cost (TW-6): "Finish 1 month later · Budget 0.3% more".
 function effectText(d) {
   const t = T();
+  const count = (n, one, many) => (n === 1 ? one : fmt(many, { n }));
+  const months = count(Math.abs(d.months), t.endMonth, t.endMonths);
   const out = [];
-  if (d.months) out.push(`${t.cardChips.sched} ${d.months > 0 ? "+" : "−"}${fmt(t.dashMonthsShort, { n: Math.abs(d.months) })}`);
-  if (d.budget) out.push(`${t.cardChips.budget} ${d.budget > 0 ? "+" : "−"}${Math.abs(d.budget)}%`);
-  if (d.safety) out.push(`${t.cardChips.safety} ${signed(d.safety)}`);
-  if (d.hood) out.push(`${t.cardChips.hood} ${signed(d.hood)}`);
+  if (d.months) out.push(`${t.cardChips.sched} ${fmt(d.months > 0 ? t.endLater : t.endSooner, { n: months })}`);
+  if (d.budget) out.push(`${t.cardChips.budget} ${fmt(d.budget > 0 ? t.endMore : t.endLess, { n: Math.abs(d.budget) })}`);
+  if (d.safety) out.push(`${t.cardChips.safety} ${fmt(d.safety > 0 ? t.endBetter : t.endWorse, { n: count(Math.abs(d.safety), t.endPoint, t.endPoints) })}`);
+  if (d.hood) out.push(`${t.cardChips.hood} ${fmt(d.hood > 0 ? t.endBetter : t.endWorse, { n: count(Math.abs(d.hood), t.endPoint, t.endPoints) })}`);
   return out.join(" · ");
 }
-function openEnd() {
+// The day the debrief is printed, on the paper only (DC-5): set when it opens and again just before printing. A
+// debrief that is not open gets no date, so an old summary never looks new.
+function stampPrint() {
+  const t = T();
+  const date = new Date().toLocaleDateString(t.lang, { year: "numeric", month: "long", day: "numeric" });
+  $("[data-print-date]").textContent = endDlg.open ? fmt(t.printDate, { date }) : "";
+}
+addEventListener("beforeprint", stampPrint);
+// On a kiosk, Enter on the end screen still means Play again. In class and home modes the summary is the class's
+// record, so focus starts on its title and Play again asks first (FEU-1).
+const endFocus = () => $(STAFFED ? "#end-title" : "[data-again]").focus({ preventScroll: true });
+// This game's debrief as plain data, in the words and numbers the player saw (BTC-01). The end screen shows it and a
+// results file saves it, so a file opened later shows the same summary, whichever version of the game opens it.
+function resultsRecord() {
   const t = T();
   const s = scores();
-  const card = (name, value, idx, ref) => `<div data-level="${idx}"><dt>${esc(name)}</dt><dd><span class="end-val">${esc(value)}</span> <span class="end-word"><i class="end-dot" aria-hidden="true"></i>${esc(t.level[idx])}</span><span class="end-ref">${esc(ref)}</span></dd></div>`;
-  $(".end-stats", endDlg).innerHTML = [
-    card(t.dashSchedule, fmt(t.dashMonths, { n: s.months }), schedIdx(s.months), fmt(t.endPlanSched, { n: M.BASE_MONTHS })),
-    card(t.dashBudget, fmt(t.dashBudgetVal, { n: s.budget }), budgetIdx(s.budget), fmt(t.endPlanBudget, { n: M.BUDGET_BANDS[0] - 100 })),
-    card(t.dashSafety, `${s.safety}/100`, scoreIdx(s.safety), fmt(t.endStart, { n: M.SCORE_START.safety })),
-    card(t.dashNeighbors, `${s.hood}/100`, scoreIdx(s.hood), fmt(t.endStartHood, { n: M.SCORE_START.hood })),
-  ].join("");
-  const top = costliest();
-  $(".end-costly", endDlg).innerHTML = top.length
-    ? top.map((x) => `<li><b>${esc(x.name)}:</b> ${esc(x.label)}<span class="end-fx">${esc(effectText(x.d))}</span></li>`).join("")
+  const result = (id, name, number, value, level, plan) => ({ id, name, number, value, level, rating: t.level[level], plan });
+  // Setback cards are drawn by chance, so ratings are partly luck (FEU-4).
+  const setbacks = Object.keys(CARD).filter((id) => CARD[id].roll);
+  const drawn = setbacks.filter((id) => st.cards[id]);
+  return {
+    format: RESULTS_FORMAT,
+    version: RESULTS_VERSION,
+    build: SAVE_BUILD,
+    badge: t.badge,
+    mode: MODE,
+    lang: t.lang,
+    saved: new Date().toISOString(),
+    started: st.t0 ? new Date(st.t0).toISOString() : null,
+    results: [
+      result("schedule", t.dashSchedule, s.months, fmt(t.dashMonths, { n: s.months }), schedIdx(s.months), fmt(t.endPlanSched, { n: M.BASE_MONTHS })),
+      result("budget", t.dashBudget, s.budget, fmt(t.dashBudgetVal, { n: s.budget }), budgetIdx(s.budget), fmt(t.endPlanBudget, { n: M.BUDGET_BANDS[0] - 100 })),
+      result("safety", t.dashSafety, s.safety, `${s.safety}/100`, scoreIdx(s.safety), fmt(t.endStart, { n: M.SCORE_START.safety })),
+      result("neighbors", t.dashNeighbors, s.hood, `${s.hood}/100`, scoreIdx(s.hood), fmt(t.endStartHood, { n: M.SCORE_START.hood })),
+    ],
+    setbacks: { drawn, of: setbacks.length, note: fmt(t.endLuck, { n: drawn.length, of: setbacks.length }) },
+    choices: CHOICES.filter((c) => st.choice[c]).map((c) => ({ id: c, answer: st.choice[c], name: t.choices[c].name, label: t.choices[c][st.choice[c]].label })),
+    cards: Object.entries(st.cards).filter(([, o]) => o).map(([id, o]) => ({ id, answer: o, setback: !!CARD[id].roll, name: t.cards[id].title, label: t.cards[id][o].label })),
+    costliest: costliest().map((x) => ({ id: x.id, answer: x.answer, name: x.name, label: x.label, vs: x.d.vs, vsLabel: x.vs, effect: effectText(x.d), months: x.d.months, budget: x.d.budget, safety: x.d.safety, neighbors: x.d.hood })),
+    steps: st.steps.map((x) => ({ ...x })),
+  };
+}
+// Writes a debrief into the end screen. Every word is escaped: a results file's words show as text, never as markup.
+function fillEnd(rec) {
+  const t = T();
+  $(".end-stats", endDlg).innerHTML = rec.results.map((r) => `<div data-level="${esc(r.level)}"><dt>${esc(r.name)}</dt><dd><span class="end-val">${esc(r.value)}</span> <span class="end-word"><i class="end-dot" aria-hidden="true"></i>${esc(r.rating)}</span><span class="end-ref">${esc(r.plan)}</span></dd></div>`).join("");
+  $("[data-end-luck]", endDlg).textContent = rec.setbacks.note;
+  // Titles that end in a colon are joined to the answer with a dash, never a second colon (TW-6).
+  $(".end-costly", endDlg).innerHTML = rec.costliest.length
+    ? rec.costliest.map((x) => `<li><b>${esc(x.name)}</b> — ${esc(x.label)}<span class="end-fx">${esc(fmt(t.endVs, { label: x.vsLabel }))} ${esc(x.effect)}</span></li>`).join("")
     : `<li>${esc(t.endCostlyNone)}</li>`;
-  const made = [
-    ...CHOICES.filter((c) => st.choice[c]).map((c) => `<li><b>${esc(t.choices[c].name)}:</b> ${esc(t.choices[c][st.choice[c]].label)}</li>`),
-    ...Object.entries(st.cards).filter(([, o]) => o).map(([id, o]) => `<li><b>${esc(t.cards[id].title)}:</b> ${esc(t.cards[id][o].label)}</li>`),
-  ];
+  const made = [...rec.choices, ...rec.cards].map((x) => `<li><b>${esc(x.name)}</b> — ${esc(x.label)}</li>`);
   $(".end-chose", endDlg).innerHTML = made.length ? made.join("") : `<li>${esc(t.noDecisions)}</li>`;
-  $(".end-talk", endDlg).innerHTML = t.endTalkQs.map((q) => `<li>${esc(q)}</li>`).join("");
+  // Each question gets lines to answer on, on paper only (FEU-3).
+  $(".end-talk", endDlg).innerHTML = t.endTalkQs.map((q) => `<li>${esc(q)}<span class="print-only print-lines"></span></li>`).join("");
+}
+// The end screen shows this game's debrief or, in class and home modes, a results file's, read only: that one has
+// Close instead of Play again and the save buttons.
+function endButtons(fromFile) {
+  for (const b of $$("[data-again], [data-save-file], [data-save-csv]", endDlg)) b.hidden = fromFile;
+  const close = $("[data-end-close]", endDlg);
+  if (close) close.hidden = !fromFile;
+}
+// Emptied whenever it closes, so no player's summary is left for the next one to see or print.
+function clearEnd() {
+  for (const sel of [".end-stats", ".end-costly", ".end-chose", ".end-talk"]) $(sel, endDlg).innerHTML = "";
+  $("[data-end-luck]", endDlg).textContent = "";
+  $("[data-print-date]").textContent = "";
+  const from = $("[data-end-from]", endDlg);
+  from.textContent = "";
+  from.hidden = true;
+  endButtons(false);
+}
+function showEnd() {
   openDlg(endDlg);
+  stampPrint();
   pinPad();
   endDlg.scrollTop = 0;
-  // Enter on the end screen still means Play again, as before the Print button was added.
-  $("[data-again]").focus({ preventScroll: true });
+  endFocus();
+}
+function openEnd() {
+  clearEnd();
+  fillEnd(resultsRecord());
+  showEnd();
   speak("end");
 }
 $("[data-print]").addEventListener("click", () => {
   keepGoing();
   window.print();
 });
-$("[data-again]").addEventListener("click", () => { closeDlg(endDlg); reset(); });
-guard(endDlg, () => $("[data-again]").focus());
+$("[data-again]").addEventListener("click", () => {
+  if (STAFFED) { askStartOver("end"); return; }
+  closeDlg(endDlg);
+  reset();
+});
+guard(endDlg, endFocus);
+// Results files (BTC-01), class and home modes only. The browser saves them to this device as a download; nothing is
+// sent. The name says what the file is and when it was saved: build-the-campus-results-2026-10-27-1442.json.
+const two = (n) => String(n).padStart(2, "0");
+const dayOf = (d) => `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}`;
+function saveResults(ext, type, text, when) {
+  const name = `build-the-campus-results-${dayOf(when)}-${two(when.getHours())}${two(when.getMinutes())}.${ext}`;
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  // The link goes inside the open dialog: everything outside a modal dialog is inert.
+  const a = el("a", { href: url, download: name, hidden: true });
+  endDlg.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
+  alertNow(fmt(T().endSaved, { file: name }));
+}
+// One header row and one row of values, for a spreadsheet. Every value comes from the game, never from typing; one a
+// spreadsheet could read as a formula would start with an apostrophe. The byte-order mark makes Excel read UTF-8.
+function resultsCsv(rec) {
+  const t = T();
+  const h = t.csvHead;
+  const when = new Date(rec.saved);
+  const cols = [
+    [h.saved, `${dayOf(when)} ${two(when.getHours())}:${two(when.getMinutes())}`],
+    [h.mode, rec.mode],
+    [h.version, rec.badge],
+    ...rec.results.flatMap((r) => [[h[r.id], r.number], [fmt(h.rating, { name: r.name }), r.rating]]),
+    [h.setbacks, rec.setbacks.drawn.length],
+    ...CHOICES.map((c) => [t.choices[c].name, rec.choices.find((x) => x.id === c)?.label ?? ""]),
+    ...Object.keys(CARD).map((id) => [t.cards[id].title, rec.cards.find((x) => x.id === id)?.label ?? ""]),
+    [h.steps, rec.steps.length],
+  ];
+  const cell = (v) => `"${String(v).replace(/^[=+\-@\t\r]/, "'$&").replace(/"/g, '""')}"`;
+  return `﻿${cols.map(([k]) => cell(k)).join(",")}\r\n${cols.map(([, v]) => cell(v)).join(",")}\r\n`;
+}
+$("[data-save-file]")?.addEventListener("click", () => {
+  const rec = resultsRecord();
+  saveResults("json", "application/json", `${JSON.stringify(rec, null, 2)}\n`, new Date(rec.saved));
+});
+$("[data-save-csv]")?.addEventListener("click", () => {
+  const rec = resultsRecord();
+  saveResults("csv", "text/csv", resultsCsv(rec), new Date(rec.saved));
+});
+// Opening one: the browser reads the file picked, here, and uploads nothing. The file is checked before anything is
+// shown, and a wrong or damaged one gets a one-line message on the intro instead.
+function readResults(text) {
+  const t = T();
+  let o = null;
+  try { o = JSON.parse(text); } catch { return t.fileBad; }
+  if (!o || typeof o !== "object" || o.format !== RESULTS_FORMAT) return t.fileBad;
+  if (o.version !== RESULTS_VERSION) return t.fileVersion;
+  const str = (v) => typeof v === "string" && v.length <= 400;
+  const list = (a, max, ok) => Array.isArray(a) && a.length <= max && a.every((x) => x && typeof x === "object" && ok(x));
+  const said = (x) => str(x.name) && str(x.label);
+  const ok = str(o.badge) && str(o.saved) && Number.isFinite(Date.parse(o.saved))
+    && list(o.results, 4, (r) => str(r.name) && str(r.value) && str(r.rating) && str(r.plan) && Number.isInteger(r.level) && r.level >= 0 && r.level <= 4) && o.results.length === 4
+    && str(o.setbacks?.note) && list(o.choices, 50, said) && list(o.cards, 50, said)
+    && list(o.costliest, 3, (x) => said(x) && str(x.vsLabel) && str(x.effect)) && Array.isArray(o.steps);
+  return ok ? o : t.fileBad;
+}
+function showFile(rec) {
+  const t = T();
+  clearEnd();
+  fillEnd(rec);
+  const from = $("[data-end-from]", endDlg);
+  from.textContent = fmt(t.fileFrom, { date: new Date(rec.saved).toLocaleString(t.lang, { dateStyle: "long", timeStyle: "short" }), badge: rec.badge });
+  from.hidden = false;
+  endButtons(true);
+  showEnd();
+}
+const fileInput = $("[data-file-input]");
+const fileBad = $("[data-file-bad]");
+$("[data-open-file]")?.addEventListener("click", () => fileInput.click());
+fileInput?.addEventListener("change", () => {
+  const file = fileInput.files[0];
+  // Cleared, so picking the same file again opens it again.
+  fileInput.value = "";
+  if (!file) return;
+  fileBad.textContent = "";
+  fileBad.hidden = true;
+  // The line sits under the button, so it scrolls clear of the intro's pinned buttons.
+  const fail = (text) => { fileBad.textContent = text; fileBad.hidden = false; fileBad.scrollIntoView({ block: "center" }); };
+  if (file.size > 1e6) { fail(T().fileBad); return; }
+  const reader = new FileReader();
+  reader.onload = () => { const rec = readResults(String(reader.result)); if (typeof rec === "string") fail(rec); else showFile(rec); };
+  reader.onerror = () => fail(T().fileBad);
+  reader.readAsText(file);
+});
+$("[data-end-close]")?.addEventListener("click", () => {
+  closeDlg(endDlg);
+  clearEnd();
+  $("[data-open-file]").focus({ preventScroll: true });
+});
 const introDlg = $("[data-intro]");
 const aboutDlg = $("[data-about-dlg]");
 const confirmDlg = $("[data-confirm]");
@@ -1491,7 +1799,7 @@ $("[data-about]").addEventListener("click", () => {
   $("#about-title").focus({ preventScroll: true });
 });
 $("[data-about-close]").addEventListener("click", () => aboutDlg.close());
-$("[data-start]").addEventListener("click", () => {
+function beginGame() {
   clearSave();
   history = [];
   st.started = true;
@@ -1499,18 +1807,33 @@ $("[data-start]").addEventListener("click", () => {
   scene?.setAttract(false);
   scene?.resetView();
   pickPhase("site");
-});
+}
+// Over a game this tab kept, Start a new game asks first (DE-3).
+$("[data-start]").addEventListener("click", () => (savedGame().back ? askStartOver("save") : beginGame()));
+// The intro offers Resume for a game this tab kept, and says so when this build cannot resume one (DE-5).
+function offerResume() {
+  const t = T();
+  const { back, bad } = savedGame();
+  if (bad) clearSave();
+  $("[data-resume]").hidden = !back;
+  $("[data-resume-note]").hidden = !back;
+  $("[data-resume-fail]").hidden = !bad;
+  const startBtn = $("[data-start]");
+  startBtn.textContent = back ? t.startNew : t.start;
+  startBtn.classList.toggle("btn-ghost", !!back);
+  return !!back;
+}
 // Class and home modes: carry on from the game this tab saved (C6).
 $("[data-resume]").addEventListener("click", () => {
-  let back = null;
-  try { back = loadState(readSave()?.state); } catch { back = null; }
-  if (!back) { clearSave(); $("[data-start]").click(); return; }
+  const { back } = savedGame();
+  if (!back) { offerResume(); $("[data-start]").focus({ preventScroll: true }); return; }
   st = back;
   history = [];
   ui.hoodSig = null;
   closeDlg(introDlg);
   scene?.setAttract(false);
   scene?.resetView();
+  logStep("resume");
   say(T().logResume);
   renderEffectsBtn();
   renderAll(false);
@@ -1520,12 +1843,22 @@ $("[data-resume]").addEventListener("click", () => {
   else $("[data-go]")?.focus({ preventScroll: true });
 });
 guard(introDlg, () => $("[data-start]").focus({ preventScroll: true }));
-function askStartOver() {
+// One question for every way to clear a game: Start over, Play again in class and home modes, and Start a new game
+// over a kept game (FEU-1, DE-3). Each says what it clears.
+function askStartOver(about = "game") {
   if (confirmDlg.open) return;
+  const t = T();
+  confirmDlg.dataset.about = about;
+  $("#confirm-body").textContent = about === "end" ? t.confirmEnd : about === "save" ? t.confirmSave : t.confirmBody;
+  $("[data-confirm-no]").textContent = about === "end" ? t.endKeep : about === "save" ? t.confirmBack : t.confirmNo;
   confirmDlg.showModal();
   $("[data-confirm-no]").focus();
 }
-$("[data-confirm-yes]").addEventListener("click", () => { confirmDlg.close(); reset(); });
+$("[data-confirm-yes]").addEventListener("click", () => {
+  confirmDlg.close();
+  if (confirmDlg.dataset.about === "save") beginGame();
+  else reset();
+});
 $("[data-confirm-no]").addEventListener("click", () => confirmDlg.close());
 
 // ---------- language, tools, keys ----------
@@ -1538,23 +1871,40 @@ function applyLang() {
   }
   for (const node of $$("[data-t-label]")) {
     const v = t[node.dataset.tLabel];
-    if (typeof v === "string") { node.setAttribute("aria-label", v); node.title = v; }
+    if (typeof v === "string") { node.setAttribute("aria-label", v); if (node.hasAttribute("title")) node.title = v; }
   }
   canvas.setAttribute("aria-label", t.canvasLabel);
+  document.title = t.pageTitle;
+  // The intro's Start and Listen buttons are named by code, and before the game starts the Site log holds only its
+  // opening line, so a switch made on the intro reaches them too.
+  $("[data-start]").textContent = $("[data-resume]").hidden ? t.start : t.startNew;
+  $("[data-listen]").textContent = t.listen;
+  if (!st.started && st.log.length === 1) { st.log = []; say(t.log0); }
   onCamMode(!!scene?.zoomed());
   scene?.refreshSigns();
   renderEffectsBtn();
   renderVoiceBtn();
+  renderLangBtns();
   renderAll(false);
 }
-const langBtn = $("[data-lang]");
+// The language switch is in the top bar and on the intro, so a visitor can choose before starting (PA-2). Each
+// button is named in the language it switches to.
+const langBtns = $$("[data-lang]");
+function renderLangBtns() {
+  for (const b of langBtns) {
+    b.textContent = lang === "en" ? STR.en.langToggle : T().langNameEn;
+    b.lang = lang === "en" ? "es" : "en";
+  }
+}
 if (Object.keys(STR.es || {}).length) {
-  langBtn.hidden = false;
-  langBtn.addEventListener("click", () => {
-    lang = lang === "en" ? "es" : "en";
-    langBtn.textContent = lang === "en" ? STR.en.langToggle : T().langNameEn;
-    applyLang();
-  });
+  renderLangBtns();
+  for (const b of langBtns) {
+    b.hidden = false;
+    b.addEventListener("click", () => {
+      lang = lang === "en" ? "es" : "en";
+      applyLang();
+    });
+  }
 }
 const fxBtn = $("[data-fx]");
 function renderEffectsBtn() {
@@ -1574,14 +1924,17 @@ document.addEventListener("keydown", (ev) => {
     if (b) { ev.preventDefault(); b.click(); }
     return;
   }
-  if (otherDialogOpen() || !prefs.keys) return;
+  if (otherDialogOpen()) return;
   if (ev.target instanceof Element && ev.target.closest("input, textarea, select, [contenteditable]")) return;
   const k = ev.key.toLowerCase();
+  // Siting by keyboard: the arrow keys and Escape are not single-key shortcuts, so they work with the switch off
+  // too (EA-1, AS-4, WCAG 2.1.1).
   if (placing && k === "escape") { ev.preventDefault(); endPlace(); renderBuild(); focusNext(); return; }
   if (placing && !ev.shiftKey) {
     const step = { arrowleft: [-1, 0], arrowright: [1, 0], arrowup: [0, 1], arrowdown: [0, -1] }[k];
     if (step) { ev.preventDefault(); nudgePlace(step[0] * (M.LAYOUT_GRID || 10), step[1] * (M.LAYOUT_GRID || 10)); return; }
   }
+  if (!prefs.keys) return;
   if (k === "v") { ev.preventDefault(); setVoice(!voice.on, true); }
   else if (k === "n") { ev.preventDefault(); next(); }
   else if (k === "m") { ev.preventDefault(); toggleFx(); }
@@ -1590,6 +1943,8 @@ function reset({ clear = true } = {}) {
   if (clear) { clearSave(); history = []; }
   // A service-worker update that arrived mid-game is applied here, when the player starts over (C6).
   if (swUpdatePending) { location.reload(); return; }
+  // On a kiosk the language, like every other switch, lasts one visitor (PA-1, PA-2).
+  if (!STAFFED && lang !== "en") { lang = "en"; applyLang(); }
   playGen += 1;
   clearCardTimers();
   resume = null;
@@ -1599,6 +1954,8 @@ function reset({ clear = true } = {}) {
   hush();
   closeDlg(dlg);
   closeDlg(endDlg);
+  clearEnd();
+  if (fileBad) { fileBad.textContent = ""; fileBad.hidden = true; }
   if (aboutDlg.open) aboutDlg.close();
   if (confirmDlg.open) confirmDlg.close();
   stopCountdowns();
@@ -1620,13 +1977,9 @@ function reset({ clear = true } = {}) {
   renderAll(false);
   setTab("build");
   scene?.setAttract(true);
-  const t = T();
-  const saved = readSave();
-  $("[data-resume]").hidden = !saved;
-  $("[data-resume-note]").hidden = !saved;
-  const startBtn = $("[data-start]");
-  startBtn.textContent = saved ? t.startNew : t.start;
-  startBtn.classList.toggle("btn-ghost", !!saved);
+  // Every new player gets the one-time zoom tip, not only the first after the page loaded.
+  zoomTipShown = false;
+  const saved = offerResume();
   openDlg(introDlg);
   pinPad();
   // Focus without scrolling, so the age line under the title stays in view on small phones (C1).
@@ -1736,8 +2089,8 @@ setInterval(() => {
   const idle = performance.now() - lastInput;
   if (endDlg.open) { if (idle >= 60000) startEndCountdown(); return; }
   if (idle < (testHooks.idleMs || 150000)) return;
-  if (aboutDlg.open) aboutDlg.close();
-  if (confirmDlg.open) confirmDlg.close();
+  // The prompt opens over About or the Start-over question, so Keep playing goes back to them where they were;
+  // only the reset closes them.
   idleLeft = 20;
   idleBody.textContent = countText("idleBody", idleLeft);
   try { idleDlg.showModal(); } catch { return; }
@@ -1756,16 +2109,21 @@ idleDlg.addEventListener("cancel", (ev) => { ev.preventDefault(); keepGoing(); }
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
   // Keep this id identical to CACHE in sw.js. Bump both together when publishing.
   // The file name changes with the id, so a reload installs the new worker immediately.
-  const SW_BUILD = "build-the-campus-v6";
+  const SW_BUILD = "build-the-campus-v7";
   const hadController = !!navigator.serviceWorker.controller;
-  if (hadController) {
-    // A new build took over. On the intro nothing is in progress, so reload now. Mid-game, wait: reset() reloads
-    // when the player starts over, so no game is lost (C6).
-    navigator.serviceWorker.addEventListener("controllerchange", () => {
-      if (st.started) swUpdatePending = true;
-      else location.reload();
-    });
-  }
+  // A new build took over. On the intro nothing is in progress, so reload now. Mid-game, wait: reset() reloads when
+  // the player starts over, so no game is lost (C6). This page's own worker taking control is no update: on a first
+  // visit, or when this page arrived under an older build's worker. The listener used to exist only for pages that
+  // loaded under a worker, so a tab opened on a first visit never took a later update (PA-7).
+  const own = new URL(`./sw-${SW_BUILD}.js`, location.href).href;
+  let ctl = navigator.serviceWorker.controller?.scriptURL || "";
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    const was = ctl;
+    ctl = navigator.serviceWorker.controller?.scriptURL || "";
+    if (ctl === own && was !== own) return;
+    if (st.started) swUpdatePending = true;
+    else location.reload();
+  });
   navigator.serviceWorker.register(`./sw-${SW_BUILD}.js`, { updateViaCache: "none" }).then((reg) => {
     const askSkip = () => { if (hadController && reg.waiting) reg.waiting.postMessage({ type: "SKIP_WAITING" }); };
     askSkip();
@@ -1832,7 +2190,7 @@ window.__dc = {
   mode: MODE,
   history: () => history.length,
   state: () => st,
-  audio: () => ({ unlocked: audioUnlocked, paused: audio.paused, time: audio.currentTime, src: audio.currentSrc ? audio.currentSrc.slice(0, 48) : "" }),
+  audio: () => ({ unlocked: audioUnlocked, paused: audio.paused, ended: audio.ended, time: audio.currentTime, src: audio.currentSrc ? audio.currentSrc.slice(0, 48) : "" }),
   scores,
   schedule,
   hood,
@@ -1847,3 +2205,5 @@ renderVoiceBtn();
 reset({ clear: false });
 measureSafe();
 scene?.start();
+// The game is running, so the note for browsers that cannot run it goes (build.mjs).
+$("[data-nojs]")?.remove();

@@ -26,6 +26,9 @@ button{font:inherit;color:inherit}
 .skip{position:absolute;left:12px;top:10px;z-index:30;background:var(--card);color:var(--ink);font-weight:700;padding:10px 18px;border-radius:999px;box-shadow:var(--shadow);text-decoration:none}
 .skip:not(:focus){width:1px;height:1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .skip:focus-visible{outline-color:var(--focus-stage)}
+/* Until game.js runs (build.mjs): while the page loads, then for good where the game cannot run (critic). */
+.nojs{position:fixed;inset:0;z-index:50;display:grid;place-items:center;padding:16px;background:linear-gradient(#0a1a1500,#0a1a1580)}
+.nojs p{max-width:30rem;margin:0;padding:20px 24px;border-radius:var(--radius);background:var(--card);color:var(--ink);box-shadow:var(--shadow);font-weight:600;text-align:center}
 .muted{color:var(--muted);font-size:.9rem}
 .kicker{text-transform:uppercase;letter-spacing:.09em;font-size:.75rem;font-weight:700;color:var(--clay-ink);margin-bottom:4px}
 .byline{font-weight:700;color:var(--ink-2)}
@@ -56,7 +59,7 @@ h1.brand-name{font-family:var(--font-display);font-weight:700;font-size:1.2rem;l
 .pill{background:transparent;color:#f7f4ee;border:2px solid #f7f4eecc;border-radius:999px;padding:6px 16px;font-weight:700;min-height:44px;cursor:pointer}
 .pill:hover{background:#ffffff1a}
 .bar .pill:focus-visible{outline-color:var(--focus-stage)}
-.pill-dark{color:var(--ink);border-color:var(--ink);background:#fffdf8e6;backdrop-filter:blur(6px)}
+.pill-dark{color:var(--ink);border-color:var(--ink);background:#fffdf8e6;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
 .pill-dark:hover{background:#fff}
 .pill-dark[aria-pressed="false"]{border-style:dashed}
 
@@ -66,13 +69,16 @@ h1.brand-name{font-family:var(--font-display);font-weight:700;font-size:1.2rem;l
 .scene[data-zoomed]{cursor:move}
 .scene[data-placing],.scene[data-placing]:active{cursor:crosshair}
 .scene:focus-visible{outline-offset:-4px}
-.nogl{display:none}
-body[data-nogl] .nogl{display:block;position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);max-width:420px;text-align:center}
+/* Without WebGL, or with its context lost, the note sits over the open map where the map buttons would be, above the
+   panels, and the blank canvas and the floating tag step aside (FE-2: the note was drawn under the Schedule panel). */
+.nogl{display:none;position:absolute;left:calc(var(--pl) + 32px);right:calc(var(--pr) + 32px);bottom:calc(26px + min(var(--plan-h, 290px), max(150px, calc(100% - var(--top-room, 0px) - var(--cam-h, 0px) - 26px))));z-index:4;width:fit-content;max-width:420px;margin:0 auto;padding:10px 16px;border-radius:14px;background:var(--card);box-shadow:var(--shadow);font-weight:600;text-align:center}
+body[data-nogl] .nogl{display:block}
+body[data-nogl] .scene,body[data-nogl] .tag{visibility:hidden}
 .tag{position:absolute;left:0;top:0;pointer-events:none;background:var(--pine);color:#fff;font-weight:700;font-size:.85rem;padding:6px 12px;border-radius:999px;box-shadow:var(--shadow);white-space:nowrap;z-index:3}
 .tag::after{content:"";position:absolute;left:50%;bottom:-5px;width:10px;height:10px;background:var(--pine);transform:translateX(-50%) rotate(45deg);border-radius:2px}
 
 /* floating panels */
-.panel{position:absolute;background:#fffdf8f2;backdrop-filter:blur(10px);border:1px solid #dcd7cccc;border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;z-index:2;overflow:auto;scrollbar-width:thin}
+.panel{position:absolute;background:#fffdf8f2;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border:1px solid #dcd7cccc;border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;z-index:2;overflow:auto;scrollbar-width:thin}
 .p-build{left:16px;top:16px;bottom:16px;width:var(--pl)}
 .p-side{right:16px;top:16px;bottom:16px;width:var(--pr);display:flex;flex-direction:column;padding:10px 14px 14px}
 /* --plan-room: the schedule never grows into the toolbar, the narration caption or the map buttons above it (I9);
@@ -89,7 +95,7 @@ body[data-nogl] .nogl{display:block;position:absolute;left:50%;top:40%;transform
 .cam{position:absolute;left:calc(var(--pl) + 32px);right:calc(var(--pr) + 32px);bottom:calc(26px + min(var(--plan-h, 290px), max(150px, calc(100% - var(--top-room, 0px) - var(--cam-h, 0px) - 26px))));display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:6px;z-index:4;pointer-events:none}
 .cam-move{display:flex;gap:6px}
 .cam-move[hidden]{display:none}
-.cb{width:40px;height:40px;padding:0;border-radius:12px;border:2px solid var(--ink);background:#fffdf8e6;color:var(--ink);display:grid;place-items:center;cursor:pointer;backdrop-filter:blur(6px)}
+.cb{width:40px;height:40px;padding:0;border-radius:12px;border:2px solid var(--ink);background:#fffdf8e6;color:var(--ink);display:grid;place-items:center;cursor:pointer;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
 .cb:hover{background:#fff}
 .cb svg{width:20px;height:20px}
 .cam .pill{min-height:40px}
@@ -140,6 +146,10 @@ body[data-nogl] .cam,body[data-nogl] .hint,body[data-nogl] [data-fx]{display:non
 .intro-voice{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;margin:0 0 8px}
 .intro-voice[hidden]{display:none}
 .intro-voice p{margin:0;flex:1 1 15rem;font-size:.9rem;color:var(--ink-2)}
+/* Class and home modes: a results file saved at the end of a game opens again, read only (BTC-01). */
+.intro-file{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;margin:0 0 8px}
+.intro-file p{margin:0;flex:1 1 15rem;font-size:.9rem;color:var(--ink-2)}
+.intro-file .file-bad{flex-basis:100%;font-size:1rem;font-weight:700;color:var(--clay-ink)}
 .intro-btns{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 /* The intro's buttons stay pinned at the bottom of the dialog, so on a phone both the age line at the top and
    Start are visible without scrolling. */
@@ -260,7 +270,7 @@ body[data-side="hood"] .side-hood,body[data-side="choices"] .side-choices{displa
 
 /* dialogs */
 .dlg{border:0;border-radius:24px;padding:26px 28px;max-width:min(620px,calc(100% - 24px));max-height:calc(100dvh - 24px);overflow:auto;box-shadow:0 30px 70px -18px #0a1a1599;color:var(--ink);background:var(--card)}
-.dlg::backdrop{background:#0a1a1566;backdrop-filter:blur(2px)}
+.dlg::backdrop{background:#0a1a1566;-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px)}
 .dlg-intro{max-width:min(660px,calc(100% - 24px))}
 .dlg-intro::backdrop{background:linear-gradient(#0a1a1500,#0a1a1580)}
 .card-opts{display:grid;gap:10px;margin-top:6px}
@@ -288,10 +298,18 @@ html[data-nokeys] .opt kbd{display:none}
 .end-stats [data-level="2"] .end-dot{background:#d89a1c}
 .end-stats [data-level="1"] .end-dot,.end-stats [data-level="0"] .end-dot{background:#d9573b}
 .end-ref{flex-basis:100%;font-size:.82rem;font-weight:600;color:var(--ink-2)}
+.end-luck{margin:-8px 0 14px}
+.from-file{font-weight:700;color:var(--ink-2);background:var(--sunken);border-radius:12px;padding:8px 12px;margin:0 0 10px}
 .end-costly,.end-talk{margin:0 0 8px;padding-left:22px;display:grid;gap:6px;font-size:.95rem}
 .end-costly .end-fx{display:block;font-size:.84rem;font-weight:600;color:var(--ink-2)}
 .end-talk{margin-bottom:16px}
 .end-btns .btn-ghost{min-height:50px}
+/* Phones: the end screen's buttons sit two to a row, so the pinned row stays short with the class-mode save buttons
+   (BTC-01). */
+@media (max-width:600px){
+  .end-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .end-btns .btn{min-height:48px;padding:8px 12px;font-size:.92rem}
+}
 .print-only{display:none}
 .gloss{margin:0 0 10px;display:grid;gap:4px;font-size:.92rem}
 .gloss dt{display:inline;font-weight:700}
@@ -301,23 +319,36 @@ html[data-nokeys] .opt kbd{display:none}
 @media print{
   @page{size:letter;margin:.45in}
   html,body{background:#fff!important;height:auto!important;overflow:visible!important}
-  body>.app,body>dialog:not([data-end]),.dlg-foot,.dlg::backdrop{display:none!important}
-  .dlg-end{position:static!important;display:block!important;max-width:none!important;max-height:none!important;overflow:visible!important;box-shadow:none!important;border-radius:0;padding:0!important;margin:0;color:#000;background:#fff;inset:auto;transform:none}
-  .dlg-end{font-size:10.5pt;line-height:1.35}
-  .dlg-end h2{font-size:17pt}
-  .dlg-end h3{margin:10px 0 4px;font-size:12pt}
+  /* Only an open end screen prints. Anywhere else the page prints a short note instead, never the last player's
+     summary or an empty one; reset() also empties the summary. */
+  body>.app,body>dialog:not([data-end]),.dlg-foot,.dlg::backdrop,.dlg-end[open]~.print-empty{display:none!important}
+  .dlg-end[open]{position:static!important;display:block!important;max-width:none!important;max-height:none!important;overflow:visible!important;box-shadow:none!important;border-radius:0;padding:0!important;margin:0;color:#000;background:#fff;inset:auto;transform:none}
+  .dlg-end{font-size:10pt;line-height:1.25}
+  .dlg-end h2{font-size:16pt}
+  .dlg-end h3{margin:8px 0 3px;font-size:11.5pt}
   .dlg-end p{margin:0 0 6px}
+  .dlg-end .muted{font-size:9pt}
   .end-stats{gap:8px;margin:4px 0 8px}
   .end-stats div{padding:6px 10px}
-  .end-costly,.end-talk{gap:3px;font-size:10.5pt}
-  .end-chose{display:block;columns:2;column-gap:24px;font-size:10pt;margin-bottom:8px}
+  .end-costly,.end-talk{gap:3px;font-size:10pt}
+  .end-costly .end-fx{font-size:9.5pt}
+  .end-chose{display:block;columns:3;column-gap:18px;font-size:9pt;margin-bottom:8px}
   .end-chose li{break-inside:avoid}
-  .end-stats{grid-template-columns:1fr 1fr;break-inside:avoid}
+  .end-stats{grid-template-columns:repeat(4,1fr);break-inside:avoid}
   .end-stats div{border:1px solid #999;background:#fff}
   .end-dot{print-color-adjust:exact;-webkit-print-color-adjust:exact}
   .print-only{display:block}
-  .print-head{font-weight:700;font-size:10pt;margin:0 0 8px;color:#333}
-  .print-foot{font-size:9pt;color:#333;margin-top:14px}
+  /* The paper also gives the date and the address, a name line and lines to answer on, written by hand (DC-5, ES-2,
+     FEU-3). */
+  .print-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:4px 16px;font-weight:700;font-size:10pt;margin:0 0 8px;color:#333}
+  .print-foot{font-size:9pt;color:#333;margin-top:10px}
+  .dlg-end .print-head p,.dlg-end .print-foot p{margin:0}
+  .print-blank{display:inline-block;width:2.6in;border-bottom:1px solid #333;margin-left:6px}
+  .print-lines{height:3em;border-bottom:1px solid #999}
+  .print-lines::before{content:"";display:block;height:1.5em;border-bottom:1px solid #999}
+  .dlg-end .from-file{background:none;padding:0;margin:0 0 6px}
+  .print-empty{font-size:12pt;line-height:1.4;color:#000}
+  .print-empty p{margin:0 0 8px}
 }
 
 /* smaller laptops: slimmer panels */
@@ -344,7 +375,7 @@ html[data-nokeys] .opt kbd{display:none}
   html[data-present]{font-size:20px;--pl:16.5rem}
   html[data-present] :is(.kicker,.kpi-label,.kpi-word,.el-act,.el-why,.lock,.chip,.hood-h,.lane-icon,.axis,.legend,.end-stats dt){font-size:.8rem}
   html[data-present] .p-side,html[data-present] .p-plan{display:none}
-  html[data-present] .tools,html[data-present] .cam,html[data-present] .caption{right:16px}
+  html[data-present] .tools,html[data-present] .cam,html[data-present] .caption,html[data-present] .nogl{right:16px}
   html[data-present] .kpi-val .long{display:inline}html[data-present] .kpi-val .short{display:none}
 }
 @media (min-width:1024px) and (max-width:1500px) and (orientation:landscape) and (min-height:601px){
@@ -407,7 +438,8 @@ html[data-nokeys] .opt kbd{display:none}
   .tools{left:8px;right:8px;top:8px;gap:6px}
   .tools .pill{min-height:36px;font-size:.78rem}
   .hint{font-size:.74rem;padding:3px 8px}
-  .cam{left:8px;right:8px;bottom:calc(100% - var(--scene-row) + 8px);gap:4px}
+  .cam,.nogl{left:8px;right:8px;bottom:calc(100% - var(--scene-row) + 8px)}
+  .cam{gap:4px}
   .cam-move{gap:4px}
   .cb{width:36px;height:36px;border-radius:10px}
   .cb svg{width:18px;height:18px}
@@ -417,7 +449,7 @@ html[data-nokeys] .opt kbd{display:none}
   .tabs button{border:0;border-radius:999px;background:transparent;color:#f7f4ee;font-weight:700;font-size:.85rem;min-height:40px;cursor:pointer}
   .tabs button[aria-pressed="true"]{background:#f7f4ee;color:var(--pine)}
   .tabs button:focus-visible{outline-color:var(--focus-stage)}
-  .panel{position:relative;grid-row:3;inset:auto;width:auto;border-radius:0;border:0;box-shadow:none;background:var(--card);backdrop-filter:none;display:none;padding:12px 14px}
+  .panel{position:relative;grid-row:3;inset:auto;width:auto;border-radius:0;border:0;box-shadow:none;background:var(--card);-webkit-backdrop-filter:none;backdrop-filter:none;display:none;padding:12px 14px}
   .p-build,.p-side,.p-plan{left:auto;right:auto;top:auto;bottom:auto;width:auto;max-height:none}
   body[data-view="build"] .p-build,body[data-view="plan"] .p-plan{display:block}
   body[data-view="hood"] .p-side,body[data-view="choices"] .p-side{display:flex}
@@ -438,13 +470,14 @@ html[data-nokeys] .opt kbd{display:none}
   html[data-present] body{font-size:1rem}
   html[data-present] :is(.kicker,.badge,.kpi-label,.kpi-word,.tools .pill,.hint,.cam .pill,.el-act,.el-why,.lock,.chip,.hood-h,.lane-icon,.axis,.legend,.end-stats dt){font-size:.8rem}
 }
-/* Very narrow phones: the tile dot moves to the corner so the short labels fit. */
+/* Very narrow phones: the tile dot moves to the bottom corner, beside the rating word it goes with, so the short labels
+   fit (at the top corner it covered the end of "Neighbors", BTC-74). */
 @media (max-width:360px){
   .badge-long{display:none}.badge-short{display:inline}
   .bar{padding:8px 6px}.kpis{gap:4px}
   .cb{width:34px;height:34px}.cam .pill{min-height:34px}
   .kpi{padding:4px 5px 5px}
-  .kpi::before{left:auto;right:5px;top:6px;width:6px;height:6px}
+  .kpi::before{left:auto;right:5px;top:auto;bottom:9px;width:6px;height:6px}
 }
 /* Landscape phones: the map on the left, the tabbed panel on the right. The panel column is never narrower than
    its four tabs, and each tab is as wide as its word, so no tab runs off the screen. */
@@ -456,7 +489,7 @@ html[data-nokeys] .opt kbd{display:none}
   .tabs button{padding:0 7px;font-size:.8rem}
   .panel{grid-column:2;grid-row:2}
   .tools,.caption{right:calc(var(--pw) + 8px)}
-  .cam{right:calc(var(--pw) + 8px);bottom:8px}
+  .cam,.nogl{right:calc(var(--pw) + 8px);bottom:8px}
   .caption{font-size:.8rem;line-height:1.3;padding:5px 12px}
   /* One row of map buttons, so a narration caption has room above them. */
   .cam{gap:3px}.cam-move{gap:3px}
@@ -484,7 +517,7 @@ html[data-nokeys] .opt kbd{display:none}
   .tabs button{padding:0 2px}
   .panel{grid-column:1;grid-row:3}
   .tools,.caption{right:8px}
-  .cam{right:8px;bottom:calc(100% - var(--scene-row) + 8px)}
+  .cam,.nogl{right:8px;bottom:calc(100% - var(--scene-row) + 8px)}
 }
 /* Very short windows at any width (400% zoom on a 1280 x 720 or 1280 x 1024 screen is 320 x 180 or 320 x 256): a
    pinned button row would leave a sliver of text above it, so the buttons scroll with the dialog instead (AS-6). */
@@ -497,3 +530,37 @@ html[data-nokeys] .opt kbd{display:none}
    siting box says how to site with fingers instead of a mouse and keys (UD-8). */
 @media (pointer:coarse) and (hover:none){.dlg-intro .keys-hint,.place-keys{display:none}.place-touch{display:inline}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+/* Windows contrast themes (forced colors, critic): the browser drops author backgrounds, gradients and shadows. They
+   drew the schedule's bars, its critical path, the meters and every pressed state, and .btn had no border, so here
+   those use system colours and borders instead and no meaning rests on a background alone (WCAG 1.4.1, 1.3.1).
+   A gradient survives only with forced-color-adjust:none, so the hatching sets it on its own boxes. */
+@media (forced-colors:active){
+  .btn{border:2px solid ButtonText}
+  .btn[disabled]{border-color:GrayText}
+  .dlg{border:2px solid CanvasText}
+  /* A results file's debrief keeps its "read only" label boxed (BTC-01). */
+  .from-file{border:1px solid CanvasText}
+  .seg button,.side-tabs button,.tabs button{border:1px solid ButtonText}
+  /* Pressed buttons are filled with the selection colours. They hold plain text only, so they opt out of forcing:
+     forced text gets a Canvas-coloured backplate, which hid the HighlightText words. */
+  :is(.seg button,.side-tabs button,.tabs button,.cb)[aria-pressed="true"]{forced-color-adjust:none;background:Highlight;color:HighlightText;border-color:Highlight}
+  [data-new]::after{background:Highlight}
+  .hood-row{border-color:Canvas}
+  .hood-row[aria-pressed="true"]{border-color:Highlight}
+  .lane{position:relative}
+  .lane[aria-pressed="true"]::after{content:"";position:absolute;inset:0;border:2px solid Highlight;border-radius:inherit;pointer-events:none}
+  .meter i{background:Canvas;border:1px solid CanvasText}
+  .meter i[data-on]{background:CanvasText}
+  /* The small squares before the Neighbors names are the map's colours, and the map keeps its colours. */
+  .hood-name::before{forced-color-adjust:none}
+  .track,.sw{forced-color-adjust:none}
+  .track{background:repeating-linear-gradient(90deg,transparent 0 calc(12.5% - 1px),GrayText calc(12.5% - 1px) 12.5%)}
+  .range-line{background:CanvasText;opacity:1}
+  .gbar,.sw-other,.sw-now{background:CanvasText}
+  .gbar[data-crit="1"],.sw-crit{background:repeating-linear-gradient(135deg,Highlight 0 2px,Canvas 2px 5px);border:1px solid Highlight}
+  .gbar[data-state="now"],.sw-now{box-shadow:none;outline:2px solid CanvasText;outline-offset:1px}
+  /* The schedule as a row of phases (UD-1): the critical path's hatched underline. */
+  @media (min-width:1101px) and (max-height:900px), (min-width:1024px) and (orientation:landscape) and (min-height:601px) and (max-height:900px){
+    body:not([data-plan-open]) .lane[data-crit]::before{content:"";position:absolute;left:12px;right:12px;bottom:0;height:4px;forced-color-adjust:none;background:repeating-linear-gradient(135deg,Highlight 0 2px,transparent 2px 5px)}
+  }
+}

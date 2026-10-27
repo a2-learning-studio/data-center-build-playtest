@@ -1,0 +1,6 @@
+# LF line endings on every checkout, Windows included, so a rebuild writes the same pages and the same CSP hash (DE-8).
+* text=auto eol=lf
+*.mp3 binary
+*.woff2 binary
+*.jpg binary
+*.png binary

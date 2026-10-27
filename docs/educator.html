@@ -39,12 +39,13 @@
     margin: 0;
     background: var(--bg);
     color: var(--ink);
-    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    /* Sizes in rem follow the reader's default font size (critic); 0.9375rem is 15 px at the usual 16 px. */
+    font: 0.9375rem/1.45 system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   }
   .page { max-width: 8.5in; margin: 0 auto; padding: 28px 16px 32px; }
   header { border-bottom: 3px solid var(--accent); padding-bottom: 10px; margin-bottom: 14px; }
-  .kicker { margin: 0; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); font-weight: 700; }
-  h1 { margin: 2px 0 4px; font-size: 26px; line-height: 1.15; }
+  .kicker { margin: 0; font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); font-weight: 700; }
+  h1 { margin: 2px 0 4px; font-size: 1.625rem; line-height: 1.15; }
   .lede { margin: 0; color: var(--muted); }
   .facts { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 10px 0 0; padding: 0; list-style: none; font-weight: 600; }
   .facts li::before { content: "\25A0"; color: var(--accent); margin-right: 6px; font-size: 10px; vertical-align: 2px; }
@@ -53,7 +54,7 @@
   .addr a { font-weight: 600; overflow-wrap: anywhere; }
   .cols { columns: 2 300px; column-gap: 26px; }
   section { break-inside: avoid; margin: 0 0 12px; }
-  h2 { margin: 0 0 4px; font-size: 15px; color: var(--accent); text-transform: uppercase; letter-spacing: .04em; }
+  h2 { margin: 0 0 4px; font-size: .9375rem; color: var(--accent); text-transform: uppercase; letter-spacing: .04em; }
   p { margin: 0 0 6px; }
   ul, ol { margin: 0 0 6px; padding-left: 18px; }
   li { margin: 0 0 3px; }
@@ -72,7 +73,7 @@
   table { width: 100%; border-collapse: collapse; font-size: .94em; margin: 0 0 6px; }
   th, td { text-align: left; vertical-align: top; padding: 3px 4px; border-bottom: 1px solid var(--rule); }
   th { font-weight: 700; }
-  footer { border-top: 1px solid var(--rule); margin-top: 6px; padding-top: 8px; font-size: 12.5px; color: var(--muted); }
+  footer { border-top: 1px solid var(--rule); margin-top: 6px; padding-top: 8px; font-size: .78125rem; color: var(--muted); }
   footer p { margin: 0 0 4px; }
   a { color: var(--accent); }
 
@@ -86,6 +87,7 @@
     header { padding-bottom: 6px; margin-bottom: 7px; }
     h1 { font-size: 16pt; }
     h2 { font-size: 10pt; }
+    .kicker { font-size: 9pt; }
     .facts { gap: 4px 14px; }
     .cols { column-gap: 0.3in; }
     section { margin-bottom: 5px; }
@@ -131,7 +133,7 @@
     <section>
       <h2>Running it in class</h2>
       <ul>
-        <li><b>Class mode.</b> Use the class-mode address above: the game no longer starts over while players talk, and a reload keeps it until the tab closes. The end screen is the debrief (results, the costliest choices, three questions) with a <i>Print this summary</i> button.</li>
+        <li><b>Class mode.</b> Use the class-mode address above: the game no longer starts over while players talk, and a reload keeps it until the tab closes. The end screen is the debrief (results, the costliest choices, three questions) with <i>Print this summary</i> and <i>Save results file</i>, a file with no name to hand in (<i>Open results file</i> shows it again).</li>
         <li><b>Voice.</b> Narration starts on. Use headphones, or press <i>Voice: off</i> (or <kbd>V</kbd>) on each device, which remembers it; <code>&amp;voice=off</code> at the end of the address starts it off.</li>
         <li><b>Full screen.</b> <kbd>F11</kbd> (Windows), the full-screen key in the top row (Chromebook) or <kbd>Ctrl</kbd>+<kbd>Cmd</kbd>+<kbd>F</kbd> (Mac). On a projector, presenter view (the four-corner map button, or <code>&amp;view=presenter</code>) enlarges the map and text.</li>
         <li><b>Issue cards</b> bring weather, long-lead equipment, a labor shortage, a safety near miss (nobody is hurt), a late delivery or an inspection. Each answer trades time, money, safety or neighbor effects.</li>

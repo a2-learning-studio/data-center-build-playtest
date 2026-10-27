@@ -1,0 +1,45 @@
+# The release gate (PA-4, QL-2, ES-3): the build's consistency checks with every narration clip required, the
+# committed pages matching a fresh build, then every check in tests/ against the test build.
+name: Build and browser checks
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Build (stops on a narration line with no clip)
+        run: node build.mjs --strict
+      - name: The committed pages match the build
+        run: |
+          git status --short
+          git diff --exit-code --stat
+          test -z "$(git status --porcelain)"
+      - name: Build and run every check in tests/
+        run: node build.mjs --strict --test
+        env:
+          SHOTS_DIR: ${{ runner.temp }}/shots
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: check-screenshots
+          path: |
+            ${{ runner.temp }}/shots
+            !${{ runner.temp }}/shots/build-check-*
+          if-no-files-found: ignore
+          retention-days: 7
