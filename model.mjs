@@ -5,7 +5,7 @@
 // Phases in build order, with typical duration ranges in months (typical, varies by project).
 export const PHASES = [
   { id: "site", months: [6, 18], after: [], els: ["zoning", "capacity", "stormPlan", "meetings"] },
-  // Erosion controls and sediment storage before clearing (Georgia GAR100001 Part IV.D.2).
+  // Erosion controls and sediment storage before clearing (Georgia GAR100001, 2023, Part III.D.2).
   { id: "grade", months: [2, 6], after: ["site"], els: ["erosion", "roads", "ponds", "clear"] },
   { id: "util", months: [12, 36], after: ["site"], els: ["substation", "transmission", "water", "fiber"] },
   { id: "found", months: [2, 5], after: ["grade"], els: ["slab", "pads"] },

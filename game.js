@@ -23,9 +23,18 @@ const motionOff = matchMedia("(prefers-reduced-motion: reduce)");
 // ---------- modes and device settings ----------
 // No mode: a library kiosk. It clears itself after a pause and saves nothing. ?mode=class and ?mode=home suspend
 // both resets and keep the game in progress for this tab (sessionStorage). ?mode=library is the kiosk, voice off.
-const URL_MODE = new URLSearchParams(location.search).get("mode");
+// Values are trimmed and lower-cased, and a second "?" counts as "&", so ?mode=Class and ?view=presenter?mode=class
+// work as meant (FEU-2).
+const QUERY = new URLSearchParams(location.search.replace(/\?/g, "&"));
+const arg = (key) => (QUERY.get(key) || "").trim().toLowerCase();
+const URL_MODE = arg("mode");
 const MODE = ["class", "home", "library"].includes(URL_MODE) ? URL_MODE : "kiosk";
 const STAFFED = MODE === "class" || MODE === "home";
+// Class and home modes say so on the intro and in About, so a teacher can see that the address worked.
+for (const node of $$("[data-mode-line]")) node.hidden = node.dataset.modeLine !== MODE;
+// About's links leave the game (SA-1, PC-2). On a kiosk a new tab, a mail app or a download outlasts the idle reset,
+// so a kiosk keeps their plain-text form, with the address printed; class and home modes keep the links.
+for (const node of $$(STAFFED ? "[data-nolink]" : "[data-link]")) node.remove();
 const NS = "build-the-campus:v1:";
 const SAVE_VERSION = 1;
 const store = {
@@ -33,18 +42,32 @@ const store = {
   set(area, key, value) { try { window[area].setItem(NS + key, JSON.stringify(value)); } catch { /* storage can be blocked or full */ } },
   del(area, key) { try { window[area].removeItem(NS + key); } catch { /* storage can be blocked */ } },
 };
-// Library mode and the shortcut switch are remembered on this device (I8, I2). The voice choice is remembered only
-// in class and home modes, so on a kiosk one V press never carries over to the next visitor.
-const prefs = (() => {
+// Device settings: what every new game starts from. The address sets them: ?mode=library or ?voice=off (voice off),
+// ?view=presenter (presenter view, I10) and ?keys=off. Class and home modes also remember on this device the Library
+// mode, voice, presenter view and shortcut switch last chosen (I8, I2). A kiosk remembers nothing, so what one visitor
+// switches, a V press included, never carries over to the next visitor (PA-1).
+const URL_SET = {};
+if (arg("voice") === "off") URL_SET.voice = false;
+if (arg("view") === "presenter") URL_SET.present = true;
+if (arg("keys") === "off") URL_SET.keys = false;
+const device = { library: false, voice: true, keys: true, present: false };
+function deviceSettings() {
+  // Read again for each new game, so a setting changed in another tab is not lost (DE-7).
+  const p = STAFFED && store.get("localStorage", "prefs");
+  if (p && typeof p === "object") Object.assign(device, { library: p.library === true, voice: p.voice !== false, keys: p.keys !== false, present: p.present === true });
+  return { ...device, ...URL_SET };
+}
+// This game's settings: each new game starts from the device's (reset), and the switches change them.
+const prefs = deviceSettings();
+// Class and home modes store only the setting that changed, so two open tabs never undo each other's (DE-7).
+function savePref(key, value) {
+  if (!STAFFED) return;
+  device[key] = value;
   const p = store.get("localStorage", "prefs");
-  const o = p && typeof p === "object" ? p : {};
-  return { library: o.library === true, voice: o.voice !== false, keys: o.keys !== false, present: o.present === true };
-})();
-// Presenter view (I10): a bigger map and larger text for projectors. ?view=presenter starts in it.
-const URL_PRESENT = new URLSearchParams(location.search).get("view") === "presenter";
-const savePrefs = () => store.set("localStorage", "prefs", prefs);
+  store.set("localStorage", "prefs", { ...(p && typeof p === "object" ? p : {}), [key]: value });
+}
 const libraryOn = () => MODE === "library" || prefs.library;
-const deviceVoice = () => !libraryOn() && (!STAFFED || prefs.voice);
+const deviceVoice = () => !libraryOn() && prefs.voice;
 // The model comes from model.mjs through the build (I19).
 const M = D.MODEL;
 const PH = M.PHASES;
@@ -73,7 +96,7 @@ const fresh = () => ({
   seed: (Math.floor(Math.random() * 0xffffffff) >>> 0) || 1,
   rolled: {},
 });
-const ui = { tab: "build", side: "hood", hot: null, hoodSig: null, hoodNew: false };
+const ui = { tab: "build", side: "hood", hot: null, picked: null, hoodSig: null, hoodNew: false, planOpen: false };
 // The piece the player is siting on the map, or null. Not saved: a reload returns to the button.
 let placing = null;
 // Plain copies of the state, for undo and for the class/home autosave.
@@ -313,6 +336,9 @@ function captionRoom() {
     capProbe.setAttribute("aria-hidden", "true");
     Object.assign(capProbe.style, { visibility: "hidden", maxHeight: "none" });
     cap.after(capProbe);
+    // Measured again whenever the probe changes size: the first layout can use the fallback font, and once the web
+    // font arrives a long line can take one more line, which left it cut off at 320 x 568 (AS-5).
+    sizeWatch.observe(capProbe);
   }
   const lines = Object.entries(D.CAPTIONS[lang] || D.CAPTIONS.en).filter(([k]) => !/^(intro|end|card:)/.test(k)).map(([, v]) => v);
   const longest = lines.reduce((a, b) => (b.length > a.length ? b : a), "");
@@ -354,7 +380,7 @@ function measureSafe() {
 }
 // Dialogs with a pinned button row keep focused controls clear of it (scroll-padding-bottom, WCAG 2.4.11).
 function pinPad() {
-  for (const [d, sel] of [[$("[data-intro]"), ".intro-btns"], [$("[data-end]"), ".dlg-foot"]]) {
+  for (const [d, sel] of [[$("[data-intro]"), ".intro-btns"], [$("[data-end]"), ".dlg-foot"], [$("[data-about-dlg]"), ".dlg-foot"]]) {
     const row = d.open && $(sel, d);
     if (row) d.style.setProperty("--pin-h", `${row.offsetHeight + 12}px`);
   }
@@ -388,14 +414,16 @@ $("[data-cam]").addEventListener("click", (e) => {
   else scene?.act(b.dataset.camAct);
 });
 // Presenter view (I10): the side panel and the schedule step aside so the map fills the stage, and the text is
-// larger for a projector. The Build panel and the scores stay. The device remembers it, like Library mode.
+// larger for a projector. The Build panel and the scores stay. Class and home modes remember it on the device, like
+// Library mode; on a kiosk it lasts one game.
 const presentBoxes = () => $$("[data-present-pref]");
 function setPresent(on, remember = false) {
   document.body.toggleAttribute("data-present", on);
   document.documentElement.toggleAttribute("data-present", on);
   for (const b of $$("[data-cam-act=present]")) b.setAttribute("aria-pressed", on);
   for (const box of presentBoxes()) box.checked = on;
-  if (remember) { prefs.present = on; savePrefs(); }
+  prefs.present = on;
+  if (remember) savePref("present", on);
   measureSafe();
 }
 
@@ -476,11 +504,13 @@ function actLabel(e, done) {
   if (M.LAYOUT[e]) return placing?.id === e ? t.placeSet : t.placeMap;
   return t.place;
 }
+// Touch screens get the touch line and other devices the mouse and arrow-key line (style.css, UD-8). Set it here
+// is described by the fit message, so focusing it says whether the spot fits (AS-1).
 function placeBoxHtml() {
   const t = T();
   if (!placing) return "";
   const hint = t.placeHint[placing.id] || "";
-  return `<div class="place-box" data-place-box><p class="kicker">${esc(t.placeKicker)}</p><p>${esc(hint)}</p><p class="place-why" data-place-why></p><div class="place-actions"><button type="button" class="btn btn-small" data-place-set>${esc(t.placeSet)}</button><button type="button" class="btn btn-ghost btn-small" data-place-cancel>${esc(t.placeCancel)}</button></div></div>`;
+  return `<div class="place-box" data-place-box><p class="kicker">${esc(t.placeKicker)}</p><p>${esc(hint)} <span class="place-keys">${esc(t.placeKeys)}</span><span class="place-touch">${esc(t.placeTouch)}</span></p><p class="place-why" id="place-why" data-place-why></p><div class="place-actions"><button type="button" class="btn btn-small" data-place-set aria-describedby="place-why">${esc(t.placeSet)}</button><button type="button" class="btn btn-ghost btn-small" data-place-cancel>${esc(t.placeCancel)}</button></div></div>`;
 }
 function renderBuild() {
   const t = T();
@@ -544,18 +574,30 @@ function renderPlan() {
     const icon = state === "done" ? ICON.done : state === "locked" ? ICON.lock : `<b>${i + 1}</b>`;
     const sr = [t.laneState[state], sc.crit.has(p.id) && shown ? t.laneCrit : "", shown ? fmt(t.laneMonths, { n: Math.round(sc.dur[p.id]) }) : ""].filter(Boolean).join(" · ");
     const lockedTitle = fmt(t.phaseLocked, { list: p.after.filter((a) => !st.done.has(a)).map((a) => t.phases[a].short).join(", ") });
-    return `<li><button type="button" class="lane" data-phase="${p.id}" data-state="${state}" aria-pressed="${st.focus === p.id}" title="${esc(state === "locked" ? `${lockedTitle}. ${t.phases[p.id].why}` : t.phases[p.id].name)}"><span class="lane-icon">${icon}</span><span class="lane-name">${esc(t.phases[p.id].short)}</span><span class="sr"> (${esc(sr)})</span><span class="track">${bar}</span></button></li>`;
+    return `<li><button type="button" class="lane" data-phase="${p.id}" data-state="${state}"${sc.crit.has(p.id) && shown ? " data-crit" : ""} aria-pressed="${st.focus === p.id}" title="${esc(state === "locked" ? `${lockedTitle}. ${t.phases[p.id].why}` : t.phases[p.id].name)}"><span class="lane-icon">${icon}</span><span class="lane-name">${esc(t.phases[p.id].short)}</span><span class="sr"> (${esc(sr)})</span><span class="track">${bar}</span></button></li>`;
   }).join("");
   const ticks = [];
   for (let m = 0; m <= maxM; m += 6) ticks.push(`<span style="left:${pct(m)}">${m}</span>`);
   // The legend stays visible on short screens, where the longer note is hidden; the bar patterns carry the
   // meaning without colour (I3, WCAG 1.4.1).
   const legend = `<p class="legend"><span><i class="sw sw-crit"></i>${esc(t.legendCrit)}</span><span><i class="sw sw-other"></i>${esc(t.legendOther)}</span><span><i class="sw sw-now"></i>${esc(t.legendNow)}</span></p>`;
-  $("[data-plan]").innerHTML = `<div class="plan-head"><h2>${esc(t.schedTitle)} <small>(${esc(t.schedAxis)})</small></h2><p class="plan-total">${esc(started("site") ? fmt(t.schedTotal, { n: Math.round(sc.total), base: M.BASE_MONTHS }) : t.schedEmpty)}</p></div>
+  // The toggle shows only where the schedule starts as a row of phases (style.css, UD-1).
+  $("[data-plan]").innerHTML = `<div class="plan-head"><h2>${esc(t.schedTitle)} <small>(${esc(t.schedAxis)})</small></h2><button type="button" class="plan-toggle" data-plan-toggle aria-expanded="${ui.planOpen}">${esc(ui.planOpen ? t.planLess : t.planMore)}</button><p class="plan-total">${esc(started("site") ? fmt(t.schedTotal, { n: Math.round(sc.total), base: M.BASE_MONTHS }) : t.schedEmpty)}</p></div>
     <ol class="lanes">${lanes}</ol><div class="axis"><span class="axis-pad"></span><span class="axis-track">${ticks.join("")}</span></div>
     ${legend}<p class="plan-note">${esc(t.schedNote)}</p>`;
 }
+// Show or hide the schedule's bars where it starts as a row of phases. Not saved: each player starts with the map big.
+function setPlanOpen(open) {
+  ui.planOpen = open;
+  document.body.toggleAttribute("data-plan-open", open);
+  renderPlan();
+}
 $("[data-plan]").addEventListener("click", (e) => {
+  if (e.target.closest("[data-plan-toggle]")) {
+    setPlanOpen(!ui.planOpen);
+    $("[data-plan-toggle]").focus({ preventScroll: true });
+    return;
+  }
   const b = e.target.closest("[data-phase]");
   if (b) pickPhase(b.dataset.phase);
 });
@@ -607,7 +649,6 @@ function renderSide() {
   const t = T();
   const L = hood();
   const ops = st.done.has("turn");
-  const youSaid = { trucks: ["route", "hours"], noise: ["wall", "hours", "cool", "buffer"], dust: ["light"], water: ["cool"], power: ["cool"], gens: ["test"], setback: ["buffer"] };
   const row = (key, kind) => {
     const level = L[key] ?? 0;
     const planned = (key === "water" || key === "power") && started("util") && !ops;
@@ -617,11 +658,7 @@ function renderSide() {
   const notice = ["trucks", "noise", "dust", "storm", "gens", "setback"];
   const community = ["jobs", "tax", "power", "water"];
   $("[data-hood]").innerHTML = `<li class="hood-h">${esc(t.hoodNotice)}</li>${notice.map((k) => row(k, "notice")).join("")}<li class="hood-h">${esc(t.hoodCommunity)}</li>${community.map((k) => row(k, "amount")).join("")}`;
-  const k = ui.hot;
-  const picks = (youSaid[k] || []).filter((c) => st.choice[c]);
-  $("[data-hood-detail]").innerHTML = k
-    ? `<b>${esc(t.hood[k].name)}</b><span>${esc(t.hood[k].fact)}</span>${picks.length ? `<span class="you">${esc(t.hoodYou)}${picks.map((c) => esc(t.choices[c][st.choice[c]].label)).join(" · ")}</span>` : ""}`
-    : `<span>${esc(t.hoodDetailHint)}</span>`;
+  renderHoodDetail();
   $("[data-hood-score]")?.remove();
   $("[data-hood-detail]").insertAdjacentHTML("afterend", `<div data-hood-score><p class="hood-break">${esc(hoodBreakdown())}</p><p class="hood-score">${esc(t.hoodScoreNote)}</p></div>`);
   markHoodTab(L);
@@ -635,6 +672,21 @@ function renderSide() {
   $("[data-choices]").insertAdjacentHTML("afterbegin", `<p class="choices-note">${esc(t.choicesNote)}</p>`);
   for (const b of $$("[data-side-tab]")) b.setAttribute("aria-pressed", b.dataset.sideTab === ui.side);
   document.body.dataset.side = ui.side;
+}
+// The fact for the row in focus. The box is a polite live region, so it is written only when its words change:
+// writing the same fact again on every render made screen readers repeat it after each action (AS-2).
+let hoodDetailHtml = null;
+function renderHoodDetail() {
+  const t = T();
+  const youSaid = { trucks: ["route", "hours"], noise: ["wall", "hours", "cool", "buffer"], dust: ["light"], water: ["cool"], power: ["cool"], gens: ["test"], setback: ["buffer"] };
+  const k = ui.hot;
+  const picks = (youSaid[k] || []).filter((c) => st.choice[c]);
+  const html = k
+    ? `<b>${esc(t.hood[k].name)}</b><span>${esc(t.hood[k].fact)}</span>${picks.length ? `<span class="you">${esc(t.hoodYou)}${picks.map((c) => esc(t.choices[c][st.choice[c]].label)).join(" · ")}</span>` : ""}`
+    : `<span>${esc(t.hoodDetailHint)}</span>`;
+  if (html === hoodDetailHtml) return;
+  hoodDetailHtml = html;
+  $("[data-hood-detail]").innerHTML = html;
 }
 // How the neighbor score is made up right now, so the first reading at grading is explained (I4, C9).
 function hoodBreakdown() {
@@ -666,10 +718,11 @@ function focusHood(key, toggle) {
   if (toggle) ui.hot = ui.hot === key ? null : key;
   else if (ui.hot === key) return;
   else ui.hot = key;
-  const keep = document.activeElement?.closest?.("[data-key]")?.dataset.key;
-  renderSide();
+  // The rows change in place: rebuilding the list moved focus to a new copy of the row, so a screen reader
+  // announced each Tab twice (AS-2).
+  for (const b of $$("[data-hood] [data-key]")) b.setAttribute("aria-pressed", b.dataset.key === ui.hot);
+  renderHoodDetail();
   paintScene(false);
-  if (keep) $(`[data-hood] [data-key="${keep}"]`)?.focus({ preventScroll: true });
   const spot = HOT_SPOT[ui.hot];
   if (spot && st.ov) scene?.lookAt(spot[0], spot[1]);
 }
@@ -682,9 +735,13 @@ $("[data-hood]").addEventListener("focusin", (e) => {
   const b = e.target.closest("[data-key]");
   if (b) focusHood(b.dataset.key, false);
 });
+// Hover and focus already show a row by the time a click, Enter or tap lands, so the press keeps it shown, and a
+// second press on the row it picked clears it (AS-2: rebuilding the list used to undo the toggle by accident).
 $("[data-hood]").addEventListener("click", (e) => {
   const b = e.target.closest("[data-key]");
-  if (b) focusHood(b.dataset.key, true);
+  if (!b) return;
+  focusHood(b.dataset.key, ui.picked === b.dataset.key);
+  ui.picked = ui.hot;
 });
 $("[data-choices]").addEventListener("click", (e) => {
   const b = e.target.closest("[data-choice]");
@@ -692,6 +749,12 @@ $("[data-choices]").addEventListener("click", (e) => {
 });
 for (const b of $$("[data-side-tab]")) b.addEventListener("click", () => { ui.side = b.dataset.sideTab; renderSide(); });
 for (const b of $$(".tabs [data-tab]")) b.addEventListener("click", () => setTab(b.dataset.tab));
+// The skip link (AS-10) goes straight to the Build panel, which on phones is a tab.
+$("[data-skip]").addEventListener("click", (e) => {
+  e.preventDefault();
+  if (ui.tab !== "build") setTab("build");
+  $(".p-build").focus();
+});
 function setTab(tab) {
   ui.tab = tab;
   if (tab === "hood" || tab === "choices") ui.side = tab;
@@ -841,12 +904,19 @@ function shiftMap() {
   }
   return map;
 }
-function fillPlaceWhy() {
+// announce: the footprint moved. Screen readers hear the message on the status line once the footprint stops
+// moving, and only when it says something new (AS-1, WCAG 4.1.3).
+let placeSayTimer = 0;
+function fillPlaceWhy(announce = false) {
   const node = $("[data-place-why]");
   if (!node || !placing) return;
   const issue = M.layoutIssue(placing.id, placing.dx, placing.dz, layoutPlaced(placing.id));
+  const text = issue ? placeIssueText(issue) : T().placeOk;
   node.dataset.ok = issue ? "0" : "1";
-  node.textContent = issue ? placeIssueText(issue) : T().placeOk;
+  node.textContent = text;
+  if (!announce) return;
+  clearTimeout(placeSayTimer);
+  placeSayTimer = setTimeout(() => { if (placing && status.textContent !== text) status.textContent = text; }, 700);
 }
 function paintFootprints() {
   if (!scene) return;
@@ -862,6 +932,7 @@ function paintFootprints() {
 }
 function endPlace() {
   placing = null;
+  clearTimeout(placeSayTimer);
   scene?.setPlaceMode(false);
   scene?.setFootprints([]);
   onCamMode(!!scene?.zoomed());
@@ -872,7 +943,7 @@ function setPreview(dx, dz) {
   if (spec?.axis === "z") dx = 0;
   placing.dx = snapGrid(dx);
   placing.dz = snapGrid(dz);
-  fillPlaceWhy();
+  fillPlaceWhy(true);
   paintFootprints();
 }
 function onPlacePointer(ev) {
@@ -1185,28 +1256,35 @@ function hush() {
   capEl.hidden = true;
 }
 const voiceBtn = $("[data-voice]");
+// The same switch on the intro, for screen-reader users before the narration starts (AS-11).
+const voiceIntro = $("[data-voice-intro]");
 const libBox = $("[data-libmode]");
 function renderVoiceBtn() {
   const t = T();
-  voiceBtn.textContent = voice.on ? t.voiceOn : t.voiceOff;
-  voiceBtn.setAttribute("aria-pressed", voice.on);
-  // The checkbox is the device setting for the next player; the Voice button is this game only.
+  for (const b of [voiceBtn, voiceIntro]) {
+    b.textContent = voice.on ? t.voiceOn : t.voiceOff;
+    b.setAttribute("aria-pressed", voice.on);
+  }
+  // In class and home modes the checkbox is the device setting for the next player; on a kiosk it is this game only,
+  // like the Voice button.
   libBox.checked = libraryOn();
   libBox.disabled = MODE === "library";
-  $("[data-libmode-note]").textContent = MODE === "library" ? t.libraryModeUrl : t.libraryModeNote;
+  $("[data-libmode-note]").textContent = MODE === "library" ? t.libraryModeUrl : STAFFED ? t.libraryModeNote : t.libraryModeKiosk;
   voiceBtn.hidden = !Object.keys(D.VOICE.en || {}).length;
+  $("[data-voice-line]").hidden = voiceBtn.hidden;
   $("[data-listen]").hidden = !voice.on || !(D.VOICE.en || {}).intro;
 }
 function setVoice(on, remember = false) {
   voice.on = on;
   if (!on) hush();
-  if (remember && STAFFED) { prefs.voice = on; savePrefs(); }
+  if (remember) savePref("voice", on);
   renderVoiceBtn();
 }
 voiceBtn.addEventListener("click", () => setVoice(!voice.on, true));
+voiceIntro.addEventListener("click", () => setVoice(!voice.on, true));
 libBox.addEventListener("change", (e) => {
   prefs.library = e.target.checked;
-  savePrefs();
+  savePref("library", e.target.checked);
   setVoice(!e.target.checked, true);
 });
 const keysBox = $("[data-keys-pref]");
@@ -1214,7 +1292,7 @@ keysBox.checked = prefs.keys;
 // With the shortcuts off, the number hints on the answer buttons are hidden too.
 const renderKeysPref = () => document.documentElement.toggleAttribute("data-nokeys", !prefs.keys);
 renderKeysPref();
-keysBox.addEventListener("change", (e) => { prefs.keys = e.target.checked; savePrefs(); renderKeysPref(); });
+keysBox.addEventListener("change", (e) => { prefs.keys = e.target.checked; savePref("keys", e.target.checked); renderKeysPref(); });
 for (const box of presentBoxes()) box.addEventListener("change", (e) => setPresent(e.target.checked, true));
 $("[data-listen]").addEventListener("click", () => speak("intro"));
 
@@ -1408,6 +1486,7 @@ const confirmDlg = $("[data-confirm]");
 // About opens at its title, not on the first link halfway down (on a small phone that scrolled the title away).
 $("[data-about]").addEventListener("click", () => {
   aboutDlg.showModal();
+  pinPad();
   aboutDlg.scrollTop = 0;
   $("#about-title").focus({ preventScroll: true });
 });
@@ -1526,10 +1605,16 @@ function reset({ clear = true } = {}) {
   st = fresh();
   say(T().log0);
   // The next player starts on the default panels, scrolled to the top.
-  Object.assign(ui, { hot: null, side: "hood", hoodSig: null, hoodNew: false });
+  Object.assign(ui, { hot: null, picked: null, side: "hood", hoodSig: null, hoodNew: false, planOpen: false });
+  document.body.removeAttribute("data-plan-open");
   for (const p of $$(".panel")) p.scrollTop = 0;
   toastEl.hidden = true;
-  // Each new player starts from this device's setting, whatever the last player pressed (I8).
+  // Each new player starts from this device's settings, whatever the last player pressed (I8). On a kiosk that is
+  // the address, for presenter view, Library mode and the shortcut switch too (PA-1).
+  Object.assign(prefs, deviceSettings());
+  keysBox.checked = prefs.keys;
+  renderKeysPref();
+  setPresent(prefs.present);
   setVoice(deviceVoice());
   renderEffectsBtn();
   renderAll(false);
@@ -1759,7 +1844,6 @@ window.__dc = {
 // @test-hooks-end
 
 renderVoiceBtn();
-setPresent(URL_PRESENT || prefs.present);
 reset({ clear: false });
 measureSafe();
 scene?.start();

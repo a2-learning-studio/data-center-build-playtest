@@ -8,18 +8,18 @@ const ALL = ["320x568", "375x667", "375x812", "390x844", "667x375", "844x390", "
   // Laptop browser windows under 700 px tall (1280 x 720 and 1366 x 768 screens, or 125-175% zoom), a landscape
   // phone, and 400% zoom on a 1280 x 1024 screen (WCAG 1.4.10), where the page scrolls up and down instead.
   "1093x614", "1280x631", "1366x625", "568x320", "320x256"];
-const PRESENT = ["375x812", "834x1194", "1024x768", "1280x720", "1366x768", "1920x1080"];
+const PRESENT = ["375x812", "768x1024", "834x1194", "1024x768", "1280x720", "1366x768", "1920x1080"];
 const SIZES = process.env.SIZES ? process.env.SIZES.split(",") : ALL;
 
 const browser = await launch();
 const problems = [];
 const errors = [];
 
-async function inspect(page, label, { present = false } = {}) {
+async function inspect(page, label, { present = false, overview = false } = {}) {
   // Two animation frames, so the layout measured in game.js (ResizeObserver) has settled. Software rendering can
   // take most of a second per frame.
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
-  const out = await page.evaluate(({ present }) => {
+  const out = await page.evaluate(({ present, overview }) => {
     const res = [];
     const vw = innerWidth, vh = innerHeight;
     const shown = (n) => {
@@ -94,10 +94,20 @@ async function inspect(page, label, { present = false } = {}) {
         const pr = probe.getBoundingClientRect(), cam = document.querySelector(".cam").getBoundingClientRect(), tools = document.querySelector(".tools").getBoundingClientRect();
         if (pr.bottom > cam.top + 1 || pr.top < tools.bottom - 1) res.push(`narration caption has no room: ${Math.round(pr.top)}-${Math.round(pr.bottom)} between toolbar ${Math.round(tools.bottom)} and map buttons ${Math.round(cam.top)}`);
       }
+      // UD-1: beside the panels, the open map between the toolbar and the map buttons is at least a quarter of the
+      // stage's height, unless the player has opened the schedule's timeline (it was a 76 px strip at 1280 x 720).
+      const sideLayout = getComputedStyle(document.querySelector(".tabs")).display === "none" && !document.body.hasAttribute("data-present");
+      if (overview && sideLayout && !document.body.hasAttribute("data-plan-open")) {
+        const stage = document.querySelector(".stage").getBoundingClientRect(), cam = document.querySelector(".cam").getBoundingClientRect(), tools = document.querySelector(".tools").getBoundingClientRect();
+        const open = cam.top - tools.bottom;
+        if (open < stage.height / 4) res.push(`map squeezed: ${Math.round(open)} px open between toolbar and map buttons, in a ${Math.round(stage.height)} px stage`);
+      }
     }
-    // Presenter view's 16 px text is for projectors and kiosks, in the side-panel layout; phones keep phone sizes.
+    // Presenter view's 16 px text is for projectors and kiosks: the side-panel layout and portrait tablets (AS-9).
+    // Phones keep phone sizes.
     const tabbed = getComputedStyle(document.querySelector(".tabs")).display !== "none";
-    if ((present && !tabbed) || (vw >= 1900 && vh >= 1000)) {
+    const tablet = tabbed && vw >= 761 && vh >= vw;
+    if ((present && (!tabbed || tablet)) || (vw >= 1900 && vh >= 1000)) {
       const small = new Set();
       const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
       for (let tn = walker.nextNode(); tn; tn = walker.nextNode()) {
@@ -112,7 +122,7 @@ async function inspect(page, label, { present = false } = {}) {
       for (const s of small) res.push(`text under 16 px: ${s}`);
     }
     return res;
-  }, { present });
+  }, { present, overview });
   for (const p of out) problems.push(`${label}: ${p}`);
   return out.length;
 }
@@ -131,7 +141,15 @@ async function run(size, { present = false } = {}) {
     window.__dc.upTo("fitout", { route: "a", hours: "a", buffer: "a", wall: "a", cool: "a", light: "a", test: "a" });
   });
   await page.waitForTimeout(500);
-  n += await inspect(page, `${label} playing`, { present });
+  n += await inspect(page, `${label} playing`, { present, overview: true });
+  // Laptop windows up to 900 px tall: the schedule's bars, opened with Show timeline, fit too (UD-1).
+  if (await page.locator("[data-plan-toggle]").isVisible()) {
+    await page.locator("[data-plan-toggle]").click();
+    await page.waitForTimeout(400);
+    n += await inspect(page, `${label} timeline`, { present });
+    await page.locator("[data-plan-toggle]").click();
+    await page.waitForTimeout(400);
+  }
   // Zoomed in: the move buttons appear.
   await page.evaluate(() => { for (let i = 0; i < 4; i++) window.__dc.act("in"); });
   await page.waitForTimeout(500);

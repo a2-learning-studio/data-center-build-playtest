@@ -210,11 +210,21 @@ const camBtn = (act, labelKey, extra = "") => `<button type="button" class="cb" 
 const checkRow = (attr, key, noteKey, checked = "") => `<label class="libmode"><input type="checkbox" ${attr}${checked}><span><b data-t="${key}">${t[key]}</b><br><span class="muted" data-t="${noteKey}">${t[noteKey]}</span></span></label>`;
 const OFFLINE_FILE = "build-the-campus-offline.html";
 const gloss = t.glossary.map(([term, def]) => `<div><dt>${term}</dt><dd>${def}</dd></div>`).join("");
-const sources = t.sources.map((s) => `<li><a href="${s.url}" target="_blank" rel="noopener noreferrer">${s.text}</a></li>`).join("");
+// Each way out of the game in About has two forms (SA-1, PC-2): the link, for class and home modes, and plain text
+// with the address printed, for a kiosk, where a new tab, a mail app or a download outlasts the idle reset. game.js
+// removes the form the mode does not use.
+const exit = (link, plain) => `<span data-link>${link}</span><span data-nolink>${plain}</span>`;
+const addr = (url) => `<span class="addr">${url}</span>`;
+const sources = t.sources.map((s) => `<li>${exit(`<a href="${s.url}" target="_blank" rel="noopener noreferrer">${s.text}</a>`, `${s.text} ${addr(s.url)}`)}</li>`).join("");
+// Class and home modes say so on the intro and in About (FEU-2); game.js shows the line for the mode in use.
+const modeLines = `<p class="mode-line" data-mode-line="class" hidden data-t="modeClass">${t.modeClass}</p><p class="mode-line" data-mode-line="home" hidden data-t="modeHome">${t.modeHome}</p>`;
 
 // offline: the single-file kiosk copy, which says so in About instead of offering the download.
+// The skip link is the first stop on the page (AS-10). The map toolbar comes before the panels, so Voice is a few Tab
+// presses in; style.css keeps it on the map (AS-11).
 const bodyFor = (offline) => `
 <div class="app">
+<a class="skip" href="#build-panel" data-skip data-t="skipBuild">${t.skipBuild}</a>
 <header class="bar">
   <div class="brand"><h1 class="brand-name" data-t="gameName">${t.gameName}</h1><span class="badge"><span class="badge-long" data-t="badge">${t.badge}</span><span class="badge-short" data-t="badgeShort">${t.badgeShort}</span></span></div>
   <div class="kpis" role="group" aria-label="${t.dashTitle}">${kpi("schedule", "dashSchedule")}${kpi("budget", "dashBudget")}${kpi("safety", "dashSafety")}${kpi("hood", "dashNeighbors")}</div>
@@ -222,6 +232,7 @@ const bodyFor = (offline) => `
 </header>
 <main class="stage">
   <canvas class="scene" data-scene tabindex="0" role="application" aria-roledescription="3D map" aria-label="${t.canvasLabel}"></canvas>
+  <div class="tools"><button type="button" class="pill pill-dark" data-fx aria-pressed="true">${t.effectsOn}</button><button type="button" class="pill pill-dark" data-voice aria-pressed="true">${t.voiceOn}</button><span class="hint" data-hint><span class="long">${t.dragHint}</span><span class="short">${t.dragHintShort}</span></span></div>
   <p class="nogl" data-t="noglLabel">${t.noglLabel}</p>
   <div class="tag" data-tag hidden aria-hidden="true"></div>
   <p class="caption" data-caption hidden></p>
@@ -235,14 +246,13 @@ const bodyFor = (offline) => `
     <button type="button" data-tab="hood" aria-pressed="false" data-t="tabHood">${t.tabHood}</button>
     <button type="button" data-tab="choices" aria-pressed="false" data-t="tabChoices">${t.tabChoices}</button>
   </nav>
-  <section class="panel p-build" aria-label="${t.tabBuild}"><div data-build></div></section>
+  <section class="panel p-build" id="build-panel" tabindex="-1" aria-label="${t.tabBuild}"><div data-build></div></section>
   <section class="panel p-side" aria-label="${t.tabHood}">
     <div class="side-tabs"><button type="button" data-side-tab="hood" aria-pressed="true" data-t="hoodTitle">${t.hoodTitle}</button><button type="button" data-side-tab="choices" aria-pressed="false" data-t="choicesTitle">${t.choicesTitle}</button></div>
     <div class="side-hood"><ul class="hood" data-hood></ul><p class="hood-detail" data-hood-detail aria-live="polite"></p></div>
     <div class="side-choices"><div class="choices" data-choices></div></div>
   </section>
   <section class="panel p-plan" data-plan aria-label="${t.schedTitle}"></section>
-  <div class="tools"><button type="button" class="pill pill-dark" data-fx aria-pressed="true">${t.effectsOn}</button><button type="button" class="pill pill-dark" data-voice aria-pressed="true">${t.voiceOn}</button><span class="hint" data-hint><span class="long">${t.dragHint}</span><span class="short">${t.dragHintShort}</span></span></div>
   <div class="cam" role="group" aria-label="${t.camGroup}" data-cam>
     <div class="cam-move" role="group" aria-label="${t.camMove}" data-cam-move hidden>${camBtn("panL", "camPanL")}${camBtn("panU", "camPanU")}${camBtn("panD", "camPanD")}${camBtn("panR", "camPanR")}</div>
     ${camBtn("in", "camIn")}${camBtn("out", "camOut")}${camBtn("left", "camLeft")}${camBtn("right", "camRight")}${camBtn("present", "camPresent", ' aria-pressed="false"')}<button type="button" class="pill pill-dark" data-cam-act="reset" data-reset data-t="resetView">${t.resetView}</button>
@@ -250,15 +260,17 @@ const bodyFor = (offline) => `
 </main>
 <footer class="foot"><span data-t="credits">${t.credits}</span></footer>
 </div>
-<dialog class="dlg dlg-intro" data-intro closedby="none" aria-labelledby="intro-title" aria-describedby="intro-aud intro-body">
+<dialog class="dlg dlg-intro" data-intro closedby="none" aria-labelledby="intro-title" aria-describedby="intro-aud intro-body${Object.keys(VOICE.en || {}).length ? " intro-sr" : ""}">
   <p class="kicker" data-t="introKicker">${t.introKicker}</p>
   <h2 class="dlg-title" id="intro-title" data-t="introTitle">${t.introTitle}</h2>
   <p class="audience" id="intro-aud" data-t="audience">${t.audience}</p>
   <p class="byline" data-t="credits">${t.credits}</p>
+  ${modeLines}
   <p id="intro-body" data-t="introBody">${t.introBody}</p>
   <p data-t="introHow">${t.introHow}</p>
   <p class="muted keys-hint" data-t="keysHint">${t.keysHint}</p>
   <label class="libmode"><input type="checkbox" data-libmode><span><b data-t="libraryMode">${t.libraryMode}</b><br><span class="muted" data-libmode-note>${t.libraryModeNote}</span></span></label>
+  <div class="intro-voice" data-voice-line><p id="intro-sr" data-t="srVoice">${t.srVoice}</p><button type="button" class="btn btn-ghost btn-small" data-voice-intro aria-pressed="true">${t.voiceOn}</button></div>
   <p class="resume-note" data-resume-note hidden data-t="resumeNote">${t.resumeNote}</p>
   <div class="intro-btns"><button type="button" class="btn btn-big" data-resume hidden data-t="resume">${t.resume}</button><button type="button" class="btn btn-big" data-start>${t.start}</button><button type="button" class="btn btn-ghost" data-listen>${t.listen}</button></div>
 </dialog>
@@ -266,7 +278,7 @@ const bodyFor = (offline) => `
 <dialog class="dlg dlg-end" data-end closedby="none" aria-labelledby="end-title" aria-describedby="end-body"><p class="print-only print-head"><span data-t="printHead">${t.printHead}</span> · <span data-t="badge">${t.badge}</span></p><h2 id="end-title" data-t="endTitle">${t.endTitle}</h2><p id="end-body" data-t="endBody">${t.endBody}</p><h3 data-t="endStats">${t.endStats}</h3><dl class="end-stats"></dl><h3 data-t="endCostly">${t.endCostly}</h3><ol class="end-costly"></ol><p class="muted" data-t="endCostlyNote">${t.endCostlyNote}</p><h3 data-t="endChose">${t.endChose}</h3><ul class="end-chose"></ul><h3 data-t="endTalk">${t.endTalk}</h3><ol class="end-talk"></ol><p class="print-only print-foot"><span data-t="credits">${t.credits}</span> · ${t.contactEmail}</p><div class="dlg-foot"><p class="end-clear" id="end-clear" data-end-clear hidden></p><span class="sr" aria-live="polite" data-alert-end></span><div class="end-btns"><button type="button" class="btn" data-end-keep hidden aria-describedby="end-clear" data-t="endKeep">${t.endKeep}</button><button type="button" class="btn btn-ghost" data-print data-t="endPrint">${t.endPrint}</button><button type="button" class="btn btn-big" data-again data-t="endAgain">${t.endAgain}</button></div></div></dialog>
 <dialog class="dlg" data-confirm aria-labelledby="confirm-title" aria-describedby="confirm-body"><h2 id="confirm-title" data-t="confirmTitle">${t.confirmTitle}</h2><p id="confirm-body" data-t="confirmBody">${t.confirmBody}</p><div class="intro-btns"><button type="button" class="btn" data-confirm-yes data-t="confirmYes">${t.confirmYes}</button><button type="button" class="btn btn-ghost" data-confirm-no data-t="confirmNo">${t.confirmNo}</button></div></dialog>
 <dialog class="dlg" data-idle closedby="none" aria-labelledby="idle-title" aria-describedby="idle-body"><h2 id="idle-title" data-t="idleTitle">${t.idleTitle}</h2><p class="idle-body" id="idle-body"></p><span class="sr" aria-live="polite" data-alert-idle></span><button type="button" class="btn btn-big" data-idle-keep data-t="idleKeep">${t.idleKeep}</button></dialog>
-<dialog class="dlg" data-about-dlg aria-labelledby="about-title" aria-describedby="about-body"><h2 id="about-title" tabindex="-1" data-t="gameName">${t.gameName}</h2><p class="byline" data-t="credits">${t.credits}</p><p id="about-body" data-t="creditsBody">${t.creditsBody}</p><p data-t="creditsSet">${t.creditsSet}</p><p class="audience" data-t="audienceAbout">${t.audienceAbout}</p><p data-t="privacy">${t.privacy}</p><p class="contact"><span data-t="contact">${t.contact}</span> <a href="mailto:${t.contactEmail}">${t.contactEmail}</a></p><h3 data-t="controlsTitle">${t.controlsTitle}</h3><p data-t="mapHelp">${t.mapHelp}</p><label class="libmode"><input type="checkbox" data-keys-pref checked><span><b data-t="keysPref">${t.keysPref}</b><br><span class="muted" data-t="keysPrefNote">${t.keysPrefNote}</span></span></label>${checkRow("data-present-pref", "presentPref", "presentNote")}<p data-t="modesNote">${t.modesNote}</p><p data-t="scoreHelp">${fill(t.scoreHelp)}</p>${offline ? `<p data-t="kioskNoteOffline">${t.kioskNoteOffline}</p>` : `<p><span data-t="kioskNote">${t.kioskNote}</span> <a href="${OFFLINE_FILE}" download data-t="kioskLink">${t.kioskLink}</a></p>`}<h3 data-t="systemTitle">${t.systemTitle}</h3><p data-t="systemReq">${t.systemReq}</p><p data-t="qualityNote">${t.qualityNote}</p><h3 data-t="glossTitle">${t.glossTitle}</h3><dl class="gloss">${gloss}</dl>${offline ? `<p data-t="educatorNoteOffline">${t.educatorNoteOffline}</p>` : `<p><span data-t="educatorNote">${t.educatorNote}</span> <a href="educator.html" target="_blank" rel="noopener" data-t="educatorLink">${t.educatorLink}</a></p>`}<h3 data-t="sourcesTitle">${t.sourcesTitle}</h3><ul class="sources">${sources}</ul><p class="muted" data-t="sourcesNote">${t.sourcesNote}</p><p class="muted" data-t="voiceCredit">${t.voiceCredit}</p><p class="muted licence" data-t="licences">${t.licences}</p><button type="button" class="btn" data-about-close data-t="close">${t.close}</button></dialog>`;
+<dialog class="dlg" data-about-dlg closedby="any" aria-labelledby="about-title" aria-describedby="about-body"><h2 id="about-title" tabindex="-1" data-t="gameName">${t.gameName}</h2><p class="byline" data-t="credits">${t.credits}</p><p id="about-body" data-t="creditsBody">${t.creditsBody}</p><p data-t="creditsSet">${t.creditsSet}</p><p class="audience" data-t="audienceAbout">${t.audienceAbout}</p><p data-t="privacy">${t.privacy}</p><p class="contact"><span data-t="contact">${t.contact}</span> ${exit(`<a href="mailto:${t.contactEmail}">${t.contactEmail}</a>`, t.contactEmail)}</p><h3 data-t="controlsTitle">${t.controlsTitle}</h3><p data-t="mapHelp">${t.mapHelp}</p><label class="libmode"><input type="checkbox" data-keys-pref checked><span><b data-t="keysPref">${t.keysPref}</b><br><span class="muted" data-t="keysPrefNote">${t.keysPrefNote}</span></span></label>${checkRow("data-present-pref", "presentPref", "presentNote")}<p data-t="modesNote">${t.modesNote}</p>${modeLines}<p data-t="scoreHelp">${fill(t.scoreHelp)}</p>${offline ? `<p data-t="kioskNoteOffline">${t.kioskNoteOffline}</p>` : `<p><span data-t="kioskNote">${t.kioskNote}</span> ${exit(`<a href="${OFFLINE_FILE}" download data-t="kioskLink">${t.kioskLink}</a>`, `<span data-t="kioskLink">${t.kioskLink}</span>: ${addr(SITE + OFFLINE_FILE)}`)}</p>`}<h3 data-t="systemTitle">${t.systemTitle}</h3><p data-t="systemReq">${t.systemReq}</p><p data-t="qualityNote">${t.qualityNote}</p><h3 data-t="glossTitle">${t.glossTitle}</h3><dl class="gloss">${gloss}</dl>${offline ? `<p data-t="educatorNoteOffline">${t.educatorNoteOffline}</p>` : `<p><span data-t="educatorNote">${t.educatorNote}</span> ${exit(`<a href="educator.html" target="_blank" rel="noopener" data-t="educatorLink">${t.educatorLink}</a>`, `<span data-t="educatorLink">${t.educatorLink}</span>: ${addr(`${SITE}educator.html`)}`)}</p>`}<h3 data-t="sourcesTitle">${t.sourcesTitle}</h3><ul class="sources">${sources}</ul><p class="muted" data-t="sourcesNote">${t.sourcesNote}</p><p class="muted" data-t="voiceCredit">${t.voiceCredit}</p><p class="muted licence" data-t="licences">${t.licences}</p><div class="dlg-foot"><button type="button" class="btn" data-about-close data-t="close">${t.close}</button></div></dialog>`;
 
 // A small campus icon: a dark green tile with a building and a roof line.
 const FAVICON = `data:image/svg+xml,${encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='#163a30'/><path d='M10 28 32 14l22 14' fill='none' stroke='#e0763c' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/><rect x='14' y='28' width='36' height='24' rx='3' fill='#f7f4ee'/><path d='M20 35h24M20 41h24M20 47h24' stroke='#163a30' stroke-width='3'/></svg>")}`;

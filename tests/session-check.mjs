@@ -1,5 +1,6 @@
 // Session checks (C4, C6, I2, I6, I7, I8, I18): countdowns on touch, dialogs and Escape, shortcuts, Library mode,
-// saving and Resume, undo and Start over, live score summary, WebGL context loss.
+// saving and Resume, undo and Start over, live score summary, WebGL context loss; and (PA-1, DE-7, FEU-2, FEU-6) kiosk
+// settings that last one game, settings from the address, two tabs, and how the mode is read.
 // Run: node tests/session-check.mjs (see drive.mjs for the browser and paths). Takes a few minutes: it waits out real countdowns.
 import { launch, GAME_URL } from "./drive.mjs";
 const URL = GAME_URL;
@@ -29,6 +30,23 @@ const finishGame = async (p) => {
   await p.waitForTimeout(300);
 };
 const center = async (p, sel) => { const r = await p.locator(sel).boundingBox(); return [r.x + r.width / 2, r.y + r.height / 2]; };
+// Leave the game idle until the kiosk prompt counts down and the intro opens for the next player.
+const idleReset = async (p) => {
+  await ev(p, () => { window.__idleMs = 1500; });
+  await p.waitForFunction(() => document.querySelector("[data-idle]").open, null, { timeout: 12000 });
+  await p.waitForFunction(() => document.querySelector("[data-intro]").open, null, { timeout: 30000 });
+  await ev(p, () => { window.__idleMs = 1e9; });
+};
+// The settings a player can switch, as the next player finds them, and whether anything is stored.
+const settings = (p) => ev(p, () => ({
+  present: document.body.hasAttribute("data-present"),
+  side: document.querySelector(".p-side").offsetWidth,
+  plan: document.querySelector(".p-plan").offsetWidth,
+  lib: document.querySelector("[data-libmode]").checked,
+  voice: document.querySelector("[data-voice]").getAttribute("aria-pressed"),
+  keys: document.querySelector("[data-keys-pref]").checked && !document.documentElement.hasAttribute("data-nokeys"),
+  stored: localStorage.length + sessionStorage.length,
+}));
 
 // 1. Touch: tap Keep this summary keeps the summary (blocker), at three sizes.
 for (const [w, h] of [[390, 844], [820, 1180], [1366, 900]]) {
@@ -160,8 +178,9 @@ for (const [w, h] of [[390, 844], [820, 1180], [1366, 900]]) {
   await p.click("[data-about-close]");
   await p.keyboard.press("n");
   check("off switch stops N", (await ev(p, () => window.__dc.state().placed.size)) === placed0);
+  // On a kiosk the switch lasts one game (section 10); class and home modes store it (section 12).
   const stored = await ev(p, () => localStorage.getItem("build-the-campus:v1:prefs"));
-  check("shortcut switch stored", /"keys":false/.test(stored || ""), stored);
+  check("kiosk: shortcut switch not stored", stored === null, stored);
   // Number keys are single-key shortcuts too: with the switch off they do not answer an open issue card.
   await ev(p, () => { delete window.__dc.state().cards.weather; window.__dc.card("weather"); });
   await p.waitForTimeout(150);
@@ -181,27 +200,25 @@ for (const [w, h] of [[390, 844], [820, 1180], [1366, 900]]) {
   await ctx.close();
 }
 
-// 6. Library mode persists per device; a V press does not carry to the next visitor in kiosk use.
+// 6. Library mode persists per device in class mode; a V press does not carry to the next visitor in kiosk use.
 {
   const ctx = await b.newContext({ viewport: { width: 1366, height: 768 } });
-  let { p } = await page({ ctx });
+  let { p } = await page({ ctx }, "?mode=class");
   await p.click("[data-libmode]");
   await p.reload();
   await p.waitForTimeout(400);
   const s = await ev(p, () => ({ box: document.querySelector("[data-libmode]").checked, voice: document.querySelector("[data-voice]").getAttribute("aria-pressed") }));
-  check("Library mode remembered", s.box && s.voice === "false", JSON.stringify(s));
-  await p.keyboard.press("Enter");
-  await p.keyboard.press("v");
-  const on = await ev(p, () => document.querySelector("[data-voice]").getAttribute("aria-pressed"));
-  await ev(p, () => { window.__idleMs = 1500; });
-  await p.waitForFunction(() => document.querySelector("[data-idle]").open, null, { timeout: 12000 });
-  await p.waitForFunction(() => document.querySelector("[data-intro]").open, null, { timeout: 30000 });
-  const after = await ev(p, () => document.querySelector("[data-voice]").getAttribute("aria-pressed"));
-  check("V is per game on a kiosk", on === "true" && after === "false", `${on} -> ${after}`);
+  check("Library mode remembered in class mode", s.box && s.voice === "false", JSON.stringify(s));
   await ctx.close();
   const { ctx: c2, p: p2 } = await page({}, "?mode=library");
   const s2 = await ev(p2, () => ({ box: document.querySelector("[data-libmode]").checked, dis: document.querySelector("[data-libmode]").disabled, voice: document.querySelector("[data-voice]").getAttribute("aria-pressed") }));
   check("?mode=library starts voice off", s2.box && s2.voice === "false", JSON.stringify(s2));
+  await p2.keyboard.press("Enter");
+  await p2.keyboard.press("v");
+  const on = await ev(p2, () => document.querySelector("[data-voice]").getAttribute("aria-pressed"));
+  await idleReset(p2);
+  const after = await ev(p2, () => document.querySelector("[data-voice]").getAttribute("aria-pressed"));
+  check("V is per game on a kiosk", on === "true" && after === "false", `${on} -> ${after}`);
   await c2.close();
 }
 
@@ -283,6 +300,99 @@ for (const [w, h] of [[390, 844], [820, 1180], [1366, 900]]) {
     return window.__marker === 42 && window.__dc.state().placed.size > 5 && !("nogl" in document.body.dataset);
   });
   check("context loss/restore keeps game", ok === true, String(ok) + " " + p.errors.join("|"));
+  await ctx.close();
+}
+
+// 10. Kiosk (PA-1): what one visitor switches (Library mode, presenter view, the shortcut switch) lasts their game.
+// The idle reset, Play again and a reload give the next visitor the device's settings, and nothing is stored.
+{
+  const { ctx, p } = await page();
+  await p.click("[data-libmode]");
+  await p.click("[data-start]");
+  await p.waitForTimeout(200);
+  await p.click('[data-cam-act="present"]');
+  await p.click("[data-about]");
+  await p.click("[data-keys-pref]");
+  await p.click("[data-about-close]");
+  const s1 = await settings(p);
+  check("kiosk: a visitor's switches change their game", s1.present && !s1.side && !s1.plan && s1.lib && s1.voice === "false" && !s1.keys && !s1.stored, JSON.stringify(s1));
+  await idleReset(p);
+  const s2 = await settings(p);
+  check("kiosk: the idle reset gives the next visitor the defaults", !s2.present && s2.side > 0 && s2.plan > 0 && !s2.lib && s2.voice === "true" && s2.keys && !s2.stored, JSON.stringify(s2));
+  await p.click("[data-start]");
+  await p.waitForTimeout(200);
+  await p.click('[data-cam-act="present"]');
+  await finishGame(p);
+  await p.click("[data-again]");
+  await p.waitForTimeout(300);
+  const s3 = await settings(p);
+  check("kiosk: Play again gives the next visitor the defaults", !s3.present && s3.side > 0 && s3.plan > 0 && !s3.stored, JSON.stringify(s3));
+  await p.click("[data-start]");
+  await p.waitForTimeout(200);
+  await p.click('[data-cam-act="present"]');
+  await p.reload();
+  await p.waitForTimeout(400);
+  const s4 = await settings(p);
+  check("kiosk: a reload starts from the defaults", !s4.present && !s4.lib && s4.voice === "true" && s4.keys && !s4.stored, JSON.stringify(s4));
+  check("kiosk settings: no errors", !p.errors.length, p.errors.join("|"));
+  await ctx.close();
+}
+
+// 11. The address sets what every game starts with (?view=presenter, ?keys=off, ?voice=off, FEU-6). A visitor who
+// switches them gets them back when the game starts over.
+{
+  const { ctx, p } = await page({}, "?view=presenter&keys=off&voice=off");
+  const s0 = await settings(p);
+  await p.click("[data-start]");
+  await p.waitForTimeout(200);
+  await p.click('[data-cam-act="present"]');
+  await p.click("[data-voice]");
+  await p.click("[data-about]");
+  await p.click("[data-keys-pref]");
+  await p.click("[data-about-close]");
+  const s1 = await settings(p);
+  await p.click("[data-restart]");
+  await p.click("[data-confirm-yes]");
+  await p.waitForTimeout(300);
+  const s2 = await settings(p);
+  check("the address sets every game's start, and Start over returns to it", s0.present && !s0.keys && s0.voice === "false" && !s1.present && s1.keys && s1.voice === "true" && s2.present && !s2.keys && s2.voice === "false" && !s2.stored, JSON.stringify([s0, s1, s2]));
+  await ctx.close();
+  const { ctx: c2, p: p2 } = await page({}, "?mode=class&voice=off");
+  const v = await ev(p2, () => document.querySelector("[data-voice]").getAttribute("aria-pressed"));
+  check("?mode=class&voice=off starts with the voice off", v === "false", v);
+  await c2.close();
+}
+
+// 12. Class mode remembers presenter view and the shortcut switch on the device. Each tab writes only the setting
+// it changed, so two open tabs do not undo each other (DE-7).
+{
+  const ctx = await b.newContext({ viewport: { width: 1366, height: 768 } });
+  const { p: a } = await page({ ctx }, "?mode=class");
+  const { p: c } = await page({ ctx }, "?mode=class");
+  await a.click("[data-start]");
+  await a.waitForTimeout(200);
+  await a.click('[data-cam-act="present"]');
+  await c.click("[data-start]");
+  await c.waitForTimeout(200);
+  await c.click("[data-about]");
+  await c.click("[data-keys-pref]");
+  await c.click("[data-about-close]");
+  const stored = await ev(c, () => JSON.parse(localStorage.getItem("build-the-campus:v1:prefs") || "{}"));
+  check("class mode: two tabs keep each other's settings", stored.present === true && stored.keys === false, JSON.stringify(stored));
+  await c.reload();
+  await c.waitForTimeout(400);
+  const s = await settings(c);
+  check("class mode: presenter view and the shortcut switch are remembered", s.present && !s.keys, JSON.stringify(s));
+  await ctx.close();
+}
+
+// 13. The mode is read without regard to case, spaces or a second "?", and class and home modes say so on the
+// intro (FEU-2). A real typo is still the kiosk, with no mode line.
+for (const [q, want] of [["?mode=Class", "class"], ["?mode=%20HOME%20", "home"], ["?view=presenter?mode=class", "class"], ["?mode=clas", "kiosk"]]) {
+  const { ctx, p } = await page({}, q);
+  const s = await ev(p, () => ({ mode: window.__dc.mode, line: [...document.querySelectorAll("[data-intro] [data-mode-line]")].filter((n) => !n.hidden).map((n) => n.textContent).join("|"), present: document.body.hasAttribute("data-present") }));
+  const line = { class: /^Class mode: /, home: /^Home mode: /, kiosk: /^$/ }[want];
+  check(`mode from ${q}`, s.mode === want && line.test(s.line) && s.present === q.includes("presenter"), JSON.stringify(s));
   await ctx.close();
 }
 

@@ -3,7 +3,7 @@
 :root{
   --pine:#163a30;--pine-2:#1e5a47;--paper:#f7f4ee;--card:#fffdf8;--sunken:#efeae1;--ink:#163a30;--ink-2:#33443d;--muted:#5d6b64;--line:#dcd7cc;
   --clay:#a9492a;--clay-ink:#94401f;--clay-soft:#f6e4da;--pine-soft:#e6f0eb;--gold:#e69f00;--focus:#13243b;--focus-stage:#f0b43c;
-  --good:#1f8a5b;--warn:#d08a00;--bad:#c2452a;
+  --good:#1f8a5b;--warn:#d08a00;--bad:#c2452a;--good-ink:#1f6f4f;
   --shadow:0 2px 4px #163a3024,0 14px 32px -10px #163a3070;
   --radius:20px;
   --font-body:Inter,"Segoe UI",ui-sans-serif,system-ui,sans-serif;--font-display:Geist,"Segoe UI",ui-sans-serif,system-ui,sans-serif;
@@ -22,6 +22,10 @@ p{margin:0 0 10px}
 button{font:inherit;color:inherit}
 :focus-visible{outline:3px solid var(--focus);outline-offset:2px}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+/* The skip link (AS-10): the first stop on the page, out of sight until it has keyboard focus. */
+.skip{position:absolute;left:12px;top:10px;z-index:30;background:var(--card);color:var(--ink);font-weight:700;padding:10px 18px;border-radius:999px;box-shadow:var(--shadow);text-decoration:none}
+.skip:not(:focus){width:1px;height:1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.skip:focus-visible{outline-color:var(--focus-stage)}
 .muted{color:var(--muted);font-size:.9rem}
 .kicker{text-transform:uppercase;letter-spacing:.09em;font-size:.75rem;font-weight:700;color:var(--clay-ink);margin-bottom:4px}
 .byline{font-weight:700;color:var(--ink-2)}
@@ -93,16 +97,20 @@ body[data-nogl] .cam,body[data-nogl] .hint,body[data-nogl] [data-fx]{display:non
 .cb[aria-pressed="true"]{background:var(--pine);color:#fff;border-color:var(--pine)}
 .place-box{background:var(--pine-soft);border:2px solid var(--pine);border-radius:16px;padding:10px 12px;margin:0 0 12px}
 .place-box p{margin:0 0 8px}
+/* The fit message is text, so it uses the darker inks: 5.2:1 and 6.0:1 on the pale box (AS-1, WCAG 1.4.3). */
 .place-why{font-weight:700}
-.place-why[data-ok="1"]{color:var(--good)}
-.place-why[data-ok="0"]{color:var(--bad)}
+.place-why[data-ok="1"]{color:var(--good-ink)}
+.place-why[data-ok="0"]{color:var(--clay-ink)}
+/* The mouse and arrow-key line, or on touch screens the touch line (UD-8). */
+.place-touch{display:none}
 .place-actions{display:flex;flex-wrap:wrap;gap:8px}
 .place-actions .btn{min-height:44px}
 .game-btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
 .btn-small{min-height:40px;padding:6px 14px;font-size:.88rem}
 .end-btns{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:6px}
-/* The countdown, Keep and Play again stay pinned at the bottom of the end screen, visible without scrolling. */
-.dlg[data-end]{padding-bottom:0}
+/* The countdown, Keep and Play again stay pinned at the bottom of the end screen, visible without scrolling, and so
+   does About's Close button, so a long sheet never hides the way out (UD-4). */
+.dlg[data-end],.dlg[data-about-dlg]{padding-bottom:0}
 .dlg-foot{position:sticky;bottom:0;background:var(--card);padding:8px 0 20px;box-shadow:0 -10px 12px -10px #163a3033}
 .end-btns .btn-big{margin-top:0}
 .contact a,.sources a,.dlg p a{color:var(--clay-ink);font-weight:600}
@@ -114,7 +122,10 @@ body[data-nogl] .cam,body[data-nogl] .hint,body[data-nogl] [data-fx]{display:non
 [data-side-tab],.tabs button{position:relative}
 [data-new]::after{content:"";position:absolute;top:4px;right:4px;width:9px;height:9px;border-radius:50%;background:var(--clay);box-shadow:0 0 0 2px #fff}
 .sources{margin:0 0 10px;padding-left:20px;display:grid;gap:4px;font-size:.9rem}
-.resume-note{font-weight:600;color:var(--ink-2);margin:0 0 6px}
+/* On a kiosk, About prints its addresses instead of linking them (SA-1); a long one wraps anywhere. */
+.addr{overflow-wrap:anywhere}
+.sources .addr{display:block;color:var(--muted)}
+.resume-note,.mode-line{font-weight:600;color:var(--ink-2);margin:0 0 6px}
 /* The credit is a footer on every screen width, outside the map and panels (C7, I9). */
 .foot{font-size:.82rem;font-weight:600;color:var(--muted);text-align:center;padding:6px 16px 8px;background:var(--paper);border-top:1px solid #dcd7cc80}
 .audience{font-weight:700;color:var(--pine);margin:0 0 6px}
@@ -125,12 +136,16 @@ body[data-nogl] .cam,body[data-nogl] .hint,body[data-nogl] [data-fx]{display:non
 .caption{position:absolute;left:calc(var(--pl) + 32px);right:calc(var(--pr) + 32px);top:calc(var(--tools-b, 64px) + 8px);margin:0 auto;max-width:640px;width:fit-content;background:#163a30e6;color:#fff;font-size:1rem;line-height:1.35;padding:8px 16px;border-radius:14px;z-index:3;text-align:center;box-shadow:var(--shadow);pointer-events:none;max-height:max(calc(1.35em + 16px),calc(var(--cam-t, 999px) - var(--tools-b, 64px) - 16px));overflow:hidden}
 .libmode{display:flex;gap:12px;align-items:flex-start;background:var(--sunken);border-radius:14px;padding:10px 14px;margin:4px 0 8px;cursor:pointer}
 .libmode input{width:22px;height:22px;margin-top:2px;accent-color:var(--pine);flex:none}
+/* For screen-reader users: the voice can be turned off before the narration starts (AS-11). */
+.intro-voice{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;margin:0 0 8px}
+.intro-voice[hidden]{display:none}
+.intro-voice p{margin:0;flex:1 1 15rem;font-size:.9rem;color:var(--ink-2)}
 .intro-btns{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 /* The intro's buttons stay pinned at the bottom of the dialog, so on a phone both the age line at the top and
    Start are visible without scrolling. */
 .dlg-intro{padding-bottom:0}
 /* A control focused near the bottom scrolls clear of the pinned button row instead of under it (WCAG 2.4.11). */
-.dlg-intro,.dlg[data-end]{scroll-padding-bottom:var(--pin-h,120px)}
+.dlg-intro,.dlg[data-end],.dlg[data-about-dlg]{scroll-padding-bottom:var(--pin-h,120px)}
 .dlg-intro .intro-btns{position:sticky;bottom:0;background:var(--card);padding:10px 0 20px;box-shadow:0 -10px 12px -10px #163a3033}
 .dlg-intro .intro-btns .btn-big{margin-top:0}
 .btn.btn-ghost{background:#fff;color:var(--ink);border:2px solid var(--ink);box-shadow:none}
@@ -173,18 +188,20 @@ body[data-side="hood"] .side-hood,body[data-side="choices"] .side-choices{displa
 .hood-row{width:100%;display:grid;grid-template-columns:1fr auto minmax(4.6rem,auto);gap:8px;align-items:center;text-align:left;background:transparent;border:2px solid transparent;border-radius:12px;padding:5px 8px;min-height:38px;cursor:pointer}
 .hood-row:hover{background:var(--sunken)}
 .hood-row[aria-pressed="true"]{background:var(--pine-soft);border-color:var(--pine)}
-.hood-name{font-weight:600;font-size:.88rem;line-height:1.2}
+.hood-name{font-weight:600;font-size:.88rem;line-height:1.2;display:flex;gap:6px;align-items:baseline}
 .hood-word{font-size:.8rem;color:var(--muted);text-align:right;line-height:1.15}
 .meter{display:inline-flex;gap:3px}
 .meter i{width:13px;height:10px;border-radius:3px;background:#fff;box-shadow:inset 0 0 0 1.5px var(--line)}
+/* Every meter fills in one ink: it shows an amount, not a rating, so red, gold and green keep meaning the dashboard's
+   status words (UD-6). The small square before a name is that effect's colour on the map. */
 .meter i[data-on]{background:var(--pine);box-shadow:none}
-.hood-row[data-key="noise"] .meter i[data-on],.hood-row[data-key="gens"] .meter i[data-on]{background:#d4532c}
-.hood-row[data-key="trucks"] .meter i[data-on]{background:#e19a00}
-.hood-row[data-key="storm"] .meter i[data-on],.hood-row[data-key="water"] .meter i[data-on]{background:#1d7fc9}
-.hood-row[data-key="power"] .meter i[data-on]{background:#c04f9f}
-.hood-row[data-key="setback"] .meter i[data-on]{background:#00a37a}
-.hood-row[data-key="dust"] .meter i[data-on]{background:#b0743c}
-.hood-row[data-kind="amount"] .meter i[data-on]{background:var(--pine-2)}
+.hood-name::before{content:"";flex:none;width:9px;height:9px;border-radius:3px;background:var(--sw,transparent)}
+.hood-row[data-key="noise"],.hood-row[data-key="gens"]{--sw:#d4532c}
+.hood-row[data-key="trucks"]{--sw:#e19a00}
+.hood-row[data-key="storm"]{--sw:#1d7fc9}
+.hood-row[data-key="power"]{--sw:#c04f9f}
+.hood-row[data-key="setback"]{--sw:#00a37a}
+.hood-row[data-key="dust"]{--sw:#b0743c}
 .hood-detail{margin:10px 0 0;padding:10px 12px;background:var(--sunken);border-radius:14px;font-size:.85rem;color:var(--ink-2);display:grid;gap:4px;min-height:84px}
 .hood-detail b{color:var(--ink)}
 .hood-detail .you{font-weight:600;color:var(--ink)}
@@ -220,7 +237,8 @@ body[data-side="hood"] .side-hood,body[data-side="choices"] .side-choices{displa
 .lane[data-state="now"] .lane-icon,.lane[data-state="ready"] .lane-icon{background:var(--clay);color:#fff}
 .lane[data-state="locked"]{cursor:not-allowed}
 .lane[data-state="locked"] .lane-name{color:#5f6b65}
-.lane-name{font-size:.84rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* A name wider than its column wraps instead of being cut off, also with user text spacing (AS-7, WCAG 1.4.12). */
+.lane-name{font-size:.84rem;font-weight:600;overflow-wrap:anywhere;hyphens:auto}
 .track{position:relative;height:14px;background:repeating-linear-gradient(90deg,transparent 0 calc(12.5% - 1px),#e5dfd4 calc(12.5% - 1px) 12.5%)}
 .range-line{position:absolute;top:6px;height:2px;background:var(--ink-2);opacity:.5}
 .range-line::before,.range-line::after{content:"";position:absolute;top:-4px;width:2px;height:10px;background:inherit}
@@ -346,6 +364,21 @@ html[data-nokeys] .opt kbd{display:none}
   .plan-note{display:none}
   .hood-detail{min-height:70px}
 }
+/* Laptop windows up to 900 px tall, in the side-panel layout (UD-1): the full schedule needs 440 to 490 px, which left
+   the map a strip of 76 to 180 px. Here the schedule starts as its total and a row of phase buttons, critical-path
+   phases underlined in the hatch of their bars; Show timeline brings the bars back. */
+.plan-toggle{display:none;border:2px solid var(--ink);background:#fff;color:var(--ink);border-radius:999px;min-height:28px;padding:1px 12px;margin:-5px 0;font-weight:700;font-size:.82rem;cursor:pointer}
+.plan-toggle:hover{background:var(--pine-soft)}
+@media (min-width:1101px) and (max-height:900px), (min-width:1024px) and (orientation:landscape) and (min-height:601px) and (max-height:900px){
+  .plan-toggle{display:inline-block}
+  body:not([data-plan-open]) .lanes{display:flex;flex-wrap:wrap;gap:4px}
+  body:not([data-plan-open]) .lane{display:flex;width:auto;gap:5px;padding:2px 10px 2px 3px;border-radius:999px;background:var(--sunken)}
+  body:not([data-plan-open]) .lane:hover{background:#e5dfd4}
+  body:not([data-plan-open]) .lane[aria-pressed="true"]{background:var(--pine-soft);box-shadow:inset 0 0 0 2px var(--pine)}
+  body:not([data-plan-open]) .lane[data-crit]{background-image:repeating-linear-gradient(135deg,var(--clay) 0 2px,transparent 2px 5px);background-size:calc(100% - 24px) 4px;background-position:12px 100%;background-repeat:no-repeat}
+  body:not([data-plan-open]) :is(.track,.axis,.plan-note){display:none}
+  body:not([data-plan-open]) .legend span:not(:first-child){display:none}
+}
 
 /* Phones, portrait tablets and short or narrow windows: the 3D view on top, one tabbed panel below; still no page
    scroll. Keep this media query in step with TABBED in game.js. (Side panels at these widths crushed the schedule.) */
@@ -391,13 +424,20 @@ html[data-nokeys] .opt kbd{display:none}
   .side-tabs{display:none}
   .els{gap:5px}
   .el{min-height:44px}
-  .lane{grid-template-columns:20px 84px 1fr;min-height:32px}
-  .axis{grid-template-columns:116px 1fr}
+  .lane{grid-template-columns:20px 5.25rem 1fr;min-height:32px}
+  .axis{grid-template-columns:calc(5.25rem + 32px) 1fr}
   .hood-row{grid-template-columns:1fr auto minmax(64px,auto)}
   .dlg{padding:20px}
   .dlg-intro{padding-bottom:0}
 }
 @media (min-width:761px) and (max-width:1100px) and (orientation:portrait){html{--scene-h:45%;--scene-row:max(var(--scene-h),var(--scene-min,0px))}html[data-present]{--scene-h:62%;--scene-row:max(var(--scene-h),var(--scene-min,0px))}}
+/* Presenter view on a portrait tablet (a tablet shown on a projector) makes the text larger too, with no label under
+   16 px, as in the side-panel layout (AS-9). Phones keep phone sizes and only get the taller map. */
+@media (min-width:761px) and (max-width:1100px) and (orientation:portrait){
+  html[data-present]{font-size:20px}
+  html[data-present] body{font-size:1rem}
+  html[data-present] :is(.kicker,.badge,.kpi-label,.kpi-word,.tools .pill,.hint,.cam .pill,.el-act,.el-why,.lock,.chip,.hood-h,.lane-icon,.axis,.legend,.end-stats dt){font-size:.8rem}
+}
 /* Very narrow phones: the tile dot moves to the corner so the short labels fit. */
 @media (max-width:360px){
   .badge-long{display:none}.badge-short{display:inline}
@@ -446,7 +486,14 @@ html[data-nokeys] .opt kbd{display:none}
   .tools,.caption{right:8px}
   .cam{right:8px;bottom:calc(100% - var(--scene-row) + 8px)}
 }
+/* Very short windows at any width (400% zoom on a 1280 x 720 or 1280 x 1024 screen is 320 x 180 or 320 x 256): a
+   pinned button row would leave a sliver of text above it, so the buttons scroll with the dialog instead (AS-6). */
+@media (max-height:300px){
+  .dlg-intro .intro-btns,.dlg-foot{position:static;box-shadow:none}
+  .dlg-intro,.dlg[data-end],.dlg[data-about-dlg]{scroll-padding-bottom:0}
+}
 @media (pointer:coarse){.lane{min-height:32px}}
-/* Touch-only devices: the keyboard line on the intro is left out (it stays in About), so Start sits higher. */
-@media (pointer:coarse) and (hover:none){.dlg-intro .keys-hint{display:none}}
+/* Touch-only devices: the keyboard line on the intro is left out (it stays in About), so Start sits higher, and the
+   siting box says how to site with fingers instead of a mouse and keys (UD-8). */
+@media (pointer:coarse) and (hover:none){.dlg-intro .keys-hint,.place-keys{display:none}.place-touch{display:inline}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}

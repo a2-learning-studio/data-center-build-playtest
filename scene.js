@@ -1496,14 +1496,24 @@ function createScene(canvas, { reduced = () => false, signs = null, onMode = nul
   new ResizeObserver(resize).observe(canvas);
 
   // Footprints drawn while the player sites a piece. Not part of the tagged groups, so apply() leaves them alone.
+  // The piece being sited has a dark outline, and a spot that does not fit is striped as well as red, so neither
+  // the footprint against the ground nor fits against does-not-fit depends on colour alone (AS-1, WCAG 1.4.1, 1.4.11).
   const ghost = new T3.Group();
   scene.add(ghost);
+  const hatch = canvasTex(32, 32, (g, w, h) => {
+    const img = g.createImageData(w, h);
+    for (let i = 0; i < w * h; i++) if (((i % w) + Math.floor(i / w)) % w < w / 2) img.data.fill(255, i * 4, i * 4 + 4);
+    g.putImageData(img, 0, 0);
+  });
   const ghostMat = {
     ok: new T3.MeshBasicMaterial({ color: "#1f8a5b", transparent: true, opacity: 0.45, depthWrite: false }),
-    bad: new T3.MeshBasicMaterial({ color: "#c2452a", transparent: true, opacity: 0.48, depthWrite: false }),
+    bad: new T3.MeshBasicMaterial({ color: "#c2452a", map: hatch, transparent: true, opacity: 0.85, depthWrite: false }),
     set: new T3.MeshBasicMaterial({ color: "#163a30", transparent: true, opacity: 0.22, depthWrite: false }),
     line: new T3.MeshBasicMaterial({ color: "#00a37a", transparent: true, opacity: 0.95, depthWrite: false }),
+    edge: new T3.MeshBasicMaterial({ color: "#10261d" }),
   };
+  const EDGE = 2;
+  const STRIPE = 8;
   function clearGhost() {
     for (const c of [...ghost.children]) { c.geometry?.dispose(); ghost.remove(c); }
   }
@@ -1512,10 +1522,21 @@ function createScene(canvas, { reduced = () => false, signs = null, onMode = nul
     for (const item of items || []) {
       const mat = ghostMat[item.tone] || ghostMat.set;
       for (const r of item.rects || []) {
-        const m = new T3.Mesh(new T3.PlaneGeometry(Math.max(0.5, r.w), Math.max(0.5, r.h)), mat);
+        const w = Math.max(0.5, r.w), h = Math.max(0.5, r.h);
+        const geo = new T3.PlaneGeometry(w, h);
+        // Stripes keep the same spacing in metres on every footprint.
+        if (mat.map) { const uv = geo.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, (uv.getX(i) * w) / STRIPE, (uv.getY(i) * h) / STRIPE); }
+        const m = new T3.Mesh(geo, mat);
         m.rotation.x = -Math.PI / 2;
         m.position.set(r.x + r.w / 2, item.tone === "set" ? 0.22 : 0.4, r.z + r.h / 2);
         ghost.add(m);
+        if (item.tone === "set") continue;
+        for (const [ew, eh, ex, ez] of [[w + EDGE, EDGE, 0, -h / 2], [w + EDGE, EDGE, 0, h / 2], [EDGE, h, -w / 2, 0], [EDGE, h, w / 2, 0]]) {
+          const e = new T3.Mesh(new T3.PlaneGeometry(ew, eh), ghostMat.edge);
+          e.rotation.x = -Math.PI / 2;
+          e.position.set(r.x + r.w / 2 + ex, 0.45, r.z + r.h / 2 + ez);
+          ghost.add(e);
+        }
       }
       if (item.setback) {
         const line = new T3.Mesh(new T3.PlaneGeometry(454, 1.4), ghostMat.line);

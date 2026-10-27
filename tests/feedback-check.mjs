@@ -113,7 +113,8 @@ const chipTexts = (p) => p.evaluate(() => [...document.querySelectorAll("[data-c
   await ctx.close();
 }
 
-// I10: presenter view hides the side panels, enlarges the map, is remembered, and the URL switch works.
+// I10: presenter view hides the side panels, enlarges the map, is remembered in class mode, and the URL switch works.
+// On a kiosk it lasts one game (PA-1; session-check covers the resets).
 {
   const { ctx, p } = await page({ w: 1024, h: 768 });
   await p.evaluate(() => document.querySelector("[data-start]").click());
@@ -128,8 +129,14 @@ const chipTexts = (p) => p.evaluate(() => [...document.querySelectorAll("[data-c
   check("the button reports its state", pressed === "true");
   await p.reload();
   await p.waitForTimeout(500);
-  check("presenter view is remembered on the device", await p.evaluate(() => document.body.hasAttribute("data-present")));
+  check("on a kiosk a reload starts without presenter view", !(await p.evaluate(() => document.body.hasAttribute("data-present"))));
   await ctx.close();
+  const c = await page({ w: 1024, h: 768, query: "?mode=class" });
+  await c.p.evaluate(() => { document.querySelector("[data-start]").click(); document.querySelector('[data-cam-act="present"]').click(); });
+  await c.p.reload();
+  await c.p.waitForTimeout(500);
+  check("presenter view is remembered on the device in class mode", await c.p.evaluate(() => document.body.hasAttribute("data-present")));
+  await c.ctx.close();
   const q = await page({ w: 1366, h: 768, query: "?view=presenter" });
   check("?view=presenter starts in presenter view", await q.p.evaluate(() => document.body.hasAttribute("data-present")));
   await q.ctx.close();
