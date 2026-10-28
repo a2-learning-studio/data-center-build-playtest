@@ -5,8 +5,8 @@ export const STRINGS = {
     lang: "en",
     pageTitle: "Build the Campus · a data center construction game",
     gameName: "Build the Campus",
-    badge: "Play-test v1.5.1",
-    badgeShort: "v1.5.1",
+    badge: "Play-test v1.5",
+    badgeShort: "v1.5",
     langToggle: "Español",
     langNameEn: "English",
 
@@ -15,7 +15,7 @@ export const STRINGS = {
     audience: "For ages 12 and up · about 20 minutes · no sign-up, no personal data.",
     introBody:
       "Red Clay Ridge is a made-up site of about 45 acres off a county road in Georgia, next to a street of homes. A company wants a data center campus there. Your job is to build it in the right order, keep the schedule, the budget and the crew safe, and work with the neighbors. The game shows facts and trade-offs. It does not take a side on data centers.",
-    introHow: "Pick a phase, place each of its key elements, then finish the phase. Issue cards will interrupt you. Your choices move the dashboard and the Neighbors panel.",
+    introHow: "Pick a phase, place each of its key elements, then finish the phase. Issue cards will interrupt you. Your choices move the dashboard and the neighborhood panel.",
     start: "Start building",
     keysHint: "Keys: Tab moves between buttons · Enter or Space presses · N = next step · M = effects on the map on/off · V = voice on/off (these three can be turned off in About) · on the map, arrow keys turn, + or − zoom, and Shift + arrow keys move when zoomed in. While you are siting a piece, drag or tap the map and the arrow keys nudge it, then Set it here. The game asks you to decide when each choice matters.",
     dragHint: "Drag to turn · scroll or pinch to zoom",
@@ -326,7 +326,7 @@ export const STRINGS = {
       turn: {
         name: "Turnover",
         short: "Turnover",
-        log: "The finished campus is handed to its owner.",
+        log: "The finished campus is handed to its operator.",
         why: "The owner takes the building after the integrated test.",
       },
     },
@@ -363,7 +363,7 @@ export const STRINGS = {
       L4: { name: "Level 4 · Functional tests", log: "Level 4: each system is run through its sequences, with load banks as fake servers." },
       L5: { name: "Level 5 · Integrated systems test", log: "Level 5: the utility power is cut on purpose to prove everything works together." },
       punch: { name: "Punch list & landscaping", log: "Last fixes are made and the landscaping is planted." },
-      handover: { name: "Handover to operations", log: "Keys, manuals and training are handed to the owner’s operations team." },
+      handover: { name: "Handover to operations", log: "Keys, manuals and training are handed to the operator." },
     },
 
     choices: {
@@ -430,7 +430,7 @@ export const STRINGS = {
         body: "Many projects in the region need electricians at the same time, and the crew is short-handed.",
         a: { label: "Add overtime and a night shift", log: "A night shift starts. Lights and noise run later until the electrical work is done." },
         b: { label: "Accept a slower crew", log: "The electrical work takes longer with a smaller crew." },
-        c: { label: "Bring in a traveling electrical crew", log: "A traveling electrical crew joins the site. It costs more, and the work slips a little while they settle in." },
+        c: { label: "Use power skids built off-site", log: "Prefabricated power skids arrive, wired in a factory." },
       },
       heat: {
         title: "Weather: a heat wave",
