@@ -295,11 +295,17 @@ const chipTexts = (p) => p.evaluate(() => [...document.querySelectorAll("[data-c
       draws += 1;
       return draw.apply(this, a);
     };
+    const until = async (done, ms) => { const t0 = performance.now(); while (!done() && performance.now() - t0 < ms) await new Promise((res) => setTimeout(res, 50)); };
     window.__dc.act("in");
-    await new Promise((res) => setTimeout(res, 800));
+    // The throw comes with the next frame drawn. Under software rendering on a slow machine a frame can take well
+    // over a second (about 1.5 frames a second in CI), so this waits for the throw: after a fixed 800 ms the "out"
+    // below could come first, and the frame that threw was the one meant to draw it.
+    await until(() => !armed, 20000);
+    await new Promise((res) => setTimeout(res, 300));
     draws = 0;
     window.__dc.act("out");
-    await new Promise((res) => setTimeout(res, 1200));
+    // A frozen map never draws again; a slow one may take a few seconds for its next frame.
+    await until(() => draws > 0, 10000);
     gl.drawElements = draw;
     return { threw: !armed, draws };
   });

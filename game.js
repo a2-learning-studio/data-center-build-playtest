@@ -465,6 +465,11 @@ sizeWatch.observe(document.body);
 sizeWatch.observe($(".tools"));
 sizeWatch.observe($(".p-plan"));
 sizeWatch.observe($(".cam"));
+// The map itself too: it can change size while none of the boxes above does (the top bar takes another line when a
+// score's text changes, and the map's share of the page shrinks). The 3D view then kept the old open area, so the
+// campus sat off centre until the next measure. That came with the move buttons, at the first zoom step, and the
+// ground slid from under the pointer as the view jumped (pan-check at 375 x 812 in CI).
+sizeWatch.observe(canvas);
 // Map buttons (WCAG 2.5.7): every drag, pinch and twist has a button. The move buttons appear when zoomed in.
 let zoomTipShown = false;
 function onCamMode(zoomed) {

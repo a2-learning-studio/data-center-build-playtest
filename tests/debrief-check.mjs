@@ -263,6 +263,10 @@ await p.emulateMedia({ media: "print" });
 const midGame = await printed(p);
 const notePages = +((await p.pdf({ preferCSSPageSize: true, printBackground: true })).toString("latin1").match(/\/Type\s*\/Pages[\s\S]{0,200}?\/Count\s+(\d+)/)?.[1] ?? 0);
 await p.emulateMedia({ media: "screen" });
+// Done with this page. Left open mid-game it kept drawing its map for the rest of the run: a headless page is never
+// hidden, so the game's loop never paused as it does in a background tab, and every later page shared the one
+// software GPU with it. On a slow runner that held the resumed game's first frames, and the click on Resume, past 30 s.
+await p.close();
 check("after Play again and mid-game, print gives the note on one page, and the last summary is emptied", blankPaper(afterAgain) && blankPaper(midGame) && notePages === 1, JSON.stringify({ afterAgain, midGame, notePages }));
 // IA-3, DE-6: the textbook answers (order long-lead equipment early, a wide buffer, daytime hours) are never listed as
 // costly. With the best answer to every question, two setbacks drawn, nothing is.
