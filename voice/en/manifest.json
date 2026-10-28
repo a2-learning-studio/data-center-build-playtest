@@ -1,9 +1,9 @@
 {
  "intro": {
   "file": "intro.mp3",
-  "hash": "b72699d9ed2e",
-  "text": "Red Clay Ridge is a made-up site of about 45 acres off a county road in Georgia, next to a street of homes. A company wants a data center campus there. Your job is to build it in the right order, keep the schedule, the budget and the crew safe, and work with the neighbors. The game shows facts and trade-offs. It does not take a side on data centers. Pick a phase, place each of its key elements, then finish the phase. Issue cards will interrupt you. Your choices move the dashboard and the neighborhood panel.",
-  "bytes": 133450
+  "hash": "3abe5b2989c3",
+  "text": "Red Clay Ridge is a made-up site of about 45 acres off a county road in Georgia, next to a street of homes. A company wants a data center campus there. Your job is to build it in the right order, keep the schedule, the budget and the crew safe, and work with the neighbors. The game shows facts and trade-offs. It does not take a side on data centers. Pick a phase, place each of its key elements, then finish the phase. Issue cards will interrupt you. Your choices move the dashboard and the Neighbors panel.",
+  "bytes": 143168
  },
  "phase:site": {
   "file": "phase-site.mp3",
@@ -55,9 +55,9 @@
  },
  "phase:turn": {
   "file": "phase-turn.mp3",
-  "hash": "c05f3d9100d3",
-  "text": "Turnover. The finished campus is handed to its operator.",
-  "bytes": 12765
+  "hash": "dfa5231920ce",
+  "text": "Turnover. The finished campus is handed to its owner.",
+  "bytes": 14019
  },
  "el:zoning": {
   "file": "el-zoning.mp3",
@@ -247,9 +247,9 @@
  },
  "el:handover": {
   "file": "el-handover.mp3",
-  "hash": "dd9117bf23bc",
-  "text": "Keys, manuals and training are handed to the operator.",
-  "bytes": 14228
+  "hash": "f65af3245e0f",
+  "text": "Keys, manuals and training are handed to the owner’s operations team.",
+  "bytes": 18094
  },
  "card:weather": {
   "file": "card-weather.mp3",
@@ -313,9 +313,9 @@
  },
  "opt:labor:c": {
   "file": "opt-labor-c.mp3",
-  "hash": "adc85ca108fa",
-  "text": "Prefabricated power skids arrive, wired in a factory.",
-  "bytes": 14750
+  "hash": "5b4bb31307fc",
+  "text": "A traveling electrical crew joins the site. It costs more, and the work slips a little while they settle in.",
+  "bytes": 23841
  },
  "cx": {
   "file": "cx.mp3",
@@ -328,5 +328,113 @@
   "hash": "64b3c91c1d87",
   "text": "Turnover: the campus is handed to its owner. The building is now an operating facility. Construction jobs wind down and a smaller operations staff takes over. Every choice you made traded time, money, safety or neighbor effects. Different communities weigh these trade-offs differently.",
   "bytes": 76086
+ },
+ "card:heat": {
+  "file": "card-heat.mp3",
+  "hash": "3d41fa362883",
+  "text": "Weather: a heat wave. Several days over 95°F are forecast while crews are grading in the open. Heat is a safety risk for outdoor work. Both responses keep people safe. One holds the date and costs more.",
+  "bytes": 66995
+ },
+ "opt:heat:a": {
+  "file": "opt-heat-a.mp3",
+  "hash": "8a3749d90d08",
+  "text": "Extra crews cover the shorter days. Grading stays on the date, and the budget pays for the crews.",
+  "bytes": 23109
+ },
+ "opt:heat:b": {
+  "file": "opt-heat-b.mp3",
+  "hash": "a85d4ffe4ea8",
+  "text": "Days are shorter so people can rest. Grading takes longer.",
+  "bytes": 14019
+ },
+ "card:haul": {
+  "file": "card-haul.mp3",
+  "hash": "ce71a13269ac",
+  "text": "Equipment delay: the heavy-haul truck. The transformer is built, but the truck that can carry it is booked. An earlier escort costs more. A later slot keeps more of the budget and slips the utility tie-in.",
+  "bytes": 56233
+ },
+ "opt:haul:a": {
+  "file": "opt-haul-a.mp3",
+  "hash": "1af9844a5dbb",
+  "text": "An earlier heavy-haul slot is booked. The tie-in stays on the date.",
+  "bytes": 16631
+ },
+ "opt:haul:b": {
+  "file": "opt-haul-b.mp3",
+  "hash": "9fe05396ccdd",
+  "text": "The transformer waits for the later truck. The utility tie-in slips.",
+  "bytes": 19452
+ },
+ "card:inspect": {
+  "file": "card-inspect.mp3",
+  "hash": "c6cb83313e24",
+  "text": "Inspection: concrete samples. The county inspector has asked for the slab samples to be checked before the walls tilt up. The lab can rush the results, or the walls wait for the regular turn.",
+  "bytes": 44739
+ },
+ "opt:inspect:a": {
+  "file": "opt-inspect-a.mp3",
+  "hash": "a79398906e4c",
+  "text": "The lab rushes the concrete samples. The walls stay on the date.",
+  "bytes": 16422
+ },
+ "opt:inspect:b": {
+  "file": "opt-inspect-b.mp3",
+  "hash": "0125138cde59",
+  "text": "The walls wait for the regular lab turn. Foundations take longer.",
+  "bytes": 17362
+ },
+ "card:nearmiss": {
+  "file": "card-nearmiss.mp3",
+  "hash": "fbbbb7de802b",
+  "text": "Safety: a near miss on a lift. A wall panel shifted while the crane was lifting it. The crew stopped the lift. Nobody was hurt. The site needs a decision before lifts start again.",
+  "bytes": 51426
+ },
+ "opt:nearmiss:a": {
+  "file": "opt-nearmiss-a.mp3",
+  "hash": "adf3bd9e4ef2",
+  "text": "Lifts pause for a safety stand-down. The crew checks the rigging before they start again. Nobody was hurt.",
+  "bytes": 29274
+ },
+ "opt:nearmiss:b": {
+  "file": "opt-nearmiss-b.mp3",
+  "hash": "f1fb5d94c2ee",
+  "text": "The crew reviews the lift plan and resumes the same day. Nobody was hurt. The schedule holds, with less time spent on the check.",
+  "bytes": 34290
+ },
+ "card:supply": {
+  "file": "card-supply.mp3",
+  "hash": "dce2544e528d",
+  "text": "Supply delay: server racks. The rack shipment is short. A nearer warehouse can fill the gap at a higher price, or the hall waits for the rest of the order.",
+  "bytes": 38365
+ },
+ "opt:supply:a": {
+  "file": "opt-supply-a.mp3",
+  "hash": "82ab19036a83",
+  "text": "Racks from a nearer warehouse fill the gap. The fit-out stays on the date.",
+  "bytes": 19243
+ },
+ "opt:supply:b": {
+  "file": "opt-supply-b.mp3",
+  "hash": "8fc978603078",
+  "text": "The hall waits for the rest of the rack order. Fit-out takes longer.",
+  "bytes": 17989
+ },
+ "card:retest": {
+  "file": "card-retest.mp3",
+  "hash": "bfc2e94ea4a7",
+  "text": "Inspection: run one test again. One sequence in the integrated test did not pass the first time. Nothing failed in an unsafe way. The vendor can come today, or the crew runs it again on the next shift.",
+  "bytes": 61457
+ },
+ "opt:retest:a": {
+  "file": "opt-retest-a.mp3",
+  "hash": "18f3873dafd3",
+  "text": "The vendor comes today and the sequence is run again. The test stays on the date.",
+  "bytes": 21437
+ },
+ "opt:retest:b": {
+  "file": "opt-retest-b.mp3",
+  "hash": "42d8e16d68d6",
+  "text": "The crew runs the sequence again on the next shift. Commissioning takes a little longer.",
+  "bytes": 21437
  }
 }
