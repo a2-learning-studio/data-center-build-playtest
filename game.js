@@ -425,8 +425,17 @@ function measureSafe() {
   // Both depend only on the width; style.css does the height arithmetic, so the layout is right before this runs.
   root.setProperty("--top-room", `${Math.ceil(toolsB + capGap)}px`);
   root.setProperty("--cam-h", `${cam.offsetHeight}px`);
-  if (TABBED.matches) root.setProperty("--scene-min", `${Math.ceil(toolsB + capGap + cam.offsetHeight + 8)}px`);
-  else root.removeProperty("--scene-min");
+  // The map's least height leaves room for the map buttons with the move buttons showing, zoomed in or not. On a
+  // phone those buttons take a second row, and the map used to grow by that row as the first zoom step began, so
+  // the ground slid from under the pointer during a wheel or pinch zoom (pan-check at 375 x 812).
+  if (TABBED.matches) {
+    const move = $("[data-cam-move]");
+    const moveHidden = move.hidden;
+    move.hidden = false;
+    const camMax = cam.offsetHeight;
+    move.hidden = moveHidden;
+    root.setProperty("--scene-min", `${Math.ceil(toolsB + capGap + camMax + 8)}px`);
+  } else root.removeProperty("--scene-min");
   const p = $(".p-plan").getBoundingClientRect();
   if (!TABBED.matches) root.setProperty("--plan-h", `${p.height}px`);
   // Measured after --plan-h moves the map buttons: the caption fits between the toolbar and those buttons.
@@ -907,8 +916,11 @@ function showTag(id) {
   tagEl.textContent = fmt(T().builtTag, { name: T().elements[id].name });
   tagEl.hidden = false;
   tagH = tagEl.offsetHeight;
-  // The tag follows its part only while it shows, so no frame loop runs between tags (FE-3).
-  if (!tagRaf) followTag(performance.now());
+  // Placed at once, not on the next frame: on a slow device a frame can take longer than the click, and the tag
+  // used to show at the last tag's spot, or under the toolbar, until then. The tag follows its part only while it
+  // shows, so no frame loop runs between tags (FE-3).
+  if (tagRaf) cancelAnimationFrame(tagRaf);
+  followTag(performance.now());
 }
 function followTag(now) {
   tagRaf = 0;

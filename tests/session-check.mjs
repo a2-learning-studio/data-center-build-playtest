@@ -35,7 +35,9 @@ async function page(opts = {}, q = "") {
   await p.addInitScript(skew);
   p.errors = [];
   p.on("pageerror", (e) => { p.errors.push(String(e)); pageErrors.push(String(e)); });
-  await p.goto(URL + q);
+  // As openGame in drive.mjs: a busy machine can take well over Playwright's default 30 s to load the 1 MB page under
+  // software rendering, above all a second tab while the first one draws the map.
+  await p.goto(URL + q, { timeout: 120000 });
   await p.waitForTimeout(400);
   await p.evaluate(() => { window.__voiceRate = 16; });
   return { ctx, p };
