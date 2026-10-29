@@ -143,7 +143,7 @@ body[data-nogl] .cam,body[data-nogl] .hint,body[data-nogl] [data-fx]{display:non
 .place-actions .btn{min-height:44px}
 .game-btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
 .btn-small{min-height:40px;padding:6px 14px;font-size:.88rem}
-.end-btns{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:6px}
+.end-btns{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:6px}
 /* During the kiosk countdown Keep is the one primary, at the end of the row, so hiding it moves nothing (BTC-UX-49). */
 .end-btns [data-end-keep]{order:9}
 /* The countdown, Keep and Play again stay pinned at the bottom of the end screen, visible without scrolling, and so
@@ -155,7 +155,8 @@ body[data-nogl] .cam,body[data-nogl] .hint,body[data-nogl] [data-fx]{display:non
 /* Save results file says on screen that it saved, as well as to screen readers (BTC-UX-48). */
 .end-saved{margin:0 0 8px;font-size:var(--fs-ui);font-weight:600;color:var(--good-ink)}
 .end-look{margin:0 0 14px}
-.end-btns .btn-big{margin-top:0}
+/* A little narrower than elsewhere, so class mode's four buttons share one row (BTC-UX-V05). */
+.end-btns .btn-big{margin-top:0;padding-left:24px;padding-right:24px}
 .contact a,.sources a,.dlg p a{color:var(--clay-ink);font-weight:600}
 /* A short message for a click that did nothing; it never takes clicks itself. */
 /* It sits over the map, just above the map buttons, between the panels: at the bottom of the screen it covered the
@@ -382,6 +383,7 @@ html[data-nokeys] .opt kbd{display:none}
    (BTC-01). */
 @media (max-width:600px){
   .end-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:stretch}
+  .end-btns [data-end-keep]{grid-column:1/-1}
   .end-btns .btn{min-height:48px;padding:8px 12px;font-size:.92rem}
 }
 .print-only{display:none}

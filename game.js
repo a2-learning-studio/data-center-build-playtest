@@ -1048,7 +1048,7 @@ function renderAll(animate = true) {
 const tagEl = $("[data-tag]");
 // Approvals, plans, studies and the final test are done, not built (BTC-UX-53).
 const DONE_TAG = new Set(["zoning", "capacity", "stormPlan", "meetings", "L5"]);
-let tagFor = null, tagUntil = 0, tagH = 0, tagRaf = 0;
+let tagFor = null, tagUntil = 0, tagH = 0, tagW = 0, tagRaf = 0;
 function showTag(id) {
   // Without the 3D view, or with its context lost, there is nothing to point at, so no tag (it used to stick in the
   // corner, FE-2).
@@ -1058,6 +1058,7 @@ function showTag(id) {
   tagEl.textContent = fmt(DONE_TAG.has(id) ? T().doneTag : T().builtTag, { name: T().elements[id].name });
   tagEl.hidden = false;
   tagH = tagEl.offsetHeight;
+  tagW = tagEl.offsetWidth;
   // Placed at once, not on the next frame: on a slow device a frame can take longer than the click, and the tag
   // used to show at the last tag's spot, or under the toolbar, until then. The tag follows its part only while it
   // shows, so no frame loop runs between tags (FE-3).
@@ -1074,7 +1075,7 @@ function followTag(now) {
   let top = parseFloat(document.documentElement.style.getPropertyValue("--tools-b")) || 0;
   if (!capEl.hidden) top = Math.max(top, capEl.offsetTop + capEl.offsetHeight + 4);
   const r = safeRect;
-  const out = p && r && (p[0] < r.x || p[0] > r.x + r.w || p[1] > r.y + r.h);
+  const out = p && r && (p[0] - tagW / 2 < r.x || p[0] + tagW / 2 > r.x + r.w || p[1] > r.y + r.h);
   if (!p || p[1] - tagH < top || out) tagEl.hidden = true;
   else { tagEl.hidden = false; tagEl.style.transform = `translate(${p[0].toFixed(0)}px, ${p[1].toFixed(0)}px) translate(-50%, -100%)`; }
   tagRaf = requestAnimationFrame(followTag);
