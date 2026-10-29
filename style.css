@@ -85,6 +85,8 @@ h1.brand-name{font-family:var(--font-display);font-weight:700;font-size:1.2rem;l
 .scene{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
 .scene:active{cursor:grabbing}
 .scene[data-zoomed]{cursor:move}
+/* A zoomed-in drag shows the grabbing hand, as at the overview (BTC-UX-41). */
+.scene[data-zoomed]:active{cursor:grabbing}
 .scene[data-placing],.scene[data-placing]:active{cursor:crosshair}
 .scene:focus-visible{outline-offset:-4px}
 /* Without WebGL, or with its context lost, the note sits over the open map where the map buttons would be, above the
@@ -639,6 +641,8 @@ html[data-nokeys] .opt kbd{display:none}
    siting box says how to site with fingers instead of a mouse and keys (UD-8). */
 @media (pointer:coarse) and (hover:none){.dlg-intro .keys-hint,.place-keys{display:none}.place-touch{display:inline}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+/* Keep the map still, in About or ?motion=off (BTC-UX-38), stops the one CSS transition too. */
+html[data-still] *{transition:none!important}
 /* Windows contrast themes (forced colors, critic): the browser drops author backgrounds, gradients and shadows. They
    drew the schedule's bars, its critical path, the meters and every pressed state, and .btn had no border, so here
    those use system colours and borders instead and no meaning rests on a background alone (WCAG 1.4.1, 1.3.1).

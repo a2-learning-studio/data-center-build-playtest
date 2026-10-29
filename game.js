@@ -72,11 +72,13 @@ const URL_SET = {};
 if (arg("voice") === "off") URL_SET.voice = false;
 if (arg("view") === "presenter") URL_SET.present = true;
 if (arg("keys") === "off") URL_SET.keys = false;
-const device = { library: false, voice: true, keys: true, present: false };
+// ?motion=off keeps the map still, as the system's reduced-motion setting does (BTC-UX-38).
+if (arg("motion") === "off") URL_SET.still = true;
+const device = { library: false, voice: true, keys: true, present: false, still: false };
 function deviceSettings() {
   // Read again for each new game, so a setting changed in another tab is not lost (DE-7).
   const p = STAFFED && store.get("localStorage", "prefs");
-  if (p && typeof p === "object") Object.assign(device, { library: p.library === true, voice: p.voice !== false, keys: p.keys !== false, present: p.present === true });
+  if (p && typeof p === "object") Object.assign(device, { library: p.library === true, voice: p.voice !== false, keys: p.keys !== false, present: p.present === true, still: p.still === true });
   return { ...device, ...URL_SET };
 }
 // This game's settings: each new game starts from the device's (reset), and the switches change them.
@@ -355,7 +357,9 @@ const canvas = $("[data-scene]");
 let scene = null;
 try {
   scene = createScene(canvas, {
-    reduced: () => motionOff.matches,
+    // Reduced motion: the system setting, or Keep the map still in About and ?motion=off (BTC-UX-38).
+    reduced: () => motionOff.matches || prefs.still,
+    wheelPage: () => PAGE_SCROLLS.matches,
     signs: () => [T().signNotice, T().signNotice2, T().signCampus],
     onMode: (zoomed) => onCamMode(zoomed),
   });
@@ -391,6 +395,8 @@ function paintScene(animate = true) {
 const HOT_SPOT = { trucks: [200, 40], noise: [-60, 40], dust: [-40, -60], storm: [-60, 30], water: [55, -47], power: [170, -130], gens: [86, -100], setback: [-60, 92] };
 const OV_OF = { trucks: ["route-a", "route-b"], noise: ["noise"], dust: ["dust", "glow"], storm: ["storm"], water: ["plume"], power: ["power"], gens: ["gens"], setback: ["setback"] };
 
+// The layouts where the page itself scrolls up and down (style.css): very short windows and short phones held upright.
+const PAGE_SCROLLS = matchMedia("(max-width: 1100px) and (max-height: 300px), (max-width: 600px) and (orientation: portrait) and (max-height: 640px)");
 // Keep in step with the tabbed-layout media query in style.css.
 const TABBED = matchMedia("(max-width: 1023px), (max-width: 1100px) and (orientation: portrait), (max-width: 1100px) and (max-height: 600px)");
 // The longest narration line heard during play (issue cards, the intro and the end are read inside their dialogs).
@@ -491,10 +497,13 @@ sizeWatch.observe($(".cam"));
 sizeWatch.observe(canvas);
 // Map buttons (WCAG 2.5.7): every drag, pinch and twist has a button. The move buttons appear when zoomed in.
 let zoomTipShown = false;
+// Touch-only screens (phones, iPads) get finger words in the hint: iPads were told to right-drag and scroll (BTC-UX-41).
+const TOUCH_ONLY = matchMedia("(pointer: coarse) and (hover: none)");
 function onCamMode(zoomed) {
   const t = T();
+  const touch = TOUCH_ONLY.matches;
   // Small phones show the short form, so the hint stays on one line above the map buttons.
-  const long = placing ? t.placeDrag : zoomed ? t.dragHintZoomed : t.dragHint;
+  const long = placing ? t.placeDrag : zoomed ? (touch ? t.dragHintZoomedTouch : t.dragHintZoomed) : touch ? t.dragHintShort : t.dragHint;
   const short = placing ? t.placeDragShort : zoomed ? t.dragHintZoomedShort : t.dragHintShort;
   $("[data-hint]").innerHTML = `<span class="long">${esc(long)}</span><span class="short">${esc(short)}</span>`;
   $("[data-cam-move]").hidden = !zoomed;
@@ -504,6 +513,8 @@ function onCamMode(zoomed) {
     hint.classList.add("hint-new");
     setTimeout(() => hint.classList.remove("hint-new"), 4500);
     $("[data-alert]").textContent = t.zoomTip;
+    // Where the hint has no room (very short landscape windows), the tip shows once as a toast instead.
+    if (getComputedStyle(hint).display === "none" && !$$("dialog").some((d) => d.open)) { toastEl.textContent = t.zoomTip; toastKeep = ""; showToast(); }
   }
 }
 $("[data-cam]").addEventListener("click", (e) => {
@@ -1212,8 +1223,12 @@ function setPreview(dx, dz) {
   if (!placing) return;
   const spec = M.LAYOUT[placing.id];
   if (spec?.axis === "z") dx = 0;
-  placing.dx = snapGrid(dx);
-  placing.dz = snapGrid(dz);
+  const x = snapGrid(dx), z = snapGrid(dz);
+  // The footprints are drawn again only when the snapped spot changes: every pointer move rebuilt about 80 WebGL
+  // buffers inside the same 10 m cell (BTC-UX-45).
+  if (x === placing.dx && z === placing.dz) return;
+  placing.dx = x;
+  placing.dz = z;
   fillPlaceWhy(true);
   paintFootprints();
 }
@@ -1636,6 +1651,15 @@ keysBox.checked = prefs.keys;
 const renderKeysPref = () => document.documentElement.toggleAttribute("data-nokeys", !prefs.keys);
 renderKeysPref();
 keysBox.addEventListener("change", (e) => { prefs.keys = e.target.checked; savePref("keys", e.target.checked); renderKeysPref(); });
+// Keep the map still (BTC-UX-38): the intro turn, the fans, trucks and rings stop, and the camera cuts instead of
+// easing, as with the system's reduced-motion setting, for visitors who cannot reach that setting on a kiosk.
+const stillBox = $("[data-still-pref]");
+function renderStill() {
+  stillBox.checked = prefs.still;
+  document.documentElement.toggleAttribute("data-still", prefs.still);
+  scene?.start();
+}
+stillBox.addEventListener("change", (e) => { prefs.still = e.target.checked; savePref("still", e.target.checked); renderStill(); });
 for (const box of presentBoxes()) box.addEventListener("change", (e) => setPresent(e.target.checked, true));
 $("[data-listen]").addEventListener("click", () => speak("intro"));
 
@@ -2110,6 +2134,9 @@ $("[data-resume]").addEventListener("click", () => {
   else focusOn($("[data-go]"));
 });
 guard(introDlg, () => $("[data-start]").focus({ preventScroll: true }));
+// The slow turn behind the intro stops at a visitor's first key press or touch there, so nothing moves beside the
+// text they are reading; it starts again for the next visitor (BTC-UX-38, WCAG 2.2.2).
+for (const type of ["keydown", "pointerdown"]) introDlg.addEventListener(type, () => scene?.setAttract(false));
 // One question for every way to clear a game: Start over, Play again in class and home modes, and Start a new game
 // over a kept game (FEU-1, DE-3). Each says what it clears.
 function askStartOver(about = "game") {
@@ -2254,6 +2281,7 @@ function reset({ clear = true } = {}) {
   Object.assign(prefs, deviceSettings());
   keysBox.checked = prefs.keys;
   renderKeysPref();
+  renderStill();
   setPresent(prefs.present);
   setVoice(deviceVoice());
   renderEffectsBtn();

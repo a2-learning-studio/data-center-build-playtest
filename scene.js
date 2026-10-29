@@ -32,7 +32,7 @@ function lowGpu(gpu, cores, mem) {
   return small;
 }
 
-function createScene(canvas, { reduced = () => false, signs = null, onMode = null } = {}) {
+function createScene(canvas, { reduced = () => false, signs = null, onMode = null, wheelPage = () => false } = {}) {
   const T3 = THREE;
   const lowQ = detectLowQ();
   const signMats = {};
@@ -1067,7 +1067,8 @@ function createScene(canvas, { reduced = () => false, signs = null, onMode = nul
   let attract = true;
   let manualAt = -Infinity;
   let zoomedNow = false;
-  const isZoomed = () => want.dist < 0.8 * fitDist;
+  // The first Zoom in from the overview (0.8 x) counts as zoomed in, so the move buttons appear at once (BTC-UX-42).
+  const isZoomed = () => want.dist <= 0.8 * fitDist + 1e-6;
   function bounds() {
     const f = Math.max(0, 1 - want.dist / fitDist), rx = 250 * f, rz = 175 * f;
     return { x0: Math.max(TILE.x0 + 20, HOME.x - rx), x1: Math.min(TILE.x1 - 20, HOME.x + rx), z0: Math.max(TILE.z0 + 20, HOME.z - rz), z1: Math.min(TILE.z1 - 20, HOME.z + rz) };
@@ -1156,16 +1157,19 @@ function createScene(canvas, { reduced = () => false, signs = null, onMode = nul
   // The current drag. It is re-baselined whenever the number of fingers changes, so lifting one finger
   // after a pinch does not swing the view (I16).
   let gesture = null;
+  // While siting, once a second finger has joined, the finger left on the glass does nothing until it lifts: it used
+  // to become a tap that moved the footprint under it and built the piece (BTC-UX-10).
   function baseline() {
     const pts = [...pointers.values()];
     if (!pts.length) { gesture = null; return; }
     const mode1 = gesture?.mode1 || "turn";
+    const multi = !!gesture?.multi || pts.length > 1;
     if (pts.length === 1) {
       const p = pts[0];
-      gesture = { mode1, mode: mode1, x: p.x, y: p.y, lx: p.x, ly: p.y, az: want.az, el: want.el };
+      gesture = { mode1, multi, mode: multi && mode1 === "place" ? "none" : mode1, x: p.x, y: p.y, lx: p.x, ly: p.y, az: want.az, el: want.el };
     } else {
       const [a, b] = pts;
-      gesture = { mode1, mode: "multi", mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2, d: Math.hypot(a.x - b.x, a.y - b.y), ang: Math.atan2(b.y - a.y, b.x - a.x) };
+      gesture = { mode1, multi, mode: "multi", mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2, d: Math.hypot(a.x - b.x, a.y - b.y), ang: Math.atan2(b.y - a.y, b.x - a.x) };
     }
   }
   canvas.addEventListener("contextmenu", (e) => e.preventDefault());
@@ -1188,6 +1192,7 @@ function createScene(canvas, { reduced = () => false, signs = null, onMode = nul
   canvas.addEventListener("pointermove", (e) => {
     if (!pointers.has(e.pointerId) || !gesture) return;
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (gesture.mode === "none") return;
     if (gesture.mode === "multi") {
       const [a, b] = [...pointers.values()];
       const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2, d = Math.hypot(a.x - b.x, a.y - b.y), ang = Math.atan2(b.y - a.y, b.x - a.x);
@@ -1228,15 +1233,40 @@ function createScene(canvas, { reduced = () => false, signs = null, onMode = nul
     baseline();
     if (wasPlace && placeCb && p) placeCb({ type: "up", x: p.x, z: p.z, tap });
   };
+  // Only a lifted finger or button can build a piece; a cancelled pointer just ends the gesture (BTC-UX-10).
+  const cancel = (e) => {
+    if (!pointers.has(e.pointerId)) return;
+    pointers.delete(e.pointerId);
+    baseline();
+  };
   canvas.addEventListener("pointerup", up);
-  canvas.addEventListener("pointercancel", up);
-  canvas.addEventListener("lostpointercapture", up);
+  canvas.addEventListener("pointercancel", cancel);
+  canvas.addEventListener("lostpointercapture", cancel);
   canvas.addEventListener("wheel", (e) => {
+    // In the layouts where the page scrolls (very short windows and short phones), the wheel scrolls the page unless
+    // the map has focus or Ctrl is held: the map was a scroll trap there (BTC-UX-46, WCAG 1.4.10).
+    if (wheelPage() && !e.ctrlKey && document.activeElement !== canvas) return;
     e.preventDefault();
     const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY;
-    zoomBy(Math.exp(Math.max(-200, Math.min(200, dy)) * 0.0012), e.clientX, e.clientY);
+    // A trackpad pinch arrives as small Ctrl-wheel steps: it zooms one to one with the fingers (BTC-UX-44).
+    // A mouse wheel with Ctrl held is kept to about 1.6 x a notch.
+    const pinch = e.ctrlKey && e.deltaMode === 0;
+    const lim = pinch ? 50 : 200;
+    zoomBy(Math.exp(Math.max(-lim, Math.min(lim, dy)) * (pinch ? 0.01 : 0.0012)), e.clientX, e.clientY);
   }, { passive: false });
-  const STEP_PX = 80;
+  // Safari on a Mac sends a trackpad pinch as gesture events: zoom the map toward the pointer instead of the page.
+  let gestureScale = 1;
+  canvas.addEventListener("gesturestart", (e) => { e.preventDefault(); gestureScale = e.scale || 1; });
+  canvas.addEventListener("gesturechange", (e) => {
+    e.preventDefault();
+    const sc = e.scale || 1;
+    zoomBy(gestureScale / sc, e.clientX, e.clientY);
+    gestureScale = sc;
+  });
+  canvas.addEventListener("gestureend", (e) => e.preventDefault());
+  // A move button or Shift + arrow moves the view by about half the open map, so crossing the site at full zoom takes
+  // a dozen presses, not fifty (BTC-UX-42).
+  const stepX = () => Math.max(80, 0.45 * safe.w), stepY = () => Math.max(80, 0.45 * safe.h);
   // The on-screen buttons and the keys share these actions. Moving the view applies only when zoomed in.
   function act(name) {
     switch (name) {
@@ -1246,10 +1276,10 @@ function createScene(canvas, { reduced = () => false, signs = null, onMode = nul
       case "right": turn(-0.2, 0); break;
       case "up": turn(0, 0.08); break;
       case "down": turn(0, -0.08); break;
-      case "panL": if (isZoomed()) pan(STEP_PX, 0); break;
-      case "panR": if (isZoomed()) pan(-STEP_PX, 0); break;
-      case "panU": if (isZoomed()) pan(0, STEP_PX); break;
-      case "panD": if (isZoomed()) pan(0, -STEP_PX); break;
+      case "panL": if (isZoomed()) pan(stepX(), 0); break;
+      case "panR": if (isZoomed()) pan(-stepX(), 0); break;
+      case "panU": if (isZoomed()) pan(0, stepY()); break;
+      case "panD": if (isZoomed()) pan(0, -stepY()); break;
       case "reset": resetView(); break;
       default: return false;
     }
@@ -1266,6 +1296,8 @@ function createScene(canvas, { reduced = () => false, signs = null, onMode = nul
     else if (arrow) name = { L: "left", R: "right", U: "up", D: "down" }[arrow];
     else if (k === "+" || k === "=") name = "in";
     else if (k === "-" || k === "_") name = "out";
+    // Reset view has a key too (BTC-UX-39).
+    else if (k === "Home" || k === "0") name = "reset";
     else return;
     e.preventDefault();
     act(name);
@@ -1358,8 +1390,12 @@ function createScene(canvas, { reduced = () => false, signs = null, onMode = nul
     if (p.z > 1) return null;
     return [((p.x + 1) / 2) * canvas.clientWidth, ((1 - p.y) / 2) * canvas.clientHeight];
   }
+  // An angle folded into -pi..pi.
+  const wrap = (a) => a - 2 * Math.PI * Math.round(a / (2 * Math.PI));
+  // Back home the short way round: after a long intro turn (about 180 rad an hour) or many turns by hand, Start and
+  // Reset view used to unwind every one of them in a fast spin (BTC-UX-04).
   function resetView() {
-    Object.assign(want, { az: HOME.az, el: HOME.el, dist: fitDist });
+    Object.assign(want, { az: view.az + wrap(HOME.az - view.az), el: HOME.el, dist: fitDist });
     want.target.set(HOME.x, 0, HOME.z);
     manualAt = -Infinity;
     notifyMode();
@@ -1373,12 +1409,21 @@ function createScene(canvas, { reduced = () => false, signs = null, onMode = nul
     const dt = Math.min(0.05, clock.getDelta());
     const still = reduced();
     const time = clock.elapsedTime;
-    if (attract && !still) want.az += dt * 0.05;
+    if (attract && !still) {
+      want.az += dt * 0.05;
+      // The intro turn keeps both angles within a turn of home, so they never grow without bound.
+      if (Math.abs(want.az - HOME.az) > 2 * Math.PI) { const n = 2 * Math.PI * Math.trunc((want.az - HOME.az) / (2 * Math.PI)); want.az -= n; view.az -= n; }
+    }
     const k = still ? 1 : 1 - Math.exp(-dt * 5);
     view.az += (want.az - view.az) * k;
     view.el += (want.el - view.el) * k;
-    view.dist += (want.dist - view.dist) * k;
-    view.target.lerp(want.target, k);
+    // While a finger or the mouse is moving or pinching the map, the ground stays under it: the target and the
+    // distance follow at once, without the ease that left the map trailing about 40 px (BTC-UX-43). Turning, the
+    // buttons, the keys and the game's framing still ease.
+    const direct = gesture && (gesture.mode === "move" || gesture.mode === "multi");
+    view.dist = direct ? want.dist : view.dist + (want.dist - view.dist) * k;
+    if (direct) view.target.copy(want.target);
+    else view.target.lerp(want.target, k);
     const ce = Math.cos(view.el);
     camera.position.set(view.target.x + Math.sin(view.az) * ce * view.dist, view.target.y + Math.sin(view.el) * view.dist, view.target.z + Math.cos(view.az) * ce * view.dist);
     camera.lookAt(view.target);
