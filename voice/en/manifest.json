@@ -1,9 +1,9 @@
 {
  "intro": {
   "file": "intro.mp3",
-  "hash": "b72699d9ed2e",
-  "text": "Red Clay Ridge is a made-up site of about 45 acres off a county road in Georgia, next to a street of homes. A company wants a data center campus there. Your job is to build it in the right order, keep the schedule, the budget and the crew safe, and work with the neighbors. The game shows facts and trade-offs. It does not take a side on data centers. Pick a phase, place each of its key elements, then finish the phase. Issue cards will interrupt you. Your choices move the dashboard and the neighborhood panel.",
-  "bytes": 133450
+  "hash": "3abe5b2989c3",
+  "text": "Red Clay Ridge is a made-up site of about 45 acres off a county road in Georgia, next to a street of homes. A company wants a data center campus there. Your job is to build it in the right order, keep the schedule, the budget and the crew safe, and work with the neighbors. The game shows facts and trade-offs. It does not take a side on data centers. Pick a phase, place each of its key elements, then finish the phase. Issue cards will interrupt you. Your choices move the dashboard and the Neighbors panel.",
+  "bytes": 143168
  },
  "phase:site": {
   "file": "phase-site.mp3",
@@ -55,9 +55,9 @@
  },
  "phase:turn": {
   "file": "phase-turn.mp3",
-  "hash": "c05f3d9100d3",
-  "text": "Turnover. The finished campus is handed to its operator.",
-  "bytes": 12765
+  "hash": "dfa5231920ce",
+  "text": "Turnover. The finished campus is handed to its owner.",
+  "bytes": 14019
  },
  "el:zoning": {
   "file": "el-zoning.mp3",
@@ -247,9 +247,9 @@
  },
  "el:handover": {
   "file": "el-handover.mp3",
-  "hash": "dd9117bf23bc",
-  "text": "Keys, manuals and training are handed to the operator.",
-  "bytes": 14228
+  "hash": "f65af3245e0f",
+  "text": "Keys, manuals and training are handed to the owner’s operations team.",
+  "bytes": 18094
  },
  "card:weather": {
   "file": "card-weather.mp3",
@@ -313,9 +313,9 @@
  },
  "opt:labor:c": {
   "file": "opt-labor-c.mp3",
-  "hash": "adc85ca108fa",
-  "text": "Prefabricated power skids arrive, wired in a factory.",
-  "bytes": 14750
+  "hash": "5b4bb31307fc",
+  "text": "A traveling electrical crew joins the site. It costs more, and the work slips a little while they settle in.",
+  "bytes": 23841
  },
  "cx": {
   "file": "cx.mp3",
