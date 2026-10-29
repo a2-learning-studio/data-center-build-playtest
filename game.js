@@ -411,7 +411,8 @@ function captionRoom() {
   const lines = Object.entries(D.CAPTIONS[lang] || D.CAPTIONS.en).filter(([k]) => !/^(intro|end|card:)/.test(k)).map(([, v]) => v);
   const longest = lines.reduce((a, b) => (b.length > a.length ? b : a), "");
   if (capProbe.textContent !== longest) capProbe.textContent = longest;
-  capProbe.hidden = !longest || !voiceBtnShown();
+  // With the voice off no caption can show, so no room is kept for one (BTC-UX-21).
+  capProbe.hidden = !longest || !voiceBtnShown() || !voice.on;
   return capProbe.hidden ? 0 : capProbe.offsetHeight;
 }
 const voiceBtnShown = () => Object.keys(D.VOICE.en || {}).length > 0;
@@ -426,35 +427,51 @@ function measureSafe() {
   const capGap = capH ? capH + 16 : 8;
   // Both depend only on the width; style.css does the height arithmetic, so the layout is right before this runs.
   root.setProperty("--top-room", `${Math.ceil(toolsB + capGap)}px`);
-  root.setProperty("--cam-h", `${cam.offsetHeight}px`);
+  // Where the zoomed-in set of map buttons does not fit on one row, the move buttons take a row of their own above
+  // the others, so Zoom in and the turn buttons never jump under the finger at the zoom step (BTC-UX-08). Where it
+  // fits (1366 x 768, the iPhone landscape split) it stays one row. Measured with the move buttons showing.
+  const move = $("[data-cam-move]");
+  const moveHidden = move.hidden;
+  const html = document.documentElement;
+  move.hidden = false;
+  html.removeAttribute("data-cam-split");
+  const kids = [...cam.children].filter((n) => n.offsetParent);
+  const split = kids.length > 1 && kids.some((n) => Math.abs(n.offsetTop - kids[0].offsetTop) > 4);
+  html.toggleAttribute("data-cam-split", split);
+  const camMax = cam.offsetHeight;
+  move.hidden = moveHidden;
+  // Beside the panels, the schedule's room is kept for the taller set from the start, so it does not shrink, and
+  // move the map buttons, at the first zoom step.
+  root.setProperty("--cam-h", `${split && !TABBED.matches ? camMax : cam.offsetHeight}px`);
   // The map's least height leaves room for the map buttons with the move buttons showing, zoomed in or not. On a
   // phone those buttons take a second row, and the map used to grow by that row as the first zoom step began, so
   // the ground slid from under the pointer during a wheel or pinch zoom (pan-check at 375 x 812).
-  if (TABBED.matches) {
-    const move = $("[data-cam-move]");
-    const moveHidden = move.hidden;
-    move.hidden = false;
-    const camMax = cam.offsetHeight;
-    move.hidden = moveHidden;
-    root.setProperty("--scene-min", `${Math.ceil(toolsB + capGap + camMax + 8)}px`);
-  } else root.removeProperty("--scene-min");
+  if (TABBED.matches) root.setProperty("--scene-min", `${Math.ceil(toolsB + capGap + camMax + 8)}px`);
+  else root.removeProperty("--scene-min");
   const p = $(".p-plan").getBoundingClientRect();
   if (!TABBED.matches) root.setProperty("--plan-h", `${p.height}px`);
   // Measured after --plan-h moves the map buttons: the caption fits between the toolbar and those buttons.
   root.setProperty("--tools-b", `${tools.offsetTop + tools.offsetHeight}px`);
   root.setProperty("--cam-t", `${cam.offsetTop}px`);
   pinPad();
+  fitDetail();
   if (!scene) return;
   const c = canvas.getBoundingClientRect();
-  if (TABBED.matches) return scene.setSafe({ x: 0, y: 0, w: c.width, h: c.height });
-  // The open map area between the panels. Presenter view hides the side panel and the schedule.
+  safeRect = { x: 0, y: 0, w: c.width, h: c.height };
+  if (TABBED.matches) return scene.setSafe(safeRect);
+  // The open map area between the panels. Presenter view hides the side panel and the schedule; its Neighbors panel,
+  // opened on a screen under 1600 px wide, lies over the map without moving the campus (BTC-UX-07).
   const b = $(".p-build").getBoundingClientRect();
   const s = $(".p-side").getBoundingClientRect();
+  const drawer = document.body.hasAttribute("data-present") && innerWidth < 1600;
   const x = b.width ? b.right - c.left : 0;
-  const r = s.width ? s.left - c.left : c.width;
+  const r = s.width && !drawer ? s.left - c.left : c.width;
   const bottom = p.height ? p.top - c.top : c.height;
-  scene.setSafe({ x, y: 0, w: Math.max(200, r - x), h: Math.max(200, bottom) });
+  safeRect = { x, y: 0, w: Math.max(200, r - x), h: Math.max(200, bottom) };
+  scene.setSafe(safeRect);
 }
+// The open map area last measured, in the map's own pixels: the floating tag stays inside it (BTC-UX-17).
+let safeRect = null;
 // Dialogs with a pinned button row keep focused controls clear of it (scroll-padding-bottom, WCAG 2.4.11).
 function pinPad() {
   for (const [d, sel] of [[$("[data-intro]"), ".intro-btns"], [$("[data-end]"), ".dlg-foot"], [$("[data-about-dlg]"), ".dlg-foot"]]) {
@@ -503,11 +520,28 @@ function setPresent(on, remember = false) {
   document.body.toggleAttribute("data-present", on);
   document.documentElement.toggleAttribute("data-present", on);
   for (const b of $$("[data-cam-act=present]")) b.setAttribute("aria-pressed", on);
+  if (!on) setSideOpen(false);
   for (const box of presentBoxes()) box.checked = on;
   prefs.present = on;
   if (remember) savePref("present", on);
   measureSafe();
 }
+// Presenter view keeps its big map, and a Neighbors toggle in the toolbar brings the side panel (Neighbors and
+// Choices) back over it, so the civic part of the game stays in reach on a projector (BTC-UX-07). While presenter
+// view is on, the toolbar also names it, with a button that turns it off (BTC-UX-X01).
+const sideOpen = () => document.documentElement.hasAttribute("data-side-open");
+function setSideOpen(on) {
+  document.documentElement.toggleAttribute("data-side-open", on);
+  $("[data-side-toggle]").setAttribute("aria-pressed", on);
+  if (on) { ui.side = "hood"; renderSide(); }
+  else markHoodTab(hood());
+  measureSafe();
+}
+$("[data-side-toggle]").addEventListener("click", () => setSideOpen(!sideOpen()));
+$("[data-present-off]").addEventListener("click", () => {
+  setPresent(false, true);
+  $("[data-cam-act=present]").focus({ preventScroll: true });
+});
 
 // ---------- panels ----------
 const status = $("[data-status]");
@@ -664,7 +698,7 @@ $("[data-build]").addEventListener("click", (e) => {
   else if (b.hasAttribute("data-back-end")) showEnd();
   else if (b.hasAttribute("data-place-set")) confirmPlace();
   else if (b.hasAttribute("data-place-cancel")) { endPlace(); renderBuild(); focusNext(); }
-  else if (b.dataset.el && b.hasAttribute("data-done")) { scene?.focus(b.dataset.el); showTag(b.dataset.el); }
+  else if (b.dataset.el && b.hasAttribute("data-done")) { scene?.focus(b.dataset.el, true); showTag(b.dataset.el); }
   // A locked step says why (place() toasts its reason), and the waiting Finish says what it waits for.
   else if (b.dataset.el) place(b.dataset.el);
   else if (b.hasAttribute("data-finish")) { if (locked(b)) toast(T().finishNeed); else finishPhase(st.focus); }
@@ -692,10 +726,12 @@ function renderPlan() {
   for (let m = 0; m <= maxM; m += 6) ticks.push(`<span style="left:${pct(m)}">${m}</span>`);
   // The legend stays visible on short screens, where the longer note is hidden; the bar patterns carry the
   // meaning without colour (I3, WCAG 1.4.1).
-  const legend = `<p class="legend"><span><i class="sw sw-crit"></i>${esc(t.legendCrit)}</span><span><i class="sw sw-other"></i>${esc(t.legendOther)}</span><span><i class="sw sw-now"></i>${esc(t.legendNow)}</span></p>`;
+  // The thin range line is named too, since the note that explains it is hidden on screens 800 px tall and less
+  // (BTC-UX-14).
+  const legend = `<p class="legend"><span><i class="sw sw-crit"></i>${esc(t.legendCrit)}</span><span><i class="sw sw-other"></i>${esc(t.legendOther)}</span><span><i class="sw sw-now"></i>${esc(t.legendNow)}</span><span><i class="sw sw-range"></i>${esc(t.legendRange)}</span></p>`;
   // The toggle shows only where the schedule starts as a row of phases (style.css, UD-1).
-  $("[data-plan]").innerHTML = `<div class="plan-head"><h2>${esc(t.schedTitle)} <small>(${esc(t.schedAxis)})</small></h2><button type="button" class="plan-toggle" data-plan-toggle aria-expanded="${ui.planOpen}">${esc(ui.planOpen ? t.planLess : t.planMore)}</button><p class="plan-total">${esc(started("site") ? fmt(t.schedTotal, { n: Math.round(sc.total), base: M.BASE_MONTHS }) : t.schedEmpty)}</p></div>
-    <ol class="lanes">${lanes}</ol><div class="axis"><span class="axis-pad"></span><span class="axis-track">${ticks.join("")}</span></div>
+  $("[data-plan]").innerHTML = `<div class="plan-head"><h2>${esc(t.schedTitle)} <small>(${esc(t.schedAxis)})</small></h2><button type="button" class="plan-toggle" data-plan-toggle aria-expanded="${ui.planOpen}">${esc(ui.planOpen ? t.planLess : t.planMore)}</button><p class="plan-total">${esc(st.started ? fmt(t.schedTotal, { n: Math.round(sc.total), base: M.BASE_MONTHS }) : t.schedEmpty)}</p></div>
+    <ol class="lanes" style="--cols:${maxM / 6}">${lanes}</ol><div class="axis"><span class="axis-pad"></span><span class="axis-track">${ticks.join("")}</span></div>
     ${legend}<p class="plan-note">${esc(t.schedNote)}</p>`;
 }
 // Show or hide the schedule's bars where it starts as a row of phases. Not saved: each player starts with the map big.
@@ -769,10 +805,10 @@ function renderSide() {
   };
   const notice = ["trucks", "noise", "dust", "storm", "gens", "setback"];
   const community = ["jobs", "tax", "power", "water"];
-  $("[data-hood]").innerHTML = `<li class="hood-h">${esc(t.hoodNotice)}</li>${notice.map((k) => row(k, "notice")).join("")}<li class="hood-h">${esc(t.hoodCommunity)}</li>${community.map((k) => row(k, "amount")).join("")}`;
+  // Two lists, each under a heading screen readers can jump to (BTC-UX-34).
+  $("[data-hood]").innerHTML = `<p class="hood-h" role="heading" aria-level="3">${esc(t.hoodNotice)}</p><ul class="hood">${notice.map((k) => row(k, "notice")).join("")}</ul><p class="hood-h" role="heading" aria-level="3">${esc(t.hoodCommunity)}</p><ul class="hood">${community.map((k) => row(k, "amount")).join("")}</ul>`;
   renderHoodDetail();
-  $("[data-hood-score]")?.remove();
-  $("[data-hood-detail]").insertAdjacentHTML("afterend", `<div data-hood-score><p class="hood-break">${esc(hoodBreakdown())}</p><p class="hood-score">${esc(t.hoodScoreNote)}</p></div>`);
+  $("[data-hood-break]").textContent = hoodBreakdown();
   markHoodTab(L);
   $("[data-choices]").innerHTML = CHOICES.map((c) => {
     const locked = choiceLocked(c);
@@ -784,6 +820,9 @@ function renderSide() {
   $("[data-choices]").insertAdjacentHTML("afterbegin", `<p class="choices-note">${esc(t.choicesNote)}</p>`);
   for (const b of $$("[data-side-tab]")) b.setAttribute("aria-pressed", b.dataset.sideTab === ui.side);
   document.body.dataset.side = ui.side;
+  // The side region is named for what it shows (BTC-UX-34).
+  $(".p-side").setAttribute("aria-label", ui.side === "choices" ? t.choicesTitle : t.tabHood);
+  fitDetail();
 }
 // The fact for the row in focus. The box is a polite live region, so it is written only when its words change:
 // writing the same fact again on every render made screen readers repeat it after each action (AS-2).
@@ -798,7 +837,18 @@ function renderHoodDetail() {
     : `<span>${esc(t.hoodDetailHint)}</span>`;
   if (html === hoodDetailHtml) return;
   hoodDetailHtml = html;
-  $("[data-hood-detail]").innerHTML = html;
+  const box = $("[data-hood-detail]");
+  box.innerHTML = html;
+  box.scrollTop = 0;
+  fitDetail();
+}
+// Beside the panels the fact box sits under the rows with a height cap, always in sight (BTC-UX-06, BTC-UX-60). A
+// fact longer than the cap scrolls inside the box, and the box then takes keyboard focus so it can be scrolled
+// without a mouse (WCAG 2.1.1).
+function fitDetail() {
+  const box = $("[data-hood-detail]");
+  if (box.scrollHeight > box.clientHeight + 1) box.tabIndex = 0;
+  else box.removeAttribute("tabindex");
 }
 // How the neighbor score is made up right now, so the first reading at grading is explained (I4, C9).
 function hoodBreakdown() {
@@ -814,45 +864,75 @@ function hoodBreakdown() {
 // A dot on the Neighbors tab when that panel changed while another panel was showing (I4).
 function markHoodTab(L) {
   const sig = JSON.stringify([L.trucks, L.noise, L.dust, L.storm, L.gens, L.setback, L.jobs, L.tax, L.power, L.water, started("grade") ? scores().hood : null]);
-  const seen = TABBED.matches ? ui.tab === "hood" : ui.side === "hood" && !document.body.hasAttribute("data-present");
+  // In presenter view the side panel is seen only while its Neighbors toggle has it open (BTC-UX-07).
+  const seen = TABBED.matches ? ui.tab === "hood" : ui.side === "hood" && (!document.body.hasAttribute("data-present") || sideOpen());
   if (seen || !st.started) ui.hoodNew = false;
   else if (ui.hoodSig != null && sig !== ui.hoodSig) ui.hoodNew = true;
   ui.hoodSig = sig;
   const t = T();
-  for (const b of $$('[data-side-tab="hood"], .tabs [data-tab="hood"]')) {
+  for (const b of $$('[data-side-tab="hood"], .tabs [data-tab="hood"], [data-side-toggle]')) {
     b.toggleAttribute("data-new", ui.hoodNew);
     if (ui.hoodNew) b.setAttribute("aria-label", `${b.textContent} · ${t.tabNew}`);
     else b.removeAttribute("aria-label");
   }
 }
-function focusHood(key, toggle) {
+// press: a click, Enter or tap. Only a press moves the map to the effect, at once and past the pause after manual
+// moves; pointing at or tabbing through the rows only highlights it, so a zoomed view no longer swings row by row,
+// or jump-cuts under reduced motion (BTC-UX-17).
+function focusHood(key, toggle, press = false) {
   if (!key) return;
-  if (toggle) ui.hot = ui.hot === key ? null : key;
-  else if (ui.hot === key) return;
-  else ui.hot = key;
+  showHood(toggle ? (ui.hot === key ? null : key) : key, press);
+}
+function showHood(key, press = false) {
+  if (key === ui.hot && !press) return;
+  ui.hot = key;
   // The rows change in place: rebuilding the list moved focus to a new copy of the row, so a screen reader
   // announced each Tab twice (AS-2).
   for (const b of $$("[data-hood] [data-key]")) b.setAttribute("aria-pressed", b.dataset.key === ui.hot);
   renderHoodDetail();
   paintScene(false);
   const spot = HOT_SPOT[ui.hot];
-  if (spot && st.ov) scene?.lookAt(spot[0], spot[1]);
+  if (press && spot && st.ov) scene?.lookAt(spot[0], spot[1], true);
 }
+// The fact box is a polite live region for focus and presses. A mouse sweeping over the rows does not queue a fact per
+// row for screen readers (BTC-UX-33), and a wheel or scroll over the list does not switch rows as they pass under a
+// resting pointer (BTC-UX-06).
+const detailLive = (on) => $("[data-hood-detail]").setAttribute("aria-live", on ? "polite" : "off");
+let hoodScrolledAt = -Infinity;
+$(".p-side").addEventListener("scroll", () => { hoodScrolledAt = performance.now(); }, { capture: true, passive: true });
+$(".p-side").addEventListener("wheel", () => { hoodScrolledAt = performance.now(); }, { passive: true });
 $("[data-hood]").addEventListener("pointerover", (e) => {
   if (e.pointerType && e.pointerType !== "mouse") return;
+  if (performance.now() - hoodScrolledAt < 250) return;
   const b = e.target.closest("[data-key]");
-  if (b) focusHood(b.dataset.key, false);
+  if (!b) return;
+  detailLive(false);
+  focusHood(b.dataset.key, false);
+});
+// A row the pointer only passed over is not left shown (and every other effect faded) once the pointer leaves the
+// list; a row that was pressed stays (BTC-UX-65).
+$("[data-hood]").addEventListener("pointerleave", (e) => {
+  if (e.pointerType !== "mouse") return;
+  // A row that has keyboard focus counts as shown too.
+  const focused = $("[data-hood]").contains(document.activeElement) ? document.activeElement.closest("[data-key]")?.dataset.key : null;
+  const keep = ui.picked || focused || null;
+  if (keep === ui.hot) return;
+  detailLive(false);
+  showHood(keep);
 });
 $("[data-hood]").addEventListener("focusin", (e) => {
   const b = e.target.closest("[data-key]");
-  if (b) focusHood(b.dataset.key, false);
+  if (!b) return;
+  detailLive(true);
+  focusHood(b.dataset.key, false);
 });
 // Hover and focus already show a row by the time a click, Enter or tap lands, so the press keeps it shown, and a
 // second press on the row it picked clears it (AS-2: rebuilding the list used to undo the toggle by accident).
 $("[data-hood]").addEventListener("click", (e) => {
   const b = e.target.closest("[data-key]");
   if (!b) return;
-  focusHood(b.dataset.key, ui.picked === b.dataset.key);
+  detailLive(true);
+  focusHood(b.dataset.key, ui.picked === b.dataset.key, true);
   ui.picked = ui.hot;
 });
 $("[data-choices]").addEventListener("click", (e) => {
@@ -875,15 +955,36 @@ function setTab(tab) {
   renderSide();
 }
 
+// The tiles' last values, unrounded, so a change shows on the tile that changed (BTC-UX-12), half a month included.
+let dashWas = null, dashTimer = 0;
+const dashDelta = {
+  schedule: (d) => `${d > 0 ? "+" : "−"}${fmt(T().dashMonthsShort, { n: Math.abs(Math.round(d * 2) / 2) })}`,
+  budget: (d) => `${d > 0 ? "+" : "−"}${Math.abs(Math.round(d * 10) / 10)}%`,
+  safety: (d) => signed(d),
+  hood: (d) => signed(d),
+};
 function renderDash() {
   const t = T();
   const s = scores();
-  // Every tile shows its rating word at every width, next to the dot (I3, WCAG 1.4.1).
+  const now = { schedule: s.total, budget: s.budgetRaw, safety: s.safety, hood: started("grade") ? s.hood : null };
+  const changed = {};
+  if (dashWas && st.started) {
+    for (const k of Object.keys(now)) {
+      const d = now[k] != null && dashWas[k] != null ? now[k] - dashWas[k] : 0;
+      if (k === "schedule" ? Math.abs(d) >= 0.25 : k === "budget" ? Math.abs(d) >= 0.05 : d !== 0) changed[k] = d;
+    }
+  }
+  dashWas = st.started ? now : null;
+  // Every tile shows its rating word at every width, next to the dot (I3, WCAG 1.4.1). A tile that just changed gets a
+  // light ring for a few seconds, not a coloured dot that could read as a rating, and from 1366 px wide the size of
+  // the change after its word ("· +1 mo"); screen readers get the summary below instead.
   const tile = (key, value, word, level, short = value, wordShort = word) => {
     const node = $(`[data-dash="${key}"]`);
     $(".kpi-val", node).innerHTML = `<span class="long">${esc(value)}</span><span class="short">${esc(short)}</span>`;
-    $(".kpi-word", node).innerHTML = `<span class="long">${esc(word)}</span><span class="short">${esc(wordShort)}</span>`;
+    const delta = key in changed ? `<span class="kpi-delta" aria-hidden="true"> · ${esc(dashDelta[key](changed[key]))}</span>` : node.querySelector(".kpi-delta")?.outerHTML || "";
+    $(".kpi-word", node).innerHTML = `<span class="long">${esc(word)}</span><span class="short">${esc(wordShort)}</span>${delta}`;
     node.dataset.level = level;
+    if (key in changed) node.setAttribute("data-changed", "");
   };
   const bl = budgetIdx(s.budget);
   const sl = schedIdx(s.months);
@@ -900,7 +1001,15 @@ function renderDash() {
     tile("hood", `${s.hood}/100`, levelWord(s.hood), scoreIdx(s.hood));
     add("hood", t.dashNeighbors, `${s.hood}/100`, levelWord(s.hood));
   }
+  if (Object.keys(changed).length) {
+    clearTimeout(dashTimer);
+    dashTimer = setTimeout(clearDashMarks, 4000);
+  }
   announceScores(said);
+}
+function clearDashMarks() {
+  clearTimeout(dashTimer);
+  for (const n of $$("[data-dash]")) { n.removeAttribute("data-changed"); n.querySelector(".kpi-delta")?.remove(); }
 }
 // A polite summary of the tiles that changed, once things settle (I18).
 let scoresSaid = null, scoreQueue = new Set(), scoreTimer = 0;
@@ -946,9 +1055,14 @@ function followTag(now) {
   tagRaf = 0;
   if (!tagFor || now > tagUntil || document.body.hasAttribute("data-nogl")) { tagEl.hidden = true; tagFor = null; return; }
   const p = scene.screenOf(tagFor);
-  // Under the toolbar the tag could not be read, so it stays out of sight while its part is that high (UD-11).
-  const top = parseFloat(document.documentElement.style.getPropertyValue("--tools-b")) || 0;
-  if (!p || p[1] - tagH < top) tagEl.hidden = true;
+  // Under the toolbar the tag could not be read, so it stays out of sight while its part is that high (UD-11); the
+  // same under a narration caption, which shows at the same moment on a phone (BTC-UX-62), and outside the open map
+  // between the panels, where it was drawn over panel text or off the screen (BTC-UX-17).
+  let top = parseFloat(document.documentElement.style.getPropertyValue("--tools-b")) || 0;
+  if (!capEl.hidden) top = Math.max(top, capEl.offsetTop + capEl.offsetHeight + 4);
+  const r = safeRect;
+  const out = p && r && (p[0] < r.x || p[0] > r.x + r.w || p[1] > r.y + r.h);
+  if (!p || p[1] - tagH < top || out) tagEl.hidden = true;
   else { tagEl.hidden = false; tagEl.style.transform = `translate(${p[0].toFixed(0)}px, ${p[1].toFixed(0)}px) translate(-50%, -100%)`; }
   tagRaf = requestAnimationFrame(followTag);
 }
@@ -969,8 +1083,8 @@ function reveal(node) {
   const page = document.scrollingElement;
   if (page && page.scrollHeight > innerHeight + 1) {
     const s = node.getBoundingClientRect();
-    if (s.bottom > innerHeight - 8) page.scrollTop += s.bottom - innerHeight + 8;
-    else if (s.top < 8) page.scrollTop -= 8 - s.top;
+    if (s.bottom > innerHeight) page.scrollTop += s.bottom - innerHeight + 8;
+    else if (s.top < 0) page.scrollTop -= 8 - s.top;
   }
 }
 const OPEN_EL = '.el:not([data-done]):not([aria-disabled="true"])';
@@ -1487,7 +1601,7 @@ function renderVoiceBtn() {
   }
   // In class and home modes the checkbox is the device setting for the next player; on a kiosk it is this game only,
   // like the Voice button.
-  libBox.checked = libraryOn();
+  libBox.checked = libraryOn() && !voice.on;
   libBox.disabled = MODE === "library";
   $("[data-libmode-note]").textContent = MODE === "library" ? t.libraryModeUrl : STAFFED ? t.libraryModeNote : t.libraryModeKiosk;
   voiceBtn.hidden = !Object.keys(D.VOICE.en || {}).length;
@@ -1499,9 +1613,18 @@ function setVoice(on, remember = false) {
   if (!on) hush();
   if (remember) savePref("voice", on);
   renderVoiceBtn();
+  // The caption room comes and goes with the voice (BTC-UX-21).
+  measureSafe();
 }
-voiceBtn.addEventListener("click", () => setVoice(!voice.on, true));
-voiceIntro.addEventListener("click", () => setVoice(!voice.on, true));
+// Turning the voice on lifts Library mode, for this game on a kiosk and on the device in class and home modes, so the
+// two switches never disagree ("Library mode · no voice" ticked beside "Voice: on", BTC-UX-27).
+function pressVoice() {
+  const on = !voice.on;
+  if (on && prefs.library) { prefs.library = false; savePref("library", false); }
+  setVoice(on, true);
+}
+voiceBtn.addEventListener("click", pressVoice);
+voiceIntro.addEventListener("click", pressVoice);
 libBox.addEventListener("change", (e) => {
   prefs.library = e.target.checked;
   savePref("library", e.target.checked);
@@ -2091,7 +2214,7 @@ document.addEventListener("keydown", (ev) => {
     if (step) { ev.preventDefault(); nudgePlace(step[0] * (M.LAYOUT_GRID || 10), step[1] * (M.LAYOUT_GRID || 10)); return; }
   }
   if (!prefs.keys) return;
-  if (k === "v") { ev.preventDefault(); setVoice(!voice.on, true); }
+  if (k === "v") { ev.preventDefault(); pressVoice(); }
   else if (k === "n") { ev.preventDefault(); next(); }
   else if (k === "m") { ev.preventDefault(); toggleFx(); }
 });
@@ -2116,9 +2239,13 @@ function reset({ clear = true } = {}) {
   if (confirmDlg.open) confirmDlg.close();
   stopCountdowns();
   st = fresh();
+  dashWas = null;
+  clearDashMarks();
   say(T().log0);
   // The next player starts on the default panels, scrolled to the top.
   Object.assign(ui, { hot: null, picked: null, side: "hood", hoodSig: null, hoodNew: false, planOpen: false, viewing: false });
+  document.documentElement.removeAttribute("data-side-open");
+  $("[data-side-toggle]").setAttribute("aria-pressed", "false");
   document.body.removeAttribute("data-plan-open");
   for (const p of $$(".panel")) p.scrollTop = 0;
   toastEl.hidden = true;

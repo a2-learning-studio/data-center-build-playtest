@@ -224,7 +224,8 @@ const ICONS = {
   panR: svg("M9 5l7 7-7 7"),
   panU: svg("M5 15l7-7 7 7"),
   panD: svg("M5 9l7 7 7-7"),
-  present: svg("M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"),
+  // A screen on a stand, not the four corners of "full screen": presenter view rearranges the layout (BTC-UX-V06).
+  present: svg("M4 5h16v11H4zM12 16v4M8 20h8"),
 };
 const camBtn = (act, labelKey, extra = "") => `<button type="button" class="cb" data-cam-act="${act}" aria-label="${t[labelKey]}" title="${t[labelKey]}" data-t-label="${labelKey}"${extra}>${ICONS[act]}</button>`;
 const checkRow = (attr, key, noteKey, checked = "") => `<label class="libmode"><input type="checkbox" ${attr}${checked}><span><b data-t="${key}">${t[key]}</b><br><span class="muted" data-t="${noteKey}">${t[noteKey]}</span></span></label>`;
@@ -250,7 +251,8 @@ const modeLines = `<p class="mode-line" data-mode-line="class" hidden data-t="mo
 // (scripts off or blocked, or a browser older than the stated minimum), so no one is left with a dashboard that does
 // nothing (critic). It is plain markup, so it needs nothing from the Content-Security-Policy.
 const bodyFor = (offline) => `
-<div class="nojs" data-nojs><p>${t.noScript}</p></div>
+<div class="nojs" data-nojs><p><span data-t="loading">${t.loading}</span> <span class="nojs-req">${t.noScript}</span></p></div>
+<noscript><style>.nojs .nojs-req{max-height:none;visibility:visible;margin-top:8px;animation:none}</style></noscript>
 <div class="app">
 <a class="skip" href="#build-panel" data-skip data-t="skipBuild">${t.skipBuild}</a>
 <header class="bar">
@@ -260,7 +262,7 @@ const bodyFor = (offline) => `
 </header>
 <main class="stage">
   <canvas class="scene" data-scene tabindex="0" role="application" aria-roledescription="3D map" aria-label="${t.canvasLabel}"></canvas>
-  <div class="tools"><button type="button" class="pill pill-dark" data-fx aria-pressed="true">${t.effectsOn}</button><button type="button" class="pill pill-dark" data-voice aria-pressed="true">${t.voiceOn}</button><span class="hint" data-hint><span class="long">${t.dragHint}</span><span class="short">${t.dragHintShort}</span></span></div>
+  <div class="tools"><button type="button" class="pill pill-dark" data-fx aria-pressed="true">${t.effectsOn}</button><button type="button" class="pill pill-dark" data-voice aria-pressed="true">${t.voiceOn}</button><button type="button" class="pill pill-dark" data-side-toggle aria-pressed="false" data-t="tabHood">${t.tabHood}</button><button type="button" class="pill pill-dark" data-present-off aria-pressed="true" data-t="presentOn">${t.presentOn}</button><span class="hint" data-hint><span class="long">${t.dragHint}</span><span class="short">${t.dragHintShort}</span></span></div>
   <p class="nogl" data-t="noglLabel">${t.noglLabel}</p>
   <div class="tag" data-tag hidden aria-hidden="true"></div>
   <p class="caption" data-caption hidden></p>
@@ -277,7 +279,7 @@ const bodyFor = (offline) => `
   <section class="panel p-build" id="build-panel" tabindex="-1" aria-label="${t.tabBuild}" data-t-label="tabBuild"><div data-build></div></section>
   <section class="panel p-side" aria-label="${t.tabHood}" data-t-label="tabHood">
     <div class="side-tabs"><button type="button" data-side-tab="hood" aria-pressed="true" data-t="hoodTitle">${t.hoodTitle}</button><button type="button" data-side-tab="choices" aria-pressed="false" data-t="choicesTitle">${t.choicesTitle}</button></div>
-    <div class="side-hood"><ul class="hood" data-hood></ul><p class="hood-detail" data-hood-detail aria-live="polite"></p></div>
+    <div class="side-hood"><div class="hood-scroll" data-hood-scroll><div class="hood-lists" data-hood></div><p class="hood-score" data-t="hoodScoreNote">${t.hoodScoreNote}</p></div><p class="hood-detail" id="hood-detail" data-hood-detail aria-live="polite"></p><p class="hood-break" data-hood-break></p></div>
     <div class="side-choices"><div class="choices" data-choices></div></div>
   </section>
   <section class="panel p-plan" data-plan aria-label="${t.schedTitle}" data-t-label="schedTitle"></section>
@@ -297,6 +299,7 @@ const bodyFor = (offline) => `
   ${modeLines}
   <p id="intro-body" data-t="introBody">${t.introBody}</p>
   <p data-t="introHow">${t.introHow}</p>
+  <p data-t="introDecide">${t.introDecide}</p>
   <p class="muted keys-hint" data-t="keysHint">${t.keysHint}</p>
   <label class="libmode"><input type="checkbox" data-libmode><span><b data-t="libraryMode">${t.libraryMode}</b><br><span class="muted" data-libmode-note>${t.libraryModeNote}</span></span></label>
   <div class="intro-voice" data-voice-line><p id="intro-sr" data-t="srVoice">${t.srVoice}</p><button type="button" class="btn btn-ghost btn-small" data-voice-intro aria-pressed="true">${t.voiceOn}</button></div>

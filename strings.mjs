@@ -17,7 +17,10 @@ export const STRINGS = {
       "Red Clay Ridge is a made-up site of about 45 acres off a county road in Georgia, next to a street of homes. A company wants a data center campus there. Your job is to build it in the right order, keep the schedule, the budget and the crew safe, and work with the neighbors. The game shows facts and trade-offs. It does not take a side on data centers.",
     introHow: "Pick a phase, place each of its key elements, then finish the phase. Issue cards will interrupt you. Your choices move the dashboard and the Neighbors panel.",
     start: "Start building",
-    keysHint: "Keys: Tab moves between buttons · Enter or Space presses · N = next step · M = effects on the map on/off · V = voice on/off (these three can be turned off in About) · on the map, arrow keys turn, + or − zoom, and Shift + arrow keys move when zoomed in. While you are siting a piece, drag or tap the map: letting go on a spot that fits builds it there. Or nudge it with the arrow keys, then press N or Set it here. The game asks you to decide when each choice matters.",
+    // Short, so Start stays close (BTC-UX-13); About lists every key and map control.
+    keysHint: "Keys: Tab moves between buttons, Enter or Space presses, N does the next step, M shows map effects, V turns the voice on or off. On the map, arrow keys turn and + or − zoom. About lists every key and map control.",
+    // On every device, touch screens included: the only warning that the game stops to ask (BTC-UX-13).
+    introDecide: "Some steps ask you to decide first. You can change a choice in the Choices panel until that work is done.",
     dragHint: "Drag to turn · scroll or pinch to zoom",
     dragHintZoomed: "Drag to move · right-drag or two fingers to turn · scroll or pinch to zoom",
     dragHintShort: "Drag to turn · pinch to zoom",
@@ -35,7 +38,9 @@ export const STRINGS = {
     camPanD: "Move the view back",
     camPresent: "Presenter view: bigger map and text",
     presentPref: "Presenter view · bigger map and text",
-    presentNote: "For a projector or a large screen: the side panel and the schedule step aside so the map fills the screen, and the text gets larger. On a tablet held upright the map gets taller and the text larger; on a phone the map gets taller. The Build panel and the scores stay. The button with four corners on the map does the same. In class and home modes this device remembers the setting; on a library kiosk it lasts one game. ?view=presenter in the address starts every game in it.",
+    presentNote: "For a projector or a large screen: the side panel and the schedule step aside so the map fills the screen, and the text gets larger; the Neighbors button above the map brings the Neighbors and Choices panel back. On a tablet held upright the map gets taller and the text larger; on a phone the map gets taller. The Build panel and the dashboard stay. The Presenter view button on the map does the same. In class and home modes this device remembers the setting; on a library kiosk it lasts one game. ?view=presenter in the address starts every game in it.",
+    // In the toolbar while presenter view is on: says so, and turns it off (BTC-UX-X01).
+    presentOn: "Presenter view: on",
 
     tabBuild: "Build",
     skipBuild: "Skip to the Build panel",
@@ -50,7 +55,9 @@ export const STRINGS = {
     phaseSay: "Phase {n} of 9: {name}.",
     canvasLabel: "3D map of the made-up Red Clay Ridge site. Drag or use the arrow keys to turn the view. Scroll, pinch or press plus or minus to zoom. When zoomed in, drag or press Shift and an arrow key to move the view; right-drag or two fingers turn it. The map buttons do the same, and Reset view shows the whole site. While siting a piece, drag or tap the ground, or press the arrow keys, to move its footprint; the Build panel says whether it fits. Green means the spot fits, and letting go there builds the piece. Set it here builds it where the footprint is.",
     noglLabel: "The 3D map could not start on this device. The panels, the schedule and every choice still work.",
-    noScript: "Loading the game. If it does not start, this browser cannot run it: the game needs JavaScript turned on and Chrome or Edge 108 or later, Firefox 101 or later, or Safari 15.4 or later.",
+    // While the page loads; the requirements follow after ten seconds, or at once with scripts off (BTC-UX-22).
+    loading: "Loading the game…",
+    noScript: "If it does not start, this browser cannot run it: the game needs JavaScript turned on and Chrome or Edge 108 or later, Firefox 101 or later, or Safari 15.4 or later.",
     signNotice: "PUBLIC NOTICE",
     signNotice2: "Rezoning hearing",
     signCampus: "RED CLAY RIDGE",
@@ -63,10 +70,10 @@ export const STRINGS = {
     voiceOff: "Voice: off",
     listen: "Listen",
     libraryMode: "Library mode · no voice",
-    libraryModeNote: "Written text stays on screen. This device remembers it for the next player, as it does the Voice button.",
-    libraryModeKiosk: "Written text stays on screen. Like the Voice button, it changes only the game being played.",
+    libraryModeNote: "Turns the voice off. This device remembers it for the next player, as it does the Voice button. Every word the voice says is also written on screen.",
+    libraryModeKiosk: "Turns the voice off for this game. Every word it says is also written on screen.",
     libraryModeUrl: "Set by the address (?mode=library).",
-    srVoice: "Using a screen reader? Turn the recorded voice off for this game, so it does not talk over your reader.",
+    srVoice: "Using a screen reader? Turn the recorded voice off, so it does not talk over your reader.",
     keysPref: "Single-key shortcuts: N, M, V and the number keys on issue cards",
     keysPrefNote: "Turn them off if a stray key press causes trouble. In class and home modes this device remembers the setting; on a library kiosk it lasts one game. ?keys=off in the address turns them off for every game.",
     voiceCredit: "Narration recorded in advance with ElevenLabs (Impact Program); the game contacts no service while you play.",
@@ -224,11 +231,12 @@ export const STRINGS = {
     schedNote:
       "Bars use typical ranges and vary by project. The thin line is the typical range; the solid bar is your plan. Hatched red bars are on the critical path: if they slip, the finish slips. Commissioning levels 1 to 4 happen during buying and installation, one piece of equipment at a time. Only level 5, the integrated systems test, is at the end.",
     schedAxis: "months",
-    schedTotal: "Your schedule so far: about {n} months to turnover (plan: {base})",
+    schedTotal: "Your schedule so far: about {n} months to turnover (plan: {base} months)",
     schedEmpty: "Bars appear as you start phases.",
     legendCrit: "Critical path",
     legendOther: "Other phases",
     legendNow: "In progress",
+    legendRange: "Typical range",
     // The schedule's bars on laptop screens up to 900 px tall, where it starts as a row of phases.
     planMore: "Show timeline",
     planLess: "Hide timeline",

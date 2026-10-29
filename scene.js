@@ -1333,20 +1333,23 @@ function createScene(canvas, { reduced = () => false, signs = null, onMode = nul
     for (const g of groups) if (g.userData.show === id && g.visible) box3.expandByObject(g);
     return box3.isEmpty() ? null : box3;
   }
-  // The game frames a placed part or a hovered panel row, but never right after the player moved the view,
-  // and never past the bounds the current zoom allows (at the overview that means it stays home).
-  function aim(x, z) {
+  // The game frames a newly placed part, but never right after the player moved the view, never under reduced
+  // motion, and never past the bounds the current zoom allows (at the overview that means it stays home). A press
+  // (force: "Show on the map", a pressed Neighbors row) is the player's own request: it skips the pause, counts as a
+  // manual move, and under reduced motion it cuts at once instead of easing (BTC-UX-17).
+  function aim(x, z, force = false) {
     attract = false;
-    if (performance.now() - manualAt < PAUSE_MS) { kick(); return; }
+    if (!force && performance.now() - manualAt < PAUSE_MS) { kick(); return; }
     want.target.set(x, 0, z);
     clampTarget();
+    if (force) manualAt = performance.now();
     kick();
   }
-  function focus(id) {
+  function focus(id, force = false) {
     const b = boundsOf(id);
-    if (!b || reduced()) return;
+    if (!b || (reduced() && !force)) return;
     const c = b.getCenter(new T3.Vector3());
-    aim(c.x * 0.55 + HOME.x * 0.45, c.z * 0.55 + HOME.z * 0.45);
+    aim(c.x * 0.55 + HOME.x * 0.45, c.z * 0.55 + HOME.z * 0.45, force);
   }
   function screenOf(id) {
     const b = boundsOf(id);
@@ -1611,7 +1614,7 @@ function createScene(canvas, { reduced = () => false, signs = null, onMode = nul
       renderer.shadowMap.needsUpdate = true;
       kick();
     },
-    lookAt(x, z) { aim(x * 0.6 + HOME.x * 0.4, z * 0.6 + HOME.z * 0.4); },
+    lookAt(x, z, force = false) { aim(x * 0.6 + HOME.x * 0.4, z * 0.6 + HOME.z * 0.4, force); },
     setView(o) { if (o.az != null) want.az = o.az; if (o.el != null) want.el = o.el; if (o.dist != null) want.dist = o.dist; if (o.x != null) want.target.set(o.x, 0, o.z); clampTarget(); manual(); notifyMode(); kick(); },
     // For checks: where the camera is headed, and the bounds it may move within.
     cam: () => ({ az: want.az, el: want.el, dist: want.dist, x: want.target.x, z: want.target.z, vx: view.target.x, vz: view.target.z, vdist: view.dist, vaz: view.az, vel: view.el, fitDist, zoomed: isZoomed(), bounds: bounds(), manualAt }),
