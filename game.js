@@ -1046,6 +1046,8 @@ function renderAll(animate = true) {
 
 // ---------- floating tag over a newly built part ----------
 const tagEl = $("[data-tag]");
+// Approvals, plans, studies and the final test are done, not built (BTC-UX-53).
+const DONE_TAG = new Set(["zoning", "capacity", "stormPlan", "meetings", "L5"]);
 let tagFor = null, tagUntil = 0, tagH = 0, tagRaf = 0;
 function showTag(id) {
   // Without the 3D view, or with its context lost, there is nothing to point at, so no tag (it used to stick in the
@@ -1053,7 +1055,7 @@ function showTag(id) {
   if (!scene || document.body.hasAttribute("data-nogl")) return;
   tagFor = id;
   tagUntil = performance.now() + 3200;
-  tagEl.textContent = fmt(T().builtTag, { name: T().elements[id].name });
+  tagEl.textContent = fmt(DONE_TAG.has(id) ? T().doneTag : T().builtTag, { name: T().elements[id].name });
   tagEl.hidden = false;
   tagH = tagEl.offsetHeight;
   // Placed at once, not on the next frame: on a slow device a frame can take longer than the click, and the tag

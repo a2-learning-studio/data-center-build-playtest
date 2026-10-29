@@ -1,9 +1,13 @@
 /* Build the Campus — one fixed screen. Chrome matches Community Builders of Pecan Grove:
    pine stage #163a30, paper #f7f4ee, clay #a9492a pill buttons, Geist headings, Inter body. */
 :root{
-  --pine:#163a30;--pine-2:#1e5a47;--paper:#f7f4ee;--card:#fffdf8;--sunken:#efeae1;--ink:#163a30;--ink-2:#33443d;--muted:#5d6b64;--line:#dcd7cc;--line-strong:#b9b2a6;
+  --pine:#163a30;--paper:#f7f4ee;--card:#fffdf8;--sunken:#efeae1;--ink:#163a30;--ink-2:#33443d;--muted:#5d6b64;--line:#dcd7cc;--line-strong:#b9b2a6;
   --clay:#a9492a;--clay-ink:#94401f;--clay-soft:#f6e4da;--pine-soft:#e6f0eb;--gold:#e69f00;--focus:#13243b;--focus-stage:#f0b43c;
   --good:#1f8a5b;--warn:#d08a00;--bad:#c2452a;--good-ink:#1f6f4f;
+  /* The card at 95%, 90% and 85%: the floating panels, the map pills and buttons, and the drag hint (BTC-UX-58). */
+  --card-glass:#fffdf8f2;--card-veil:#fffdf8e6;--card-mist:#fffdf8d9;
+  /* Type steps (BTC-UX-57): labels, small labels, panel rows and small UI text. */
+  --fs-xs:.75rem;--fs-sm:.8rem;--fs-row:.85rem;--fs-ui:.9rem;
   --shadow:0 2px 4px #163a3024,0 14px 32px -10px #163a3070;
   --radius:20px;
   --font-body:Inter,"Segoe UI",ui-sans-serif,system-ui,sans-serif;--font-display:Geist,"Segoe UI",ui-sans-serif,system-ui,sans-serif;
@@ -36,23 +40,23 @@ button{font:inherit;color:inherit}
    runs under reduced motion too (BTC-UX-22). */
 .nojs-req{display:block;max-height:0;overflow:hidden;visibility:hidden;animation:nojs-req 0s 10s forwards}
 @keyframes nojs-req{to{max-height:20em;visibility:visible;margin-top:8px}}
-.muted{color:var(--muted);font-size:.9rem}
-.kicker{text-transform:uppercase;letter-spacing:.09em;font-size:.75rem;font-weight:700;color:var(--clay-ink);margin-bottom:4px}
+.muted{color:var(--muted);font-size:var(--fs-ui)}
+.kicker{text-transform:uppercase;letter-spacing:.08em;font-size:var(--fs-xs);font-weight:700;color:var(--clay-ink);margin-bottom:4px}
 .byline{font-weight:700;color:var(--ink-2)}
 /* On the intro the age line is the one bold line under the title; the credit and the mode line are quieter
    (BTC-UX-V10). */
-.dlg-intro .byline{font-weight:600;font-size:.9rem;color:var(--muted)}
-.dlg-intro .mode-line{font-size:.9rem}
+.dlg-intro .byline{font-weight:600;font-size:var(--fs-ui);color:var(--muted)}
+.dlg-intro .mode-line{font-size:var(--fs-ui)}
 
 /* the frame: header + stage fill the screen exactly */
 .app{height:100dvh;display:grid;grid-template-rows:auto 1fr auto;grid-template-columns:minmax(0,1fr)}
 /* Notched phones draw under the sensor housing, the rounded corners and the home indicator: the bar, the footer and
    the landscape split keep their content inside the safe area (viewport-fit=cover, BTC-UX-11). */
-.bar{background:var(--pine);color:#f7f4ee;display:flex;align-items:center;gap:16px;padding:8px max(16px,env(safe-area-inset-right)) 8px max(16px,env(safe-area-inset-left));min-height:64px}
+.bar{background:var(--pine);color:var(--paper);display:flex;align-items:center;gap:16px;padding:8px max(16px,env(safe-area-inset-right)) 8px max(16px,env(safe-area-inset-left));min-height:64px}
 .brand{display:flex;align-items:center;gap:10px;flex:none}
 h1.brand-name{font-family:var(--font-display);font-weight:700;font-size:1.2rem;line-height:1.15;margin:0;color:inherit;white-space:nowrap}
 .dlg-title{font-size:clamp(1.7rem,1.2rem + 1.6vw,2.4rem)}
-.badge{background:var(--gold);color:var(--pine);border-radius:999px;padding:2px 10px;font-size:.8rem;font-weight:700;white-space:nowrap}
+.badge{background:var(--gold);color:var(--pine);border-radius:999px;padding:2px 10px;font-size:var(--fs-sm);font-weight:700;white-space:nowrap}
 .badge-short{display:none}
 .kpis{display:flex;flex-wrap:wrap;gap:8px;flex:1;justify-content:center;min-width:0}
 .kpi{display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto auto;column-gap:8px;align-items:baseline;background:#ffffff12;border-radius:14px;padding:5px 12px 6px 22px;position:relative;min-width:0}
@@ -61,7 +65,7 @@ h1.brand-name{font-family:var(--font-display);font-weight:700;font-size:1.2rem;l
 .kpi[data-level="2"]::before{background:#f0b43c;box-shadow:0 0 0 3px #f0b43c33}
 .kpi[data-level="1"]::before,.kpi[data-level="0"]::before{background:#ff7a5a;box-shadow:0 0 0 3px #ff7a5a33}
 .kpi[data-level="none"]::before{background:#9fb3aa;box-shadow:0 0 0 3px #9fb3aa33}
-.kpi-label{grid-column:1/-1;font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;color:#bfd1c8;font-weight:700;white-space:nowrap}
+.kpi-label{grid-column:1/-1;font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.08em;color:#bfd1c8;font-weight:700;white-space:nowrap}
 .kpi-label .short{display:none}
 .kpi-val{font-family:var(--font-display);font-weight:700;font-size:1.05rem;font-variant-numeric:tabular-nums;white-space:nowrap}
 /* The rating word shows at every width (I3); narrow layouts use its short form. */
@@ -74,10 +78,10 @@ h1.brand-name{font-family:var(--font-display);font-weight:700;font-size:1.2rem;l
 @media (min-width:1366px){.kpi-delta{display:inline}}
 .kpi-val .short{display:none}
 .bar-btns{display:flex;gap:8px;flex:none}
-.pill{background:transparent;color:#f7f4ee;border:2px solid #f7f4eecc;border-radius:999px;padding:6px 16px;font-weight:700;min-height:44px;cursor:pointer}
+.pill{background:transparent;color:var(--paper);border:2px solid #f7f4eecc;border-radius:999px;padding:6px 16px;font-weight:700;min-height:44px;cursor:pointer}
 @media (hover:hover){.pill:hover{background:#ffffff1a}}
 .bar .pill:focus-visible{outline-color:var(--focus-stage)}
-.pill-dark{color:var(--ink);border-color:var(--ink);background:#fffdf8e6;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.pill-dark{color:var(--ink);border-color:var(--ink);background:var(--card-veil);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
 @media (hover:hover){.pill-dark:hover{background:#fff}}
 .pill-dark[aria-pressed="false"]{border-style:dashed}
 
@@ -94,11 +98,12 @@ h1.brand-name{font-family:var(--font-display);font-weight:700;font-size:1.2rem;l
 .nogl{display:none;position:absolute;left:calc(var(--pl) + 32px);right:calc(var(--pr) + 32px);bottom:calc(26px + min(var(--plan-h, 290px), max(150px, calc(100% - var(--top-room, 0px) - var(--cam-h, 0px) - 26px))));z-index:4;width:fit-content;max-width:420px;margin:0 auto;padding:10px 16px;border-radius:14px;background:var(--card);box-shadow:var(--shadow);font-weight:600;text-align:center}
 body[data-nogl] .nogl{display:block}
 body[data-nogl] .scene,body[data-nogl] .tag{visibility:hidden}
-.tag{position:absolute;left:0;top:0;pointer-events:none;background:var(--pine);color:#fff;font-weight:700;font-size:.85rem;padding:6px 12px;border-radius:999px;box-shadow:var(--shadow);white-space:nowrap;z-index:3}
+.tag{position:absolute;left:0;top:0;pointer-events:none;background:var(--pine);color:#fff;font-weight:700;font-size:var(--fs-row);padding:6px 12px;border-radius:999px;box-shadow:var(--shadow);white-space:nowrap;z-index:3}
 .tag::after{content:"";position:absolute;left:50%;bottom:-5px;width:10px;height:10px;background:var(--pine);transform:translateX(-50%) rotate(45deg);border-radius:2px}
 
 /* floating panels */
-.panel{--pad-x:16px;position:absolute;background:#fffdf8f2;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border:1px solid #dcd7cccc;border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;z-index:2;overflow:auto;scrollbar-width:thin}
+.panel,.dlg{scrollbar-color:var(--muted) transparent}
+.panel{--pad-x:16px;position:absolute;background:var(--card-glass);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border:1px solid #dcd7cccc;border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;z-index:2;overflow:auto;scrollbar-width:thin}
 .p-build{left:16px;top:16px;bottom:16px;width:var(--pl)}
 .p-side{right:16px;top:16px;bottom:16px;width:var(--pr);display:flex;flex-direction:column;padding:10px 14px 14px}
 /* --plan-room: the schedule never grows into the toolbar, the narration caption or the map buttons above it (I9);
@@ -110,7 +115,7 @@ body[data-nogl] .scene,body[data-nogl] .tag{visibility:hidden}
 .tools .pill,.cam button{pointer-events:auto}
 /* Presenter view's Neighbors toggle and its own off switch show only in presenter view beside the panels. */
 .tools :is([data-side-toggle],[data-present-off]){display:none}
-.hint{font-size:.8rem;color:var(--ink-2);background:#fffdf8d9;border-radius:999px;padding:4px 10px}
+.hint{font-size:var(--fs-sm);color:var(--ink-2);background:var(--card-mist);border-radius:999px;padding:4px 10px}
 .hint.hint-new{background:var(--gold);color:var(--pine);font-weight:700}
 .hint .short{display:none}
 @media (max-width:420px){.hint .long{display:none}.hint .short{display:inline}}
@@ -120,7 +125,7 @@ body[data-nogl] .scene,body[data-nogl] .tag{visibility:hidden}
 /* Where the zoomed-in set would wrap, the move buttons take their own row above the others, so nothing jumps under
    the pointer at the zoom step (game.js measureSafe, BTC-UX-08). */
 html[data-cam-split] .cam-move{flex-basis:100%;justify-content:flex-end}
-.cb{width:2.5rem;height:2.5rem;padding:0;border-radius:12px;border:2px solid var(--ink);background:#fffdf8e6;color:var(--ink);display:grid;place-items:center;cursor:pointer;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.cb{width:2.5rem;height:2.5rem;padding:0;border-radius:12px;border:2px solid var(--ink);background:var(--card-veil);color:var(--ink);display:grid;place-items:center;cursor:pointer;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
 @media (hover:hover){.cb:hover{background:#fff}}
 .cb svg{width:1.25rem;height:1.25rem}
 .cam .pill{min-height:40px}
@@ -148,7 +153,7 @@ body[data-nogl] .cam,body[data-nogl] .hint,body[data-nogl] [data-fx]{display:non
 /* A pinned button is always in sight, so focusing or pressing one never scrolls the summary to its end (BTC-UX-61). */
 .dlg-foot :is(button,a),.dlg-intro .intro-btns button{scroll-margin-bottom:calc(-1 * var(--pin-h,120px))}
 /* Save results file says on screen that it saved, as well as to screen readers (BTC-UX-48). */
-.end-saved{margin:0 0 8px;font-size:.9rem;font-weight:600;color:var(--good-ink)}
+.end-saved{margin:0 0 8px;font-size:var(--fs-ui);font-weight:600;color:var(--good-ink)}
 .end-look{margin:0 0 14px}
 .end-btns .btn-big{margin-top:0}
 .contact a,.sources a,.dlg p a{color:var(--clay-ink);font-weight:600}
@@ -161,7 +166,7 @@ body[data-nogl] .cam,body[data-nogl] .hint,body[data-nogl] [data-fx]{display:non
 /* A dot on the Neighbors tab when that panel changed out of sight (I4). */
 [data-side-tab],.tabs button,[data-side-toggle]{position:relative}
 [data-new]::after{content:"";position:absolute;top:4px;right:4px;width:9px;height:9px;border-radius:50%;background:var(--clay);box-shadow:0 0 0 2px #fff}
-.sources{margin:0 0 10px;padding-left:20px;display:grid;gap:4px;font-size:.9rem}
+.sources{margin:0 0 10px;padding-left:20px;display:grid;gap:4px;font-size:var(--fs-ui)}
 /* On a kiosk, About prints its addresses instead of linking them (SA-1); a long one wraps anywhere. */
 .addr{overflow-wrap:anywhere}
 .sources .addr{display:block;color:var(--muted)}
@@ -170,7 +175,7 @@ body[data-nogl] .cam,body[data-nogl] .hint,body[data-nogl] [data-fx]{display:non
 .foot{font-size:.82rem;font-weight:600;color:var(--muted);text-align:center;padding:6px max(16px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));background:var(--paper);border-top:1px solid #dcd7cc80}
 .audience{font-weight:700;color:var(--pine);margin:0 0 6px}
 .end-clear{font-weight:700;color:var(--ink);margin:12px 0 0}
-.plan-head small{font-weight:500;color:var(--muted);font-size:.8rem}
+.plan-head small{font-weight:500;color:var(--muted);font-size:var(--fs-sm)}
 .tabs{display:none}
 /* Narration captions sit just under the toolbar, so they never cover its buttons; clicks pass through them. */
 .caption{position:absolute;left:calc(var(--pl) + 32px);right:calc(var(--pr) + 32px);top:calc(var(--tools-b, 64px) + 8px);margin:0 auto;max-width:40rem;width:fit-content;background:#163a30e6;color:#fff;font-size:1rem;line-height:1.35;padding:8px 16px;border-radius:14px;z-index:3;text-align:center;box-shadow:var(--shadow);pointer-events:none;max-height:max(calc(1.35em + 16px),calc(var(--cam-t, 999px) - var(--tools-b, 64px) - 16px));overflow:hidden}
@@ -179,10 +184,10 @@ body[data-nogl] .cam,body[data-nogl] .hint,body[data-nogl] [data-fx]{display:non
 /* For screen-reader users: the voice can be turned off before the narration starts (AS-11). */
 .intro-voice{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;margin:0 0 8px}
 .intro-voice[hidden]{display:none}
-.intro-voice p{margin:0;flex:1 1 15rem;font-size:.9rem;color:var(--ink-2)}
+.intro-voice p{margin:0;flex:1 1 15rem;font-size:var(--fs-ui);color:var(--ink-2)}
 /* Class and home modes: a results file saved at the end of a game opens again, read only (BTC-01). */
 .intro-file{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;margin:0 0 8px}
-.intro-file p{margin:0;flex:1 1 15rem;font-size:.9rem;color:var(--ink-2)}
+.intro-file p{margin:0;flex:1 1 15rem;font-size:var(--fs-ui);color:var(--ink-2)}
 .intro-file .file-bad{flex-basis:100%;font-size:1rem;font-weight:700;color:var(--clay-ink)}
 .intro-btns{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 /* The intro's buttons stay pinned at the bottom of the dialog, so on a phone both the age line at the top and
@@ -211,7 +216,7 @@ body[data-nogl] .cam,body[data-nogl] .hint,body[data-nogl] [data-fx]{display:non
 .btn-wide{width:100%;margin-top:4px}
 .btn-big{font-size:1.1rem;padding:14px 30px;min-height:56px;margin-top:6px}
 /* A rounded box rather than a pill, so it still looks whole when it wraps onto a second line (BTC-UX-V08). */
-.range{display:inline-block;font-size:.8rem;font-weight:600;color:var(--ink-2);background:var(--sunken);border-radius:.8em;padding:1px 8px;margin-top:4px}
+.range{display:inline-block;font-size:var(--fs-sm);font-weight:600;color:var(--ink-2);background:var(--sunken);border-radius:.8em;padding:1px 8px;margin-top:4px}
 .els{list-style:none;margin:10px 0;padding:0;display:grid;gap:6px}
 .el{width:100%;display:grid;grid-template-columns:28px 1fr auto;align-items:center;gap:10px;text-align:left;background:var(--clay-soft);border:2px solid transparent;border-radius:14px;padding:7px 12px;min-height:48px;cursor:pointer;transition:transform .15s,border-color .15s}
 @media (hover:hover){.el:hover:not([disabled]):not([aria-disabled="true"]){border-color:var(--clay);transform:translateY(-1px)}}
@@ -230,8 +235,8 @@ body[data-nogl] .cam,body[data-nogl] .hint,body[data-nogl] [data-fx]{display:non
 .el[data-done]{background:var(--pine-soft);cursor:default}
 .el[data-done] .el-mark{background:var(--pine)}
 .el[data-done] .el-act{color:var(--muted)}
-.log-h{margin-top:14px;font-size:.85rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
-.log{list-style:none;margin:0;padding:0;display:grid;gap:5px;font-size:.86rem;color:var(--muted)}
+.log-h{margin-top:14px;font-size:var(--fs-row);text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.log{list-style:none;margin:0;padding:0;display:grid;gap:5px;font-size:var(--fs-row);color:var(--muted)}
 .log li:first-child{color:var(--ink);font-weight:600}
 
 /* side panel: neighbors and choices */
@@ -245,18 +250,19 @@ body[data-nogl] .cam,body[data-nogl] .hint,body[data-nogl] [data-fx]{display:non
 body[data-side="hood"] .side-hood,body[data-side="choices"] .side-choices{display:flex}
 .hood{list-style:none;margin:0;padding:0;display:grid;gap:4px}
 .hood-h{margin:8px 0 2px;font-size:.78rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
-.hood-score{margin:8px 0 0;font-size:.8rem;color:var(--muted)}
+.hood-score{margin:8px 0 0;font-size:var(--fs-sm);color:var(--muted)}
 .hood-row{width:100%;display:grid;grid-template-columns:1fr auto minmax(4.6rem,auto);gap:8px;align-items:center;text-align:left;background:transparent;border:2px solid transparent;border-radius:12px;padding:5px 8px;min-height:38px;cursor:pointer}
 @media (hover:hover){.hood-row:hover{background:var(--sunken)}}
 .hood-row[aria-pressed="true"]{background:var(--pine-soft);border-color:var(--pine)}
 .hood-name{font-weight:600;font-size:.88rem;line-height:1.2;display:flex;gap:6px;align-items:baseline}
 /* A long word wraps onto two lines at most, so the name beside it keeps its room (BTC-UX-V03). */
-.hood-word{font-size:.8rem;color:var(--muted);text-align:right;line-height:1.15;max-width:6rem}
+.hood-word{font-size:var(--fs-sm);color:var(--muted);text-align:right;line-height:1.15;max-width:6rem}
 .meter{display:inline-flex;gap:3px}
 /* Empty cells keep the 4-step scale in sight on a projector: the stronger line (BTC-UX-19). */
 .meter i{width:.8125rem;height:.625rem;border-radius:3px;background:#fff;box-shadow:inset 0 0 0 1.5px var(--line-strong)}
 /* Every meter fills in one ink: it shows an amount, not a rating, so red, gold and green keep meaning the dashboard's
-   status words (UD-6). The small square before a name is that effect's colour on the map. */
+   status words (UD-6). The small square before a name stands for that effect's layer on the map, in a shade picked to
+   read on the cream panel; four of the six are a little darker than the map's own (BTC-UX-58). */
 .meter i[data-on]{background:var(--pine);box-shadow:none}
 .hood-name::before{content:"";flex:none;width:9px;height:9px;border-radius:3px;background:var(--sw,transparent)}
 .hood-row[data-key="noise"],.hood-row[data-key="gens"]{--sw:#d4532c}
@@ -265,31 +271,31 @@ body[data-side="hood"] .side-hood,body[data-side="choices"] .side-choices{displa
 .hood-row[data-key="power"]{--sw:#c04f9f}
 .hood-row[data-key="setback"]{--sw:#00a37a}
 .hood-row[data-key="dust"]{--sw:#b0743c}
-.hood-detail{margin:10px 0 0;padding:10px 12px;background:var(--sunken);border-radius:14px;font-size:.85rem;color:var(--ink-2);display:grid;gap:4px;min-height:84px}
+.hood-detail{margin:10px 0 0;padding:10px 12px;background:var(--sunken);border-radius:14px;font-size:var(--fs-row);color:var(--ink-2);display:grid;gap:4px;min-height:84px}
 .hood-detail b{color:var(--ink)}
 .hood-detail .you{font-weight:600;color:var(--ink)}
 .choices{display:grid;gap:8px}
 .choice{display:grid;gap:4px}
 .choice-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
-.choice-name{font-weight:700;font-size:.86rem}
-.lock{display:inline-flex;align-items:center;gap:4px;font-size:.75rem;color:var(--muted);font-weight:600}
+.choice-name{font-weight:700;font-size:var(--fs-row)}
+.lock{display:inline-flex;align-items:center;gap:4px;font-size:var(--fs-xs);color:var(--muted);font-weight:600}
 .lock svg{width:12px;height:12px}
 .seg{display:grid;grid-template-columns:1fr 1fr;background:var(--sunken);border-radius:12px;padding:3px;gap:3px}
-.seg button{border:0;border-radius:9px;background:transparent;min-height:40px;padding:4px 8px;font-size:.84rem;font-weight:600;cursor:pointer;line-height:1.15;color:var(--ink-2)}
+.seg button{border:0;border-radius:9px;background:transparent;min-height:40px;padding:4px 8px;font-size:var(--fs-row);font-weight:600;cursor:pointer;line-height:1.15;color:var(--ink-2)}
 @media (hover:hover){.seg button:hover:not([disabled]){background:#fff}}
 .seg button[aria-pressed="true"]{background:#fff;color:var(--ink);box-shadow:0 1px 3px #163a3033,inset 0 0 0 2px var(--pine)}
 .seg button[disabled]{opacity:.45;cursor:not-allowed}
-.choice-note{margin:0;font-size:.8rem;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.choice-note{margin:0;font-size:var(--fs-sm);color:var(--muted);display:flex;flex-wrap:wrap;gap:4px;align-items:center}
 .chips{display:inline-flex;flex-wrap:wrap;gap:4px}
-.chip{font-size:.76rem;font-weight:700;border-radius:999px;padding:1px 7px;background:var(--sunken);color:var(--ink)}
+.chip{font-size:var(--fs-xs);font-weight:700;border-radius:999px;padding:1px 7px;background:var(--sunken);color:var(--ink)}
 .chip[data-tone="bad"]{background:var(--clay-soft);color:var(--clay-ink)}
-.chip[data-tone="good"]{background:#dff1e8;color:#1f6f4f}
+.chip[data-tone="good"]{background:#dff1e8;color:var(--good-ink)}
 .chip[data-tone="neutral"]{background:#e7eef2;color:var(--ink)}
 
 /* schedule: lanes are also the phase picker */
 .plan-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
 .plan-head h2{font-size:1rem;margin:0}
-.plan-total{margin:0;font-weight:700;font-size:.9rem}
+.plan-total{margin:0;font-weight:700;font-size:var(--fs-ui)}
 .lanes{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:2px}
 .lane{width:100%;display:grid;grid-template-columns:22px 6.5rem 1fr;gap:8px;align-items:center;background:transparent;border:0;border-radius:8px;padding:1px 4px;min-height:28px;cursor:pointer;text-align:left}
 @media (hover:hover){.lane:hover{background:var(--sunken)}}
@@ -300,9 +306,9 @@ body[data-side="hood"] .side-hood,body[data-side="choices"] .side-choices{displa
 .lane[data-state="done"] .lane-icon{background:var(--pine);color:#fff}
 .lane[data-state="now"] .lane-icon,.lane[data-state="ready"] .lane-icon{background:var(--clay);color:#fff}
 .lane[data-state="locked"]{cursor:not-allowed}
-.lane[data-state="locked"] .lane-name{color:#5f6b65}
+.lane[data-state="locked"] .lane-name{color:var(--muted)}
 /* A name wider than its column wraps instead of being cut off, also with user text spacing (AS-7, WCAG 1.4.12). */
-.lane-name{font-size:.84rem;font-weight:600;overflow-wrap:anywhere;hyphens:auto}
+.lane-name{font-size:var(--fs-row);font-weight:600;overflow-wrap:anywhere;hyphens:auto}
 /* One gridline every six months, under every axis tick, however long the run (--cols from game.js, BTC-UX-14). */
 .track{position:relative;height:14px;background:repeating-linear-gradient(90deg,transparent 0 calc(100% / var(--cols, 8) - 1px),#e5dfd4 calc(100% / var(--cols, 8) - 1px) calc(100% / var(--cols, 8)))}
 .range-line{position:absolute;top:6px;height:2px;background:var(--ink-2);opacity:.5}
@@ -324,7 +330,7 @@ body[data-side="hood"] .side-hood,body[data-side="choices"] .side-choices{displa
 .axis-track{position:relative}
 .axis-track span{position:absolute;transform:translateX(-50%)}
 .axis-track em{position:absolute;right:0;top:0;font-style:normal;background:#fffdf8;padding-left:4px}
-.plan-note{margin:4px 0 0;font-size:.8rem;color:var(--muted)}
+.plan-note{margin:4px 0 0;font-size:var(--fs-sm);color:var(--muted)}
 
 /* dialogs */
 .dlg{border:0;border-radius:24px;padding:26px 28px;max-width:min(38.75rem,calc(100% - 24px));max-height:calc(100dvh - 24px);overflow:auto;box-shadow:0 30px 70px -18px #0a1a1599;color:var(--ink);background:var(--card)}
@@ -339,16 +345,16 @@ body[data-side="hood"] .side-hood,body[data-side="choices"] .side-choices{displa
 .opt{display:grid;gap:6px;text-align:left;background:#fff;border:2px solid var(--muted);border-radius:16px;padding:12px 14px;min-height:60px;cursor:pointer}
 @media (hover:hover){.opt:hover{border-color:var(--pine);background:var(--pine-soft)}}
 .opt-label{font-weight:700;display:flex;gap:8px;align-items:center}
-.opt-note{font-size:.85rem;color:var(--muted);font-weight:500}
+.opt-note{font-size:var(--fs-row);color:var(--muted);font-weight:500}
 .cx{list-style:none;margin:0 0 8px;padding:0;display:grid;gap:3px}
-.cx li{display:flex;justify-content:space-between;gap:8px;font-size:.86rem;align-items:baseline}
+.cx li{display:flex;justify-content:space-between;gap:8px;font-size:var(--fs-row);align-items:baseline}
 .cx li span:first-child{flex:1}
 .cx b{font-weight:600}
 .opt kbd{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:8px;background:var(--sunken);font:inherit;font-size:.82rem;flex:none}
 html[data-nokeys] .opt kbd{display:none}
 .end-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:8px 0 18px}
 .end-stats div{background:var(--sunken);border-radius:14px;padding:10px 14px}
-.end-stats dt{font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;font-weight:700;color:var(--muted)}
+.end-stats dt{font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.08em;font-weight:700;color:var(--muted)}
 .end-stats dd{margin:0;font-weight:700}
 .end-chose{margin:0 0 16px;padding-left:20px;display:grid;gap:3px;font-size:.92rem;color:var(--ink-2)}
 /* Debrief (C11): results against the plan, the costliest answers and the questions; prints on its own. */
@@ -356,16 +362,17 @@ html[data-nokeys] .opt kbd{display:none}
 .end-stats dd{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px}
 .end-word{display:inline-flex;align-items:center;gap:6px;font-weight:700}
 .end-dot{width:10px;height:10px;border-radius:50%;background:#9fb3aa;flex:none}
-.end-stats [data-level="4"] .end-dot,.end-stats [data-level="3"] .end-dot{background:#2f9e6a}
-.end-stats [data-level="2"] .end-dot{background:#d89a1c}
-.end-stats [data-level="1"] .end-dot,.end-stats [data-level="0"] .end-dot{background:#d9573b}
+/* The status tokens, so the end screen has no third rating palette (BTC-UX-58). */
+.end-stats [data-level="4"] .end-dot,.end-stats [data-level="3"] .end-dot{background:var(--good)}
+.end-stats [data-level="2"] .end-dot{background:var(--warn)}
+.end-stats [data-level="1"] .end-dot,.end-stats [data-level="0"] .end-dot{background:var(--bad)}
 .end-ref{flex-basis:100%;font-size:.82rem;font-weight:600;color:var(--ink-2)}
 .end-luck{margin:-8px 0 14px}
 .from-file{font-weight:700;color:var(--ink-2);background:var(--sunken);border-radius:12px;padding:8px 12px;margin:0 0 10px}
 .end-costly,.end-talk{margin:0 0 8px;padding-left:22px;display:grid;gap:6px;font-size:.95rem}
 /* When nothing cost more, the sentence is not numbered as if it were a list of one (BTC-UX-66). */
 .end-costly li[data-none]{list-style:none;margin-left:-22px}
-.end-costly .end-fx{display:block;font-size:.84rem;font-weight:600;color:var(--ink-2)}
+.end-costly .end-fx{display:block;font-size:var(--fs-row);font-weight:600;color:var(--ink-2)}
 .end-talk{margin-bottom:16px}
 /* Print and the save buttons are the small size, so the class-mode row fits on one line with Play again as its only
    big button (BTC-UX-V05). */
@@ -428,12 +435,12 @@ html[data-nokeys] .opt kbd{display:none}
 }
 @media (max-width:1100px){html{--pl:17.5rem;--pr:18.5rem}}
 @media (max-width:1040px){
-  .kpi{padding:4px 10px 5px 20px}.kpi-label{font-size:.75rem}.kpi-val{font-size:.95rem}
+  .kpi{padding:4px 10px 5px 20px}.kpi-label{font-size:var(--fs-xs)}.kpi-val{font-size:.95rem}
   .badge-long{display:none}.badge-short{display:inline}
 }
 /* Kiosk screens (1920 x 1080 and up): no label smaller than 16 px. */
 @media (min-width:1900px) and (min-height:1000px){
-  .kicker,.kpi-label,.kpi-word,.el-act,.el-why,.lock,.chip,.hood-h,.lane-icon,.axis,.legend,.end-stats dt{font-size:.8rem}
+  .kicker,.kpi-label,.kpi-word,.el-act,.el-why,.lock,.chip,.hood-h,.lane-icon,.axis,.legend,.end-stats dt{font-size:var(--fs-sm)}
 }
 /* Presenter view (I10), in the side-panel layout: the side panel and the schedule step aside, the map takes their
    place, and every label is at least 16 px. Keep the media query the complement of the tabbed layout below. */
@@ -441,7 +448,7 @@ html[data-nokeys] .opt kbd{display:none}
   /* The Build panel names the class's next step, so it widens with the screen: 330 px at 1024, about 380 at 1366 and
      440 at 1920, where its names fit on one line (BTC-UX-V01). */
   html[data-present]{font-size:20px;--pl:clamp(16.5rem,28vw,22rem)}
-  html[data-present] :is(.kicker,.kpi-label,.kpi-word,.el-act,.el-why,.lock,.chip,.hood-h,.lane-icon,.axis,.legend,.end-stats dt){font-size:.8rem}
+  html[data-present] :is(.kicker,.kpi-label,.kpi-word,.el-act,.el-why,.lock,.chip,.hood-h,.lane-icon,.axis,.legend,.end-stats dt){font-size:var(--fs-sm)}
   html[data-present] .p-side,html[data-present] .p-plan{display:none}
   html[data-present] :is(.tools,.cam,.caption,.nogl,.toast){right:16px}
   html[data-present] .kpi-val .long{display:inline}html[data-present] .kpi-val .short{display:none}
@@ -510,17 +517,17 @@ html[data-nokeys] .opt kbd{display:none}
   body{font-size:16px}
   .bar{flex-wrap:wrap;gap:6px 10px;padding:8px max(10px,env(safe-area-inset-right)) 8px max(10px,env(safe-area-inset-left));min-height:0}
   .brand-name{font-size:1.05rem}
-  .badge{font-size:.75rem;padding:1px 8px}
+  .badge{font-size:var(--fs-xs);padding:1px 8px}
   .bar-btns{margin-left:auto}
-  .pill{min-height:40px;padding:4px 12px;font-size:.85rem}
+  .pill{min-height:40px;padding:4px 12px;font-size:var(--fs-row)}
   .kpis{order:3;flex-basis:100%;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
   .kpi{padding:4px 4px 5px 16px;grid-template-columns:1fr}
   .kpi::before{left:6px;top:9px;width:7px;height:7px}
   /* Labels wrap instead of being cut, also with user text spacing (WCAG 1.4.12). */
-  .kpi-label{font-size:.75rem;letter-spacing:0;text-transform:none;white-space:normal;overflow-wrap:anywhere;line-height:1.2}
+  .kpi-label{font-size:var(--fs-xs);letter-spacing:0;text-transform:none;white-space:normal;overflow-wrap:anywhere;line-height:1.2}
   .kpi-label .long{display:none}.kpi-label .short{display:inline}
-  .kpi-val{font-size:.8rem;overflow:hidden;text-overflow:ellipsis}
-  .kpi-word{font-size:.75rem;overflow:hidden;text-overflow:ellipsis}
+  .kpi-val{font-size:var(--fs-sm);overflow:hidden;text-overflow:ellipsis}
+  .kpi-word{font-size:var(--fs-xs);overflow:hidden;text-overflow:ellipsis}
   .kpi-word .long{display:none}.kpi-word .short{display:inline}
   .kpi-val .long{display:none}.kpi-val .short{display:inline}
   html[data-present]{--scene-h:62%}
@@ -529,7 +536,7 @@ html[data-nokeys] .opt kbd{display:none}
   .scene{position:relative;grid-row:1;inset:auto}
   .tools{left:8px;right:8px;top:8px;gap:6px}
   .tools .pill{min-height:36px;font-size:.78rem}
-  .hint{font-size:.74rem;padding:3px 8px}
+  .hint{font-size:var(--fs-xs);padding:3px 8px}
   .cam,.nogl{left:8px;right:8px;bottom:calc(100% - var(--scene-row) + 8px)}
   .toast{left:8px;right:8px;bottom:calc(100% - var(--scene-row) + var(--cam-h, 40px) + 16px)}
   .cam{gap:4px}
@@ -537,10 +544,10 @@ html[data-nokeys] .opt kbd{display:none}
   .cb{width:2.25rem;height:2.25rem;border-radius:10px}
   .cb svg{width:1.125rem;height:1.125rem}
   .cam .pill{min-height:36px;font-size:.78rem;padding:4px 10px}
-  .caption{left:8px;right:8px;top:calc(var(--tools-b, 56px) + 6px);font-size:.85rem;max-width:none}
+  .caption{left:8px;right:8px;top:calc(var(--tools-b, 56px) + 6px);font-size:var(--fs-row);max-width:none}
   .tabs{display:grid;grid-row:2;grid-template-columns:repeat(4,1fr);gap:4px;padding:6px 8px;background:var(--pine)}
-  .tabs button{border:0;border-radius:999px;background:transparent;color:#f7f4ee;font-weight:700;font-size:.85rem;min-height:40px;cursor:pointer}
-  .tabs button[aria-pressed="true"]{background:#f7f4ee;color:var(--pine)}
+  .tabs button{border:0;border-radius:999px;background:transparent;color:var(--paper);font-weight:700;font-size:var(--fs-row);min-height:40px;cursor:pointer}
+  .tabs button[aria-pressed="true"]{background:var(--paper);color:var(--pine)}
   .tabs button:focus-visible{outline-color:var(--focus-stage)}
   .panel{--pad-x:14px;position:relative;grid-row:3;inset:auto;width:auto;border-radius:0;border:0;box-shadow:none;background:var(--card);-webkit-backdrop-filter:none;backdrop-filter:none;display:none;padding:12px 14px}
   .p-build,.p-side,.p-plan{left:auto;right:auto;top:auto;bottom:auto;width:auto;max-height:none}
@@ -561,7 +568,7 @@ html[data-nokeys] .opt kbd{display:none}
 @media (min-width:761px) and (max-width:1100px) and (orientation:portrait){
   html[data-present]{font-size:20px}
   html[data-present] body{font-size:1rem}
-  html[data-present] :is(.kicker,.badge,.kpi-label,.kpi-word,.tools .pill,.hint,.cam .pill,.el-act,.el-why,.lock,.chip,.hood-h,.lane-icon,.axis,.legend,.end-stats dt){font-size:.8rem}
+  html[data-present] :is(.kicker,.badge,.kpi-label,.kpi-word,.tools .pill,.hint,.cam .pill,.el-act,.el-why,.lock,.chip,.hood-h,.lane-icon,.axis,.legend,.end-stats dt){font-size:var(--fs-sm)}
 }
 /* Very narrow phones: the tile dot moves to the bottom corner, beside the rating word it goes with, so the short labels
    fit (at the top corner it covered the end of "Neighbors", BTC-74). */
@@ -579,18 +586,18 @@ html[data-nokeys] .opt kbd{display:none}
   .stage{grid-template-columns:minmax(0,1fr) var(--pw);grid-template-rows:auto 1fr}
   .scene{grid-column:1;grid-row:1 / span 2;height:100%}
   .tabs{grid-column:2;grid-row:1;grid-template-columns:repeat(4,auto);justify-content:space-between;gap:2px;padding:6px}
-  .tabs button{padding:0 7px;font-size:.8rem}
+  .tabs button{padding:0 7px;font-size:var(--fs-sm)}
   .panel{grid-column:2;grid-row:2}
   .tools,.caption{right:calc(var(--pw) + 8px);left:max(8px,env(safe-area-inset-left))}
   .cam,.nogl{right:calc(var(--pw) + 8px);left:max(8px,env(safe-area-inset-left));bottom:8px}
   .toast{right:calc(var(--pw) + 8px);left:max(8px,env(safe-area-inset-left));bottom:calc(16px + var(--cam-h, 32px))}
   .tabs{padding-right:max(6px,env(safe-area-inset-right))}
   .panel{padding-right:max(14px,env(safe-area-inset-right))}
-  .caption{font-size:.8rem;line-height:1.3;padding:5px 12px}
+  .caption{font-size:var(--fs-sm);line-height:1.3;padding:5px 12px}
   /* One row of map buttons, so a narration caption has room above them. */
   .cam{gap:3px}.cam-move{gap:3px}
   .cb{width:32px;height:32px}
-  .cam .pill{min-height:32px;padding:2px 9px;font-size:.75rem}
+  .cam .pill{min-height:32px;padding:2px 9px;font-size:var(--fs-xs)}
 }
 /* Landscape phones from 500 px wide: value and word side by side on each tile, so the header is shorter and the map
    taller. */

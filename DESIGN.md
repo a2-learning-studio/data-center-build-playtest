@@ -4,7 +4,6 @@ description: A data center construction game in pine, paper and clay. This file 
 colors:
   # Custom properties on :root in style.css
   pine: "#163a30"
-  pine-2: "#1e5a47"
   paper: "#f7f4ee"
   card: "#fffdf8"
   sunken: "#efeae1"
@@ -12,6 +11,10 @@ colors:
   ink-2: "#33443d"
   muted: "#5d6b64"
   line: "#dcd7cc"
+  line-strong: "#b9b2a6"
+  card-glass: "#fffdf8f2"
+  card-veil: "#fffdf8e6"
+  card-mist: "#fffdf8d9"
   clay: "#a9492a"
   clay-ink: "#94401f"
   clay-soft: "#f6e4da"
@@ -26,9 +29,6 @@ colors:
   # Literals in style.css that carry a role (not custom properties)
   white: "#ffffff"
   pine-deep: "#0a1a15"
-  card-glass: "#fffdf8f2"
-  card-veil: "#fffdf8e6"
-  card-mist: "#fffdf8d9"
   pine-veil: "#163a30e6"
   bar-frost: "#ffffff12"
   bar-pill-line: "#f7f4eecc"
@@ -48,9 +48,6 @@ colors:
   rating-mid-on-pine: "#f0b43c"
   rating-low-on-pine: "#ff7a5a"
   rating-none: "#9fb3aa"
-  rating-high-on-paper: "#2f9e6a"
-  rating-mid-on-paper: "#d89a1c"
-  rating-low-on-paper: "#d9573b"
   effect-noise: "#d4532c"
   effect-trucks: "#e19a00"
   effect-storm: "#1d7fc9"
@@ -328,14 +325,13 @@ Density is high but calm. The side panels hold many rows at 0.78 to 0.92 rem, bu
 A forest-green and warm-cream palette with one terracotta action color and one amber highlight. The 3D map supplies the sky blues, grass greens and the red-clay dirt.
 
 ### Primary
-- **Clay** (`clay`): the action color. Primary buttons (Start building, Place, Finish phase, Next, Set it here), the element-row marks, the critical-path bars and their hatched swatch, the dot that marks a changed tab, and the in-progress or ready lane icons. White text on clay is 5.72:1.
+- **Clay** (`clay`): the action color. Primary buttons (Start building, Place, Finish phase, Next, Build it here), the element-row marks, the critical-path bars and their hatched swatch, the dot that marks a changed tab, and the in-progress or ready lane icons. White text on clay is 5.72:1.
 - **Clay ink** (`clay-ink`): the primary button's hover, the uppercase kickers, the element action words ("PLACE"), links in dialogs, the "does not fit" siting line, and the file error. 6.86:1 on card.
 - **Clay soft** (`clay-soft`): the fill of element rows and of the "bad" chips.
 
 ### Secondary
 - **Pine** (`pine`, the same value as `ink`): the top bar and the phone tab bar, every pressed or selected state (side tabs, map buttons, the inset ring on segments, the hood-row border), done marks, the meter fill, toasts, the floating tag, the caption backing (at 90%), the favicon tile and the 3D campus sign.
 - **Pine soft** (`pine-soft`): the done element rows, a pressed lane or hood row, the siting box, and the ghost-button hover.
-- **Pine 2** (`pine-2`): defined and unused.
 
 ### Tertiary
 - **Gold** (`gold`): the version badge, the drag hint for 4.5 s at the first zoom (`hint-new`), and the accent on the 3D campus sign.
@@ -352,7 +348,7 @@ A forest-green and warm-cream palette with one terracotta action color and one a
 
 ### Status and rating colors
 - **On the pine bar**, the score-tile dots: high `rating-high-on-pine` (Strong, Good), mid `rating-mid-on-pine` (Fair), low `rating-low-on-pine` (Watch, Concern), none `rating-none`. Each has a 3 px halo at 20% alpha. On pine they measure 6.70, 6.72, 4.87 and 5.65:1.
-- **On the end screen**, the dots on sunken: `rating-high-on-paper`, `rating-mid-on-paper`, `rating-low-on-paper`, `rating-none` (2.82, 2.05 and 3.26:1; the rating word sits beside each one).
+- **On the end screen**, the dots on sunken use the status tokens `good`, `warn` and `bad`, and `rating-none` (the rating word sits beside each one; the earlier `#2f9e6a`, `#d89a1c` and `#d9573b` palette is retired) (2.82, 2.05 and 3.26:1; the rating word sits beside each one).
 - **Chips**: good `chip-good-bg` with `good-ink` text (5.19:1); bad `clay-soft` with `clay-ink` (5.65:1); neutral `chip-neutral-bg` or `sunken` with `ink`.
 - **Siting fit**: `good-ink` on pine-soft for "This spot fits." (5.23:1) and `clay-ink` for the reasons it does not (5.98:1).
 - **Tokens `good`, `warn` and `bad`**: defined on `:root` and used nowhere in `style.css`. The `good` and `bad` values reappear as literals in `scene.js` for the siting footprints.
@@ -385,6 +381,8 @@ The small square before each Neighbors row names that effect's color on the map:
 **Character:** a geometric grotesk for names and numbers over a neutral, highly legible UI sans. Most UI text is set at 600 or 700, which reads firmly on projectors and in small sizes. Uppercase tracked labels give each section a quiet heading.
 
 ### Hierarchy
+
+Type tokens on `:root`: `--fs-xs` .75rem, `--fs-sm` .8rem, `--fs-row` .85rem and `--fs-ui` .9rem; sizes within .01rem of them use them. The .78, .82, .88 and .92rem sizes remain where they are.
 - **Display**: the intro title and `h1`. Geist 700, `clamp(1.7rem, 1.2rem + 1.6vw, 2.4rem)`, line height 1.15.
 - **Headline**: the dialog titles and the phase name in the Build panel (`h2`). Geist 700, 1.25rem, line height 1.15.
 - **Title**: `h3` sections in dialogs, and the schedule heading. Geist 700, 1rem.
@@ -474,7 +472,7 @@ Soft and friendly. Every action is a full pill (999 px); containers use large ra
 - **Ghost** (`.btn-ghost`): white, 2 px ink border, ink text, no shadow. Hover: pine-soft. Disabled: white, `disabled-ghost-ink` text, `disabled-ghost-line` border.
 - **Sizes:**
   - Big (`.btn-big`): 1.1rem, 14 × 30 px, 56 px, for Start, Resume, Play again and Keep playing.
-  - Small (`.btn-small`): 0.88rem, 6 × 14 px, 40 px, for Undo, Start over, Set it here, Cancel, Open results file and the intro Voice button.
+  - Small (`.btn-small`): 0.88rem, 6 × 14 px, 40 px, for Undo, Start over, Build it here, Cancel, Open results file and the intro Voice button.
   - Wide (`.btn-wide`): full width, for Finish phase and Next.
   - On phones the end-screen buttons sit two to a row, 48 px.
 - **Focus:** a 3 px solid `focus` outline at a 2 px offset (15.4:1 on card). On the pine bar, the phone tabs and the skip link it is `focus-stage`. The canvas outline is inset 4 px.
@@ -497,7 +495,7 @@ Soft and friendly. Every action is a full pill (999 px); containers use large ra
 
 ### Build panel rows
 - **Element row** (`.el`): a full-width button, clay-soft, 14 px radius, 48 px (44 px tabbed). It has a 26 px circular mark (plus, check or lock), the name in 600, an optional reason line (0.78rem, ink-2), and an uppercase action word in clay-ink. Hover: clay border and a 1 px lift (the only CSS transition, 0.15 s). Done: pine-soft with a pine mark and a muted word. Locked: disabled, sunken, 85% opacity.
-- **Siting box** (`.place-box`): pine-soft with a 2 px pine border at 16 px radius. It holds a kicker, the hint, the keys or touch line, the fit message (bold, good-ink or clay-ink) and the Set it here and Cancel buttons.
+- **Siting box** (`.place-box`): pine-soft with a 2 px pine border at 16 px radius. It holds a kicker, the hint, the keys or touch line, the fit message (bold, good-ink or clay-ink) and the Build it here and Cancel buttons.
 - **Range pill** (`.range`): the typical duration, 0.8rem, on sunken.
 - **Commissioning track** (`.cx`): name and state rows at 0.86rem.
 - **Site log**: an uppercase muted heading, then the 3 latest lines at 0.86rem. The newest is ink and 600.
@@ -537,7 +535,7 @@ Soft and friendly. Every action is a full pill (999 px); containers use large ra
 - **End-screen tiles:** a 2-column grid of sunken tiles (4 columns in print). Each has an uppercase term, a value, a dot with the rating word, and a "Plan: …" line.
 
 ### Messages over the map
-- **Toast:** pine, white 600 0.95rem text, 14 px radius, fixed 44 px from the bottom, centered, at most 560 px wide. It never takes clicks. It shows for 3.5 to 9 s (55 ms per character).
+- **Toast:** pine, white 600 0.95rem text, 14 px radius, over the map just above the map buttons, centered between the panels, at most 35rem wide. It never takes clicks. It shows for 3.5 to 9 s (55 ms per character).
 - **Caption:** `pine-veil`, white 1rem text at line height 1.35, 14 px radius, centered under the toolbar, at most 640 px wide. Clicks pass through it.
 - **Built tag:** a pine pill, white 0.85rem 700, with a pointer. It follows the new part for 3.2 s and hides while the part is under the toolbar.
 - **Drag hint:** a `card-mist` pill in 0.8rem ink-2. At the first zoom it turns gold with pine bold text for 4.5 s.
@@ -545,7 +543,7 @@ Soft and friendly. Every action is a full pill (999 px); containers use large ra
 
 ### Icons
 Inline SVG only; no icon font, no images.
-- **Map buttons:** a 24 × 24 viewBox, stroked in `currentColor` at 2.4, round caps and joins. Plus, minus, two curved turn arrows, four chevrons, and four presenter corners.
+- **Map buttons:** a 24 × 24 viewBox, stroked in `currentColor` at 2.4, round caps and joins. Plus, minus, two curved turn arrows, four chevrons, and a presenter screen on a stand (it was four corners, which read as full screen) presenter corners.
 - **Element and lane marks:** a 16 × 16 viewBox. Check and plus are stroked at 2.2. The lock is a filled body with a 1.6 stroked shackle.
 - **Favicon:** a 64 px pine tile with 14 px radius, an orange roof line and a paper building.
 - *Recorded inconsistency:* stroke weights are 2.4, 2.2 and 1.6.
@@ -607,6 +605,17 @@ A static Letter page in `system-ui`:
 - Its own palette (see Colors) and a 3 px accent rule under the header.
 - Uppercase accent `h2`s, two columns, boxed notes with a left accent bar, and ruled tables.
 - It prints on one Letter page in Arial, Arimo or Liberation Sans at 8.5 pt.
+
+## Changes in the October 2026 UI/UX round
+
+Within the same look:
+- **Build panel:** once Finish can be pressed it is pinned to the panel's bottom on a card band with the pinned-footer shadow. A locked step is a sunken well with a `#cfc8bc` mark and a muted word, at full opacity, and stays in the Tab order (`aria-disabled`). The waiting Finish is a sunken pill. The Site log and Undo come before the commissioning track. After turnover the panel offers "Back to the summary".
+- **Neighbors beside the panels:** the rows scroll in their own area; the fact box sits under them with a height cap, then the breakdown.
+- **Presenter view:** the toolbar adds a "Neighbors" pill and a "Presenter view: on" pill. Under 1600 px the opened panel lies over the map below the toolbar; at 1600 px and up it takes its usual place. The Build panel width is `clamp(16.5rem, 28vw, 22rem)`.
+- **Score tiles:** a tile that changed gets a 2 px `#f7f4eecc` inset ring for 4 s and, from 1366 px, the change after its word. The label spans `auto 1fr`.
+- **End screen:** "Look at the campus" under the opening paragraph; Print and the save buttons are `.btn-small`; during the kiosk countdown Keep is the one clay button, at the end of the row.
+- **Map buttons:** where the zoomed-in set would wrap, the move buttons take their own row (`html[data-cam-split]`). On touch screens the buttons sit 8 px apart.
+- **Answer options** have a 2 px `muted` edge; empty meter cells use `line-strong`. Panel and dialog scrollbars are `muted` on transparent.
 
 ## Do's and Don'ts
 
