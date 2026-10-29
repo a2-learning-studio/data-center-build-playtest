@@ -618,7 +618,7 @@ function cxTrackHtml() {
     ...gear,
     row("L5", t.cxWhen.L5, st.placed.has("L5") ? t.cxDone : t.cxWait),
   ];
-  return `<p class="log-h">${esc(t.cxTrackTitle)}</p><ul class="cx">${rows.join("")}</ul><p class="muted">${esc(t.cxTrackNote)}</p>`;
+  return `<p class="log-h" role="heading" aria-level="3">${esc(t.cxTrackTitle)}</p><ul class="cx">${rows.join("")}</ul><p class="muted">${esc(t.cxTrackNote)}</p>`;
 }
 // The short form shown on the button itself, so the reason is visible without a tooltip.
 function blockShort(e) {
@@ -824,9 +824,9 @@ function renderSide() {
   $("[data-choices]").innerHTML = CHOICES.map((c) => {
     const locked = choiceLocked(c);
     const v = st.choice[c];
-    return `<div class="choice"${locked ? " data-locked" : ""}><div class="choice-head"><span class="choice-name">${esc(t.choices[c].name)}</span>${locked ? `<span class="lock">${ICON.lock}${esc(t.lockedAfter)}</span>` : ""}</div>
-      <div class="seg" role="group" aria-label="${esc(t.choices[c].name)}">${["a", "b"].map((o) => `<button type="button" data-choice="${c}" data-v="${o}" aria-pressed="${v === o}"${locked && v !== o ? " disabled" : ""}>${esc(t.choices[c][o].label)}</button>`).join("")}</div>
-      <p class="choice-note">${esc(v ? t.choices[c][v].note : t.choiceUnset)} ${v ? chipsFor("choice", c, v) : ""}</p></div>`;
+    return `<div class="choice"${locked ? " data-locked" : ""}><div class="choice-head"><span class="choice-name">${esc(t.choices[c].name)}</span>${locked ? `<span class="lock" id="lock-${c}">${ICON.lock}${esc(t.lockedAfter)}</span>` : ""}</div>
+      <div class="seg" role="group" aria-label="${esc(t.choices[c].name)}" aria-describedby="${locked ? `lock-${c} ` : ""}note-${c}">${["a", "b"].map((o) => `<button type="button" data-choice="${c}" data-v="${o}" aria-pressed="${v === o}"${locked && v !== o ? " disabled" : ""}>${esc(t.choices[c][o].label)}</button>`).join("")}</div>
+      <p class="choice-note" id="note-${c}">${esc(v ? t.choices[c][v].note : t.choiceUnset)} ${v ? chipsFor("choice", c, v) : ""}</p></div>`;
   }).join("");
   $("[data-choices]").insertAdjacentHTML("afterbegin", `<p class="choices-note">${esc(t.choicesNote)}</p>`);
   for (const b of $$("[data-side-tab]")) b.setAttribute("aria-pressed", b.dataset.sideTab === ui.side);
@@ -1732,7 +1732,9 @@ function openDecide(id, next) {
   $(".card-title", dlg).textContent = choice.name;
   $(".card-body", dlg).textContent = choice.ask;
   // The number keys are named only while the single-key shortcuts are on.
-  $(".card-opts", dlg).previousElementSibling.textContent = prefs.keys ? t.decideChoose : t.cardChoose;
+  // The number keys are named only while the shortcuts are on, and not on touch-only screens, which have none
+  // (BTC-UX-54).
+  $(".card-opts", dlg).previousElementSibling.textContent = prefs.keys && !TOUCH_ONLY.matches ? t.decideChoose : t.cardChoose;
   $(".card-opts", dlg).innerHTML = ["a", "b"]
     .map((o, i) => `<button type="button" class="opt" data-key="${i + 1}" data-o="${o}"><span class="opt-label"><kbd>${i + 1}</kbd>${esc(choice[o].label)}</span><span class="opt-note">${esc(choice[o].note)}</span>${chipsFor("choice", id, o)}</button>`)
     .join("");
@@ -1749,7 +1751,7 @@ function openCard(id, after) {
   $(".kicker", dlg).textContent = t.cardKicker;
   $(".card-title", dlg).textContent = card.title;
   $(".card-body", dlg).textContent = card.body;
-  $(".card-opts", dlg).previousElementSibling.textContent = t.cardChoose;
+  $(".card-opts", dlg).previousElementSibling.textContent = prefs.keys && !TOUCH_ONLY.matches ? t.cardChooseKeys : t.cardChoose;
   // Where the finish moves less than the months the card names, a line under the chips says why (UD-7).
   const why = (o) => {
     const n = Math.max(0, ...Object.values(CARD[id].opts[o].sched || {}));
@@ -2170,6 +2172,7 @@ function applyLang() {
     if (typeof v === "string") { node.setAttribute("aria-label", v); if (node.hasAttribute("title")) node.title = v; }
   }
   canvas.setAttribute("aria-label", t.canvasLabel);
+  canvas.setAttribute("aria-roledescription", t.canvasRole);
   document.title = t.pageTitle;
   // The intro's Start and Listen buttons are named by code, and before the game starts the Site log holds only its
   // opening line, so a switch made on the intro reaches them too.

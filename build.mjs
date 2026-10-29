@@ -261,7 +261,8 @@ const bodyFor = (offline) => `
   <div class="bar-btns"><button type="button" class="pill" data-about data-t="about">${t.about}</button><button type="button" class="pill" data-lang hidden>${t.langToggle}</button></div>
 </header>
 <main class="stage">
-  <canvas class="scene" data-scene tabindex="0" role="application" aria-roledescription="3D map" aria-label="${t.canvasLabel}"></canvas>
+  <canvas class="scene" data-scene tabindex="0" role="application" aria-roledescription="${t.canvasRole}" aria-label="${t.canvasLabel}" aria-describedby="map-help"></canvas>
+  <p class="sr" id="map-help" data-t="canvasHelp">${t.canvasHelp}</p>
   <div class="tools"><button type="button" class="pill pill-dark" data-fx aria-pressed="true">${t.effectsOn}</button><button type="button" class="pill pill-dark" data-voice aria-pressed="true">${t.voiceOn}</button><button type="button" class="pill pill-dark" data-side-toggle aria-pressed="false" data-t="tabHood">${t.tabHood}</button><button type="button" class="pill pill-dark" data-present-off aria-pressed="true" data-t="presentOn">${t.presentOn}</button><span class="hint" data-hint><span class="long">${t.dragHint}</span><span class="short">${t.dragHintShort}</span></span></div>
   <p class="nogl" data-t="noglLabel">${t.noglLabel}</p>
   <div class="tag" data-tag hidden aria-hidden="true"></div>
@@ -270,7 +271,7 @@ const bodyFor = (offline) => `
   <span class="sr" aria-live="polite" data-score-live></span>
   <span class="sr" aria-live="polite" data-alert></span>
   <p class="toast" data-toast hidden aria-hidden="true"></p>
-  <nav class="tabs" aria-label="${t.gameName}" data-t-label="gameName">
+  <nav class="tabs" aria-label="${t.tabsLabel}" data-t-label="tabsLabel">
     <button type="button" data-tab="build" aria-pressed="true" data-t="tabBuild">${t.tabBuild}</button>
     <button type="button" data-tab="plan" aria-pressed="false" data-t="tabPlan">${t.tabPlan}</button>
     <button type="button" data-tab="hood" aria-pressed="false" data-t="tabHood">${t.tabHood}</button>
@@ -279,8 +280,8 @@ const bodyFor = (offline) => `
   <section class="panel p-build" id="build-panel" tabindex="-1" aria-label="${t.tabBuild}" data-t-label="tabBuild"><div data-build></div></section>
   <section class="panel p-side" aria-label="${t.tabHood}" data-t-label="tabHood">
     <div class="side-tabs"><button type="button" data-side-tab="hood" aria-pressed="true" data-t="hoodTitle">${t.hoodTitle}</button><button type="button" data-side-tab="choices" aria-pressed="false" data-t="choicesTitle">${t.choicesTitle}</button></div>
-    <div class="side-hood"><div class="hood-scroll" data-hood-scroll><div class="hood-lists" data-hood></div><p class="hood-score" data-t="hoodScoreNote">${t.hoodScoreNote}</p></div><p class="hood-detail" id="hood-detail" data-hood-detail aria-live="polite"></p><p class="hood-break" data-hood-break></p></div>
-    <div class="side-choices"><div class="choices" data-choices></div></div>
+    <div class="side-hood"><h2 class="sr" data-t="hoodTitle">${t.hoodTitle}</h2><div class="hood-scroll" data-hood-scroll><div class="hood-lists" data-hood></div><p class="hood-score" data-t="hoodScoreNote">${t.hoodScoreNote}</p></div><p class="hood-detail" id="hood-detail" data-hood-detail aria-live="polite"></p><p class="hood-break" data-hood-break></p></div>
+    <div class="side-choices"><h2 class="sr" data-t="choicesTitle">${t.choicesTitle}</h2><div class="choices" data-choices></div></div>
   </section>
   <section class="panel p-plan" data-plan aria-label="${t.schedTitle}" data-t-label="schedTitle"></section>
   <div class="cam" role="group" aria-label="${t.camGroup}" data-t-label="camGroup" data-cam>

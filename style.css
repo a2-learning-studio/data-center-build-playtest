@@ -1,7 +1,7 @@
 /* Build the Campus — one fixed screen. Chrome matches Community Builders of Pecan Grove:
    pine stage #163a30, paper #f7f4ee, clay #a9492a pill buttons, Geist headings, Inter body. */
 :root{
-  --pine:#163a30;--pine-2:#1e5a47;--paper:#f7f4ee;--card:#fffdf8;--sunken:#efeae1;--ink:#163a30;--ink-2:#33443d;--muted:#5d6b64;--line:#dcd7cc;
+  --pine:#163a30;--pine-2:#1e5a47;--paper:#f7f4ee;--card:#fffdf8;--sunken:#efeae1;--ink:#163a30;--ink-2:#33443d;--muted:#5d6b64;--line:#dcd7cc;--line-strong:#b9b2a6;
   --clay:#a9492a;--clay-ink:#94401f;--clay-soft:#f6e4da;--pine-soft:#e6f0eb;--gold:#e69f00;--focus:#13243b;--focus-stage:#f0b43c;
   --good:#1f8a5b;--warn:#d08a00;--bad:#c2452a;--good-ink:#1f6f4f;
   --shadow:0 2px 4px #163a3024,0 14px 32px -10px #163a3070;
@@ -194,7 +194,7 @@ body[data-nogl] .cam,body[data-nogl] .hint,body[data-nogl] [data-fx]{display:non
 .dlg-intro .intro-btns .btn-big{margin-top:0}
 .btn.btn-ghost{background:#fff;color:var(--ink);border:2px solid var(--ink);box-shadow:none}
 @media (hover:hover){.btn.btn-ghost:hover:not([disabled]){background:var(--pine-soft)}}
-.btn.btn-ghost[disabled]{background:#fff;color:#6b756f;border-color:#b9b2a6}
+.btn.btn-ghost[disabled]{background:#fff;color:#6b756f;border-color:var(--line-strong)}
 .dlg[data-idle] .intro-btns{margin-top:12px}
 
 /* build panel */
@@ -253,7 +253,8 @@ body[data-side="hood"] .side-hood,body[data-side="choices"] .side-choices{displa
 /* A long word wraps onto two lines at most, so the name beside it keeps its room (BTC-UX-V03). */
 .hood-word{font-size:.8rem;color:var(--muted);text-align:right;line-height:1.15;max-width:6rem}
 .meter{display:inline-flex;gap:3px}
-.meter i{width:.8125rem;height:.625rem;border-radius:3px;background:#fff;box-shadow:inset 0 0 0 1.5px var(--line)}
+/* Empty cells keep the 4-step scale in sight on a projector: the stronger line (BTC-UX-19). */
+.meter i{width:.8125rem;height:.625rem;border-radius:3px;background:#fff;box-shadow:inset 0 0 0 1.5px var(--line-strong)}
 /* Every meter fills in one ink: it shows an amount, not a rating, so red, gold and green keep meaning the dashboard's
    status words (UD-6). The small square before a name is that effect's colour on the map. */
 .meter i[data-on]{background:var(--pine);box-shadow:none}
@@ -292,7 +293,8 @@ body[data-side="hood"] .side-hood,body[data-side="choices"] .side-choices{displa
 .lanes{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:2px}
 .lane{width:100%;display:grid;grid-template-columns:22px 6.5rem 1fr;gap:8px;align-items:center;background:transparent;border:0;border-radius:8px;padding:1px 4px;min-height:28px;cursor:pointer;text-align:left}
 @media (hover:hover){.lane:hover{background:var(--sunken)}}
-.lane[aria-pressed="true"]{background:var(--pine-soft)}
+/* The phase in focus has a pine ring as well as the pale tint, which alone was 1.15:1 (BTC-UX-35, WCAG 1.4.11). */
+.lane[aria-pressed="true"]{background:var(--pine-soft);box-shadow:inset 0 0 0 2px var(--pine)}
 .lane-icon{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;background:var(--sunken);font-size:.78rem;color:var(--ink-2)}
 .lane-icon svg{width:12px;height:12px}
 .lane[data-state="done"] .lane-icon{background:var(--pine);color:#fff}
@@ -333,8 +335,9 @@ body[data-side="hood"] .side-hood,body[data-side="choices"] .side-choices{displa
 .dlg h3{font-size:1.125rem}
 .dlg-intro::backdrop{background:linear-gradient(#0a1a1500,#0a1a1580)}
 .card-opts{display:grid;gap:10px;margin-top:6px}
-.opt{display:grid;gap:6px;text-align:left;background:#fff;border:2px solid var(--line);border-radius:16px;padding:12px 14px;min-height:60px;cursor:pointer}
-@media (hover:hover){.opt:hover{border-color:var(--pine)}}
+/* Each answer has a clear edge on a washed-out projector too (BTC-UX-19): muted, 5.5:1, instead of 1.41:1. */
+.opt{display:grid;gap:6px;text-align:left;background:#fff;border:2px solid var(--muted);border-radius:16px;padding:12px 14px;min-height:60px;cursor:pointer}
+@media (hover:hover){.opt:hover{border-color:var(--pine);background:var(--pine-soft)}}
 .opt-label{font-weight:700;display:flex;gap:8px;align-items:center}
 .opt-note{font-size:.85rem;color:var(--muted);font-weight:500}
 .cx{list-style:none;margin:0 0 8px;padding:0;display:grid;gap:3px}
@@ -658,7 +661,12 @@ html[data-still] *{transition:none!important}
      forced text gets a Canvas-coloured backplate, which hid the HighlightText words. */
   :is(.seg button,.side-tabs button,.tabs button,.cb)[aria-pressed="true"]{forced-color-adjust:none;background:Highlight;color:HighlightText;border-color:Highlight}
   [data-new]::after{background:Highlight}
-  .hood-row{border-color:Canvas}
+  /* Unpressed rows show their edge; the toast, the caption and the Built tag get a border, since their pine fill is
+     dropped and they sat borderless over panel text (BTC-UX-64, WCAG 1.4.11). A changed score tile is outlined. */
+  .hood-row{border-color:ButtonBorder}
+  .toast,.caption,.tag{border:2px solid CanvasText}
+  .tag::after{forced-color-adjust:none;background:CanvasText}
+  .kpi[data-changed]{outline:2px solid Highlight;outline-offset:-2px}
   .hood-row[aria-pressed="true"]{border-color:Highlight}
   .lane{position:relative}
   .lane[aria-pressed="true"]::after{content:"";position:absolute;inset:0;border:2px solid Highlight;border-radius:inherit;pointer-events:none}

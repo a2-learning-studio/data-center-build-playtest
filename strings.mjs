@@ -55,8 +55,12 @@ export const STRINGS = {
     phaseOf: "Phase {n} of 9",
     // Read out to screen readers when a phase opens (BTC-UX-31); not shown.
     phaseSay: "Phase {n} of 9: {name}.",
-    canvasLabel: "3D map of the made-up Red Clay Ridge site. Drag or use the arrow keys to turn the view. Scroll, pinch or press plus or minus to zoom. When zoomed in, drag or press Shift and an arrow key to move the view; right-drag or two fingers turn it. The map buttons do the same, and Reset view shows the whole site. While siting a piece, drag or tap the ground, or press the arrow keys, to move its footprint; the Build panel says whether it fits. Green means the spot fits, and letting go there builds the piece. Set it here builds it where the footprint is.",
-    noglLabel: "The 3D map could not start on this device. The panels, the schedule and every choice still work.",
+    // The map's name is short; its help is a description read after it, and About has the full map help (BTC-UX-36).
+    canvasRole: "3D map",
+    canvasLabel: "The made-up Red Clay Ridge site",
+    canvasHelp: "Arrow keys turn the view, plus and minus zoom, and Shift with an arrow key moves it when zoomed in; Home brings the whole site back. While you place a piece, the arrow keys nudge it and the Build panel says whether it fits. About has the full map help.",
+    tabsLabel: "Panels",
+    noglLabel: "The 3D map is not showing on this device right now. The panels, the schedule and every choice still work.",
     // While the page loads; the requirements follow after ten seconds, or at once with scripts off (BTC-UX-22).
     loading: "Loading the game…",
     noScript: "If it does not start, this browser cannot run it: the game needs JavaScript turned on and Chrome or Edge 108 or later, Firefox 101 or later, or Safari 15.4 or later.",
@@ -273,6 +277,8 @@ export const STRINGS = {
 
     cardKicker: "Issue card",
     cardChoose: "Choose one",
+    // With the shortcuts on, on a device with keys (BTC-UX-54).
+    cardChooseKeys: "Choose one. The number keys work too.",
     cardChips: { sched: "Finish", budget: "Budget", safety: "Safety", hood: "Neighbor relations" },
     chipNoDelay: "unchanged",
     chipFromGrading: "counts from grading",
