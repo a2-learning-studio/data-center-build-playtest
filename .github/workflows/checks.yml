@@ -1,0 +1,88 @@
+# The release gate (PA-4, QL-2, ES-3): the build's consistency checks with every narration clip required, the
+# committed pages matching a fresh build, then every check in tests/ against the test build.
+# The checks run side by side, one job each: one after another they took over 45 minutes under software rendering,
+# and the run was cancelled before session-check and wait-path ran. The list of checks is read from tests/, so a new
+# check runs without a change here. The job named "checks" passes only when the build and every check passed; it is
+# the one to make a required check for main.
+name: Build and browser checks
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      tests: ${{ steps.list.outputs.tests }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Build (stops on a narration line with no clip)
+        run: node build.mjs --strict
+      - name: The committed pages match the build
+        run: |
+          git status --short
+          git diff --exit-code --stat
+          test -z "$(git status --porcelain)"
+      - name: List the checks in tests/
+        id: list
+        run: |
+          tests=$(node -e 'const fs=require("fs");console.log(JSON.stringify(fs.readdirSync("tests").filter(f=>f.endsWith(".mjs")&&f!=="drive.mjs").sort().map(f=>f.slice(0,-4))))')
+          echo "$tests"
+          echo "tests=$tests" >> "$GITHUB_OUTPUT"
+
+  check:
+    needs: build
+    runs-on: ubuntu-latest
+    # The longest check (session-check) is expected to take about 15 to 20 minutes on a GitHub runner.
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        test: ${{ fromJSON(needs.build.outputs.tests) }}
+    name: check (${{ matrix.test }})
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - if: matrix.test != 'build-check'
+        run: npx playwright install --with-deps chromium
+      - name: Build the test page
+        run: node build.mjs --strict
+      - name: Run tests/${{ matrix.test }}.mjs
+        run: node tests/${{ matrix.test }}.mjs
+        env:
+          SHOTS_DIR: ${{ runner.temp }}/shots
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: check-screenshots-${{ matrix.test }}
+          path: |
+            ${{ runner.temp }}/shots
+            !${{ runner.temp }}/shots/build-check-*
+          if-no-files-found: ignore
+          retention-days: 7
+
+  checks:
+    needs: [build, check]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: The build and every check passed
+        run: |
+          echo "build: ${{ needs.build.result }}, checks: ${{ needs.check.result }}"
+          test "${{ needs.build.result }}" = success
+          test "${{ needs.check.result }}" = success

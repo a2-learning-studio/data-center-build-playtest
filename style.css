@@ -3,7 +3,7 @@
 :root{
   --pine:#163a30;--pine-2:#1e5a47;--paper:#f7f4ee;--card:#fffdf8;--sunken:#efeae1;--ink:#163a30;--ink-2:#33443d;--muted:#5d6b64;--line:#dcd7cc;
   --clay:#a9492a;--clay-ink:#94401f;--clay-soft:#f6e4da;--pine-soft:#e6f0eb;--gold:#e69f00;--focus:#13243b;--focus-stage:#f0b43c;
-  --good:#1f8a5b;--warn:#d08a00;--bad:#c2452a;
+  --good:#1f8a5b;--warn:#d08a00;--bad:#c2452a;--good-ink:#1f6f4f;
   --shadow:0 2px 4px #163a3024,0 14px 32px -10px #163a3070;
   --radius:20px;
   --font-body:Inter,"Segoe UI",ui-sans-serif,system-ui,sans-serif;--font-display:Geist,"Segoe UI",ui-sans-serif,system-ui,sans-serif;
@@ -22,6 +22,13 @@ p{margin:0 0 10px}
 button{font:inherit;color:inherit}
 :focus-visible{outline:3px solid var(--focus);outline-offset:2px}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+/* The skip link (AS-10): the first stop on the page, out of sight until it has keyboard focus. */
+.skip{position:absolute;left:12px;top:10px;z-index:30;background:var(--card);color:var(--ink);font-weight:700;padding:10px 18px;border-radius:999px;box-shadow:var(--shadow);text-decoration:none}
+.skip:not(:focus){width:1px;height:1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.skip:focus-visible{outline-color:var(--focus-stage)}
+/* Until game.js runs (build.mjs): while the page loads, then for good where the game cannot run (critic). */
+.nojs{position:fixed;inset:0;z-index:50;display:grid;place-items:center;padding:16px;background:linear-gradient(#0a1a1500,#0a1a1580)}
+.nojs p{max-width:30rem;margin:0;padding:20px 24px;border-radius:var(--radius);background:var(--card);color:var(--ink);box-shadow:var(--shadow);font-weight:600;text-align:center}
 .muted{color:var(--muted);font-size:.9rem}
 .kicker{text-transform:uppercase;letter-spacing:.09em;font-size:.75rem;font-weight:700;color:var(--clay-ink);margin-bottom:4px}
 .byline{font-weight:700;color:var(--ink-2)}
@@ -52,7 +59,7 @@ h1.brand-name{font-family:var(--font-display);font-weight:700;font-size:1.2rem;l
 .pill{background:transparent;color:#f7f4ee;border:2px solid #f7f4eecc;border-radius:999px;padding:6px 16px;font-weight:700;min-height:44px;cursor:pointer}
 .pill:hover{background:#ffffff1a}
 .bar .pill:focus-visible{outline-color:var(--focus-stage)}
-.pill-dark{color:var(--ink);border-color:var(--ink);background:#fffdf8e6;backdrop-filter:blur(6px)}
+.pill-dark{color:var(--ink);border-color:var(--ink);background:#fffdf8e6;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
 .pill-dark:hover{background:#fff}
 .pill-dark[aria-pressed="false"]{border-style:dashed}
 
@@ -62,13 +69,16 @@ h1.brand-name{font-family:var(--font-display);font-weight:700;font-size:1.2rem;l
 .scene[data-zoomed]{cursor:move}
 .scene[data-placing],.scene[data-placing]:active{cursor:crosshair}
 .scene:focus-visible{outline-offset:-4px}
-.nogl{display:none}
-body[data-nogl] .nogl{display:block;position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);max-width:420px;text-align:center}
+/* Without WebGL, or with its context lost, the note sits over the open map where the map buttons would be, above the
+   panels, and the blank canvas and the floating tag step aside (FE-2: the note was drawn under the Schedule panel). */
+.nogl{display:none;position:absolute;left:calc(var(--pl) + 32px);right:calc(var(--pr) + 32px);bottom:calc(26px + min(var(--plan-h, 290px), max(150px, calc(100% - var(--top-room, 0px) - var(--cam-h, 0px) - 26px))));z-index:4;width:fit-content;max-width:420px;margin:0 auto;padding:10px 16px;border-radius:14px;background:var(--card);box-shadow:var(--shadow);font-weight:600;text-align:center}
+body[data-nogl] .nogl{display:block}
+body[data-nogl] .scene,body[data-nogl] .tag{visibility:hidden}
 .tag{position:absolute;left:0;top:0;pointer-events:none;background:var(--pine);color:#fff;font-weight:700;font-size:.85rem;padding:6px 12px;border-radius:999px;box-shadow:var(--shadow);white-space:nowrap;z-index:3}
 .tag::after{content:"";position:absolute;left:50%;bottom:-5px;width:10px;height:10px;background:var(--pine);transform:translateX(-50%) rotate(45deg);border-radius:2px}
 
 /* floating panels */
-.panel{position:absolute;background:#fffdf8f2;backdrop-filter:blur(10px);border:1px solid #dcd7cccc;border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;z-index:2;overflow:auto;scrollbar-width:thin}
+.panel{position:absolute;background:#fffdf8f2;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border:1px solid #dcd7cccc;border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;z-index:2;overflow:auto;scrollbar-width:thin}
 .p-build{left:16px;top:16px;bottom:16px;width:var(--pl)}
 .p-side{right:16px;top:16px;bottom:16px;width:var(--pr);display:flex;flex-direction:column;padding:10px 14px 14px}
 /* --plan-room: the schedule never grows into the toolbar, the narration caption or the map buttons above it (I9);
@@ -85,7 +95,7 @@ body[data-nogl] .nogl{display:block;position:absolute;left:50%;top:40%;transform
 .cam{position:absolute;left:calc(var(--pl) + 32px);right:calc(var(--pr) + 32px);bottom:calc(26px + min(var(--plan-h, 290px), max(150px, calc(100% - var(--top-room, 0px) - var(--cam-h, 0px) - 26px))));display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:6px;z-index:4;pointer-events:none}
 .cam-move{display:flex;gap:6px}
 .cam-move[hidden]{display:none}
-.cb{width:40px;height:40px;padding:0;border-radius:12px;border:2px solid var(--ink);background:#fffdf8e6;color:var(--ink);display:grid;place-items:center;cursor:pointer;backdrop-filter:blur(6px)}
+.cb{width:40px;height:40px;padding:0;border-radius:12px;border:2px solid var(--ink);background:#fffdf8e6;color:var(--ink);display:grid;place-items:center;cursor:pointer;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
 .cb:hover{background:#fff}
 .cb svg{width:20px;height:20px}
 .cam .pill{min-height:40px}
@@ -93,16 +103,20 @@ body[data-nogl] .cam,body[data-nogl] .hint,body[data-nogl] [data-fx]{display:non
 .cb[aria-pressed="true"]{background:var(--pine);color:#fff;border-color:var(--pine)}
 .place-box{background:var(--pine-soft);border:2px solid var(--pine);border-radius:16px;padding:10px 12px;margin:0 0 12px}
 .place-box p{margin:0 0 8px}
+/* The fit message is text, so it uses the darker inks: 5.2:1 and 6.0:1 on the pale box (AS-1, WCAG 1.4.3). */
 .place-why{font-weight:700}
-.place-why[data-ok="1"]{color:var(--good)}
-.place-why[data-ok="0"]{color:var(--bad)}
+.place-why[data-ok="1"]{color:var(--good-ink)}
+.place-why[data-ok="0"]{color:var(--clay-ink)}
+/* The mouse and arrow-key line, or on touch screens the touch line (UD-8). */
+.place-touch{display:none}
 .place-actions{display:flex;flex-wrap:wrap;gap:8px}
 .place-actions .btn{min-height:44px}
 .game-btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
 .btn-small{min-height:40px;padding:6px 14px;font-size:.88rem}
 .end-btns{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:6px}
-/* The countdown, Keep and Play again stay pinned at the bottom of the end screen, visible without scrolling. */
-.dlg[data-end]{padding-bottom:0}
+/* The countdown, Keep and Play again stay pinned at the bottom of the end screen, visible without scrolling, and so
+   does About's Close button, so a long sheet never hides the way out (UD-4). */
+.dlg[data-end],.dlg[data-about-dlg]{padding-bottom:0}
 .dlg-foot{position:sticky;bottom:0;background:var(--card);padding:8px 0 20px;box-shadow:0 -10px 12px -10px #163a3033}
 .end-btns .btn-big{margin-top:0}
 .contact a,.sources a,.dlg p a{color:var(--clay-ink);font-weight:600}
@@ -114,7 +128,10 @@ body[data-nogl] .cam,body[data-nogl] .hint,body[data-nogl] [data-fx]{display:non
 [data-side-tab],.tabs button{position:relative}
 [data-new]::after{content:"";position:absolute;top:4px;right:4px;width:9px;height:9px;border-radius:50%;background:var(--clay);box-shadow:0 0 0 2px #fff}
 .sources{margin:0 0 10px;padding-left:20px;display:grid;gap:4px;font-size:.9rem}
-.resume-note{font-weight:600;color:var(--ink-2);margin:0 0 6px}
+/* On a kiosk, About prints its addresses instead of linking them (SA-1); a long one wraps anywhere. */
+.addr{overflow-wrap:anywhere}
+.sources .addr{display:block;color:var(--muted)}
+.resume-note,.mode-line{font-weight:600;color:var(--ink-2);margin:0 0 6px}
 /* The credit is a footer on every screen width, outside the map and panels (C7, I9). */
 .foot{font-size:.82rem;font-weight:600;color:var(--muted);text-align:center;padding:6px 16px 8px;background:var(--paper);border-top:1px solid #dcd7cc80}
 .audience{font-weight:700;color:var(--pine);margin:0 0 6px}
@@ -125,12 +142,20 @@ body[data-nogl] .cam,body[data-nogl] .hint,body[data-nogl] [data-fx]{display:non
 .caption{position:absolute;left:calc(var(--pl) + 32px);right:calc(var(--pr) + 32px);top:calc(var(--tools-b, 64px) + 8px);margin:0 auto;max-width:640px;width:fit-content;background:#163a30e6;color:#fff;font-size:1rem;line-height:1.35;padding:8px 16px;border-radius:14px;z-index:3;text-align:center;box-shadow:var(--shadow);pointer-events:none;max-height:max(calc(1.35em + 16px),calc(var(--cam-t, 999px) - var(--tools-b, 64px) - 16px));overflow:hidden}
 .libmode{display:flex;gap:12px;align-items:flex-start;background:var(--sunken);border-radius:14px;padding:10px 14px;margin:4px 0 8px;cursor:pointer}
 .libmode input{width:22px;height:22px;margin-top:2px;accent-color:var(--pine);flex:none}
+/* For screen-reader users: the voice can be turned off before the narration starts (AS-11). */
+.intro-voice{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;margin:0 0 8px}
+.intro-voice[hidden]{display:none}
+.intro-voice p{margin:0;flex:1 1 15rem;font-size:.9rem;color:var(--ink-2)}
+/* Class and home modes: a results file saved at the end of a game opens again, read only (BTC-01). */
+.intro-file{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;margin:0 0 8px}
+.intro-file p{margin:0;flex:1 1 15rem;font-size:.9rem;color:var(--ink-2)}
+.intro-file .file-bad{flex-basis:100%;font-size:1rem;font-weight:700;color:var(--clay-ink)}
 .intro-btns{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 /* The intro's buttons stay pinned at the bottom of the dialog, so on a phone both the age line at the top and
    Start are visible without scrolling. */
 .dlg-intro{padding-bottom:0}
 /* A control focused near the bottom scrolls clear of the pinned button row instead of under it (WCAG 2.4.11). */
-.dlg-intro,.dlg[data-end]{scroll-padding-bottom:var(--pin-h,120px)}
+.dlg-intro,.dlg[data-end],.dlg[data-about-dlg]{scroll-padding-bottom:var(--pin-h,120px)}
 .dlg-intro .intro-btns{position:sticky;bottom:0;background:var(--card);padding:10px 0 20px;box-shadow:0 -10px 12px -10px #163a3033}
 .dlg-intro .intro-btns .btn-big{margin-top:0}
 .btn.btn-ghost{background:#fff;color:var(--ink);border:2px solid var(--ink);box-shadow:none}
@@ -173,18 +198,20 @@ body[data-side="hood"] .side-hood,body[data-side="choices"] .side-choices{displa
 .hood-row{width:100%;display:grid;grid-template-columns:1fr auto minmax(4.6rem,auto);gap:8px;align-items:center;text-align:left;background:transparent;border:2px solid transparent;border-radius:12px;padding:5px 8px;min-height:38px;cursor:pointer}
 .hood-row:hover{background:var(--sunken)}
 .hood-row[aria-pressed="true"]{background:var(--pine-soft);border-color:var(--pine)}
-.hood-name{font-weight:600;font-size:.88rem;line-height:1.2}
+.hood-name{font-weight:600;font-size:.88rem;line-height:1.2;display:flex;gap:6px;align-items:baseline}
 .hood-word{font-size:.8rem;color:var(--muted);text-align:right;line-height:1.15}
 .meter{display:inline-flex;gap:3px}
 .meter i{width:13px;height:10px;border-radius:3px;background:#fff;box-shadow:inset 0 0 0 1.5px var(--line)}
+/* Every meter fills in one ink: it shows an amount, not a rating, so red, gold and green keep meaning the dashboard's
+   status words (UD-6). The small square before a name is that effect's colour on the map. */
 .meter i[data-on]{background:var(--pine);box-shadow:none}
-.hood-row[data-key="noise"] .meter i[data-on],.hood-row[data-key="gens"] .meter i[data-on]{background:#d4532c}
-.hood-row[data-key="trucks"] .meter i[data-on]{background:#e19a00}
-.hood-row[data-key="storm"] .meter i[data-on],.hood-row[data-key="water"] .meter i[data-on]{background:#1d7fc9}
-.hood-row[data-key="power"] .meter i[data-on]{background:#c04f9f}
-.hood-row[data-key="setback"] .meter i[data-on]{background:#00a37a}
-.hood-row[data-key="dust"] .meter i[data-on]{background:#b0743c}
-.hood-row[data-kind="amount"] .meter i[data-on]{background:var(--pine-2)}
+.hood-name::before{content:"";flex:none;width:9px;height:9px;border-radius:3px;background:var(--sw,transparent)}
+.hood-row[data-key="noise"],.hood-row[data-key="gens"]{--sw:#d4532c}
+.hood-row[data-key="trucks"]{--sw:#e19a00}
+.hood-row[data-key="storm"]{--sw:#1d7fc9}
+.hood-row[data-key="power"]{--sw:#c04f9f}
+.hood-row[data-key="setback"]{--sw:#00a37a}
+.hood-row[data-key="dust"]{--sw:#b0743c}
 .hood-detail{margin:10px 0 0;padding:10px 12px;background:var(--sunken);border-radius:14px;font-size:.85rem;color:var(--ink-2);display:grid;gap:4px;min-height:84px}
 .hood-detail b{color:var(--ink)}
 .hood-detail .you{font-weight:600;color:var(--ink)}
@@ -220,7 +247,8 @@ body[data-side="hood"] .side-hood,body[data-side="choices"] .side-choices{displa
 .lane[data-state="now"] .lane-icon,.lane[data-state="ready"] .lane-icon{background:var(--clay);color:#fff}
 .lane[data-state="locked"]{cursor:not-allowed}
 .lane[data-state="locked"] .lane-name{color:#5f6b65}
-.lane-name{font-size:.84rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* A name wider than its column wraps instead of being cut off, also with user text spacing (AS-7, WCAG 1.4.12). */
+.lane-name{font-size:.84rem;font-weight:600;overflow-wrap:anywhere;hyphens:auto}
 .track{position:relative;height:14px;background:repeating-linear-gradient(90deg,transparent 0 calc(12.5% - 1px),#e5dfd4 calc(12.5% - 1px) 12.5%)}
 .range-line{position:absolute;top:6px;height:2px;background:var(--ink-2);opacity:.5}
 .range-line::before,.range-line::after{content:"";position:absolute;top:-4px;width:2px;height:10px;background:inherit}
@@ -242,7 +270,7 @@ body[data-side="hood"] .side-hood,body[data-side="choices"] .side-choices{displa
 
 /* dialogs */
 .dlg{border:0;border-radius:24px;padding:26px 28px;max-width:min(620px,calc(100% - 24px));max-height:calc(100dvh - 24px);overflow:auto;box-shadow:0 30px 70px -18px #0a1a1599;color:var(--ink);background:var(--card)}
-.dlg::backdrop{background:#0a1a1566;backdrop-filter:blur(2px)}
+.dlg::backdrop{background:#0a1a1566;-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px)}
 .dlg-intro{max-width:min(660px,calc(100% - 24px))}
 .dlg-intro::backdrop{background:linear-gradient(#0a1a1500,#0a1a1580)}
 .card-opts{display:grid;gap:10px;margin-top:6px}
@@ -270,10 +298,18 @@ html[data-nokeys] .opt kbd{display:none}
 .end-stats [data-level="2"] .end-dot{background:#d89a1c}
 .end-stats [data-level="1"] .end-dot,.end-stats [data-level="0"] .end-dot{background:#d9573b}
 .end-ref{flex-basis:100%;font-size:.82rem;font-weight:600;color:var(--ink-2)}
+.end-luck{margin:-8px 0 14px}
+.from-file{font-weight:700;color:var(--ink-2);background:var(--sunken);border-radius:12px;padding:8px 12px;margin:0 0 10px}
 .end-costly,.end-talk{margin:0 0 8px;padding-left:22px;display:grid;gap:6px;font-size:.95rem}
 .end-costly .end-fx{display:block;font-size:.84rem;font-weight:600;color:var(--ink-2)}
 .end-talk{margin-bottom:16px}
 .end-btns .btn-ghost{min-height:50px}
+/* Phones: the end screen's buttons sit two to a row, so the pinned row stays short with the class-mode save buttons
+   (BTC-01). */
+@media (max-width:600px){
+  .end-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .end-btns .btn{min-height:48px;padding:8px 12px;font-size:.92rem}
+}
 .print-only{display:none}
 .gloss{margin:0 0 10px;display:grid;gap:4px;font-size:.92rem}
 .gloss dt{display:inline;font-weight:700}
@@ -283,23 +319,36 @@ html[data-nokeys] .opt kbd{display:none}
 @media print{
   @page{size:letter;margin:.45in}
   html,body{background:#fff!important;height:auto!important;overflow:visible!important}
-  body>.app,body>dialog:not([data-end]),.dlg-foot,.dlg::backdrop{display:none!important}
-  .dlg-end{position:static!important;display:block!important;max-width:none!important;max-height:none!important;overflow:visible!important;box-shadow:none!important;border-radius:0;padding:0!important;margin:0;color:#000;background:#fff;inset:auto;transform:none}
-  .dlg-end{font-size:10.5pt;line-height:1.35}
-  .dlg-end h2{font-size:17pt}
-  .dlg-end h3{margin:10px 0 4px;font-size:12pt}
+  /* Only an open end screen prints. Anywhere else the page prints a short note instead, never the last player's
+     summary or an empty one; reset() also empties the summary. */
+  body>.app,body>dialog:not([data-end]),.dlg-foot,.dlg::backdrop,.dlg-end[open]~.print-empty{display:none!important}
+  .dlg-end[open]{position:static!important;display:block!important;max-width:none!important;max-height:none!important;overflow:visible!important;box-shadow:none!important;border-radius:0;padding:0!important;margin:0;color:#000;background:#fff;inset:auto;transform:none}
+  .dlg-end{font-size:10pt;line-height:1.25}
+  .dlg-end h2{font-size:16pt}
+  .dlg-end h3{margin:8px 0 3px;font-size:11.5pt}
   .dlg-end p{margin:0 0 6px}
+  .dlg-end .muted{font-size:9pt}
   .end-stats{gap:8px;margin:4px 0 8px}
   .end-stats div{padding:6px 10px}
-  .end-costly,.end-talk{gap:3px;font-size:10.5pt}
-  .end-chose{display:block;columns:2;column-gap:24px;font-size:10pt;margin-bottom:8px}
+  .end-costly,.end-talk{gap:3px;font-size:10pt}
+  .end-costly .end-fx{font-size:9.5pt}
+  .end-chose{display:block;columns:3;column-gap:18px;font-size:9pt;margin-bottom:8px}
   .end-chose li{break-inside:avoid}
-  .end-stats{grid-template-columns:1fr 1fr;break-inside:avoid}
+  .end-stats{grid-template-columns:repeat(4,1fr);break-inside:avoid}
   .end-stats div{border:1px solid #999;background:#fff}
   .end-dot{print-color-adjust:exact;-webkit-print-color-adjust:exact}
   .print-only{display:block}
-  .print-head{font-weight:700;font-size:10pt;margin:0 0 8px;color:#333}
-  .print-foot{font-size:9pt;color:#333;margin-top:14px}
+  /* The paper also gives the date and the address, a name line and lines to answer on, written by hand (DC-5, ES-2,
+     FEU-3). */
+  .print-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:4px 16px;font-weight:700;font-size:10pt;margin:0 0 8px;color:#333}
+  .print-foot{font-size:9pt;color:#333;margin-top:10px}
+  .dlg-end .print-head p,.dlg-end .print-foot p{margin:0}
+  .print-blank{display:inline-block;width:2.6in;border-bottom:1px solid #333;margin-left:6px}
+  .print-lines{height:3em;border-bottom:1px solid #999}
+  .print-lines::before{content:"";display:block;height:1.5em;border-bottom:1px solid #999}
+  .dlg-end .from-file{background:none;padding:0;margin:0 0 6px}
+  .print-empty{font-size:12pt;line-height:1.4;color:#000}
+  .print-empty p{margin:0 0 8px}
 }
 
 /* smaller laptops: slimmer panels */
@@ -326,7 +375,7 @@ html[data-nokeys] .opt kbd{display:none}
   html[data-present]{font-size:20px;--pl:16.5rem}
   html[data-present] :is(.kicker,.kpi-label,.kpi-word,.el-act,.el-why,.lock,.chip,.hood-h,.lane-icon,.axis,.legend,.end-stats dt){font-size:.8rem}
   html[data-present] .p-side,html[data-present] .p-plan{display:none}
-  html[data-present] .tools,html[data-present] .cam,html[data-present] .caption{right:16px}
+  html[data-present] .tools,html[data-present] .cam,html[data-present] .caption,html[data-present] .nogl{right:16px}
   html[data-present] .kpi-val .long{display:inline}html[data-present] .kpi-val .short{display:none}
 }
 @media (min-width:1024px) and (max-width:1500px) and (orientation:landscape) and (min-height:601px){
@@ -345,6 +394,21 @@ html[data-nokeys] .opt kbd{display:none}
 @media (max-height:800px) and (min-width:761px){
   .plan-note{display:none}
   .hood-detail{min-height:70px}
+}
+/* Laptop windows up to 900 px tall, in the side-panel layout (UD-1): the full schedule needs 440 to 490 px, which left
+   the map a strip of 76 to 180 px. Here the schedule starts as its total and a row of phase buttons, critical-path
+   phases underlined in the hatch of their bars; Show timeline brings the bars back. */
+.plan-toggle{display:none;border:2px solid var(--ink);background:#fff;color:var(--ink);border-radius:999px;min-height:28px;padding:1px 12px;margin:-5px 0;font-weight:700;font-size:.82rem;cursor:pointer}
+.plan-toggle:hover{background:var(--pine-soft)}
+@media (min-width:1101px) and (max-height:900px), (min-width:1024px) and (orientation:landscape) and (min-height:601px) and (max-height:900px){
+  .plan-toggle{display:inline-block}
+  body:not([data-plan-open]) .lanes{display:flex;flex-wrap:wrap;gap:4px}
+  body:not([data-plan-open]) .lane{display:flex;width:auto;gap:5px;padding:2px 10px 2px 3px;border-radius:999px;background:var(--sunken)}
+  body:not([data-plan-open]) .lane:hover{background:#e5dfd4}
+  body:not([data-plan-open]) .lane[aria-pressed="true"]{background:var(--pine-soft);box-shadow:inset 0 0 0 2px var(--pine)}
+  body:not([data-plan-open]) .lane[data-crit]{background-image:repeating-linear-gradient(135deg,var(--clay) 0 2px,transparent 2px 5px);background-size:calc(100% - 24px) 4px;background-position:12px 100%;background-repeat:no-repeat}
+  body:not([data-plan-open]) :is(.track,.axis,.plan-note){display:none}
+  body:not([data-plan-open]) .legend span:not(:first-child){display:none}
 }
 
 /* Phones, portrait tablets and short or narrow windows: the 3D view on top, one tabbed panel below; still no page
@@ -374,7 +438,8 @@ html[data-nokeys] .opt kbd{display:none}
   .tools{left:8px;right:8px;top:8px;gap:6px}
   .tools .pill{min-height:36px;font-size:.78rem}
   .hint{font-size:.74rem;padding:3px 8px}
-  .cam{left:8px;right:8px;bottom:calc(100% - var(--scene-row) + 8px);gap:4px}
+  .cam,.nogl{left:8px;right:8px;bottom:calc(100% - var(--scene-row) + 8px)}
+  .cam{gap:4px}
   .cam-move{gap:4px}
   .cb{width:36px;height:36px;border-radius:10px}
   .cb svg{width:18px;height:18px}
@@ -384,27 +449,35 @@ html[data-nokeys] .opt kbd{display:none}
   .tabs button{border:0;border-radius:999px;background:transparent;color:#f7f4ee;font-weight:700;font-size:.85rem;min-height:40px;cursor:pointer}
   .tabs button[aria-pressed="true"]{background:#f7f4ee;color:var(--pine)}
   .tabs button:focus-visible{outline-color:var(--focus-stage)}
-  .panel{position:relative;grid-row:3;inset:auto;width:auto;border-radius:0;border:0;box-shadow:none;background:var(--card);backdrop-filter:none;display:none;padding:12px 14px}
+  .panel{position:relative;grid-row:3;inset:auto;width:auto;border-radius:0;border:0;box-shadow:none;background:var(--card);-webkit-backdrop-filter:none;backdrop-filter:none;display:none;padding:12px 14px}
   .p-build,.p-side,.p-plan{left:auto;right:auto;top:auto;bottom:auto;width:auto;max-height:none}
   body[data-view="build"] .p-build,body[data-view="plan"] .p-plan{display:block}
   body[data-view="hood"] .p-side,body[data-view="choices"] .p-side{display:flex}
   .side-tabs{display:none}
   .els{gap:5px}
   .el{min-height:44px}
-  .lane{grid-template-columns:20px 84px 1fr;min-height:32px}
-  .axis{grid-template-columns:116px 1fr}
+  .lane{grid-template-columns:20px 5.25rem 1fr;min-height:32px}
+  .axis{grid-template-columns:calc(5.25rem + 32px) 1fr}
   .hood-row{grid-template-columns:1fr auto minmax(64px,auto)}
   .dlg{padding:20px}
   .dlg-intro{padding-bottom:0}
 }
 @media (min-width:761px) and (max-width:1100px) and (orientation:portrait){html{--scene-h:45%;--scene-row:max(var(--scene-h),var(--scene-min,0px))}html[data-present]{--scene-h:62%;--scene-row:max(var(--scene-h),var(--scene-min,0px))}}
-/* Very narrow phones: the tile dot moves to the corner so the short labels fit. */
+/* Presenter view on a portrait tablet (a tablet shown on a projector) makes the text larger too, with no label under
+   16 px, as in the side-panel layout (AS-9). Phones keep phone sizes and only get the taller map. */
+@media (min-width:761px) and (max-width:1100px) and (orientation:portrait){
+  html[data-present]{font-size:20px}
+  html[data-present] body{font-size:1rem}
+  html[data-present] :is(.kicker,.badge,.kpi-label,.kpi-word,.tools .pill,.hint,.cam .pill,.el-act,.el-why,.lock,.chip,.hood-h,.lane-icon,.axis,.legend,.end-stats dt){font-size:.8rem}
+}
+/* Very narrow phones: the tile dot moves to the bottom corner, beside the rating word it goes with, so the short labels
+   fit (at the top corner it covered the end of "Neighbors", BTC-74). */
 @media (max-width:360px){
   .badge-long{display:none}.badge-short{display:inline}
   .bar{padding:8px 6px}.kpis{gap:4px}
   .cb{width:34px;height:34px}.cam .pill{min-height:34px}
   .kpi{padding:4px 5px 5px}
-  .kpi::before{left:auto;right:5px;top:6px;width:6px;height:6px}
+  .kpi::before{left:auto;right:5px;top:auto;bottom:9px;width:6px;height:6px}
 }
 /* Landscape phones: the map on the left, the tabbed panel on the right. The panel column is never narrower than
    its four tabs, and each tab is as wide as its word, so no tab runs off the screen. */
@@ -416,7 +489,7 @@ html[data-nokeys] .opt kbd{display:none}
   .tabs button{padding:0 7px;font-size:.8rem}
   .panel{grid-column:2;grid-row:2}
   .tools,.caption{right:calc(var(--pw) + 8px)}
-  .cam{right:calc(var(--pw) + 8px);bottom:8px}
+  .cam,.nogl{right:calc(var(--pw) + 8px);bottom:8px}
   .caption{font-size:.8rem;line-height:1.3;padding:5px 12px}
   /* One row of map buttons, so a narration caption has room above them. */
   .cam{gap:3px}.cam-move{gap:3px}
@@ -444,9 +517,50 @@ html[data-nokeys] .opt kbd{display:none}
   .tabs button{padding:0 2px}
   .panel{grid-column:1;grid-row:3}
   .tools,.caption{right:8px}
-  .cam{right:8px;bottom:calc(100% - var(--scene-row) + 8px)}
+  .cam,.nogl{right:8px;bottom:calc(100% - var(--scene-row) + 8px)}
+}
+/* Very short windows at any width (400% zoom on a 1280 x 720 or 1280 x 1024 screen is 320 x 180 or 320 x 256): a
+   pinned button row would leave a sliver of text above it, so the buttons scroll with the dialog instead (AS-6). */
+@media (max-height:300px){
+  .dlg-intro .intro-btns,.dlg-foot{position:static;box-shadow:none}
+  .dlg-intro,.dlg[data-end],.dlg[data-about-dlg]{scroll-padding-bottom:0}
 }
 @media (pointer:coarse){.lane{min-height:32px}}
-/* Touch-only devices: the keyboard line on the intro is left out (it stays in About), so Start sits higher. */
-@media (pointer:coarse) and (hover:none){.dlg-intro .keys-hint{display:none}}
+/* Touch-only devices: the keyboard line on the intro is left out (it stays in About), so Start sits higher, and the
+   siting box says how to site with fingers instead of a mouse and keys (UD-8). */
+@media (pointer:coarse) and (hover:none){.dlg-intro .keys-hint,.place-keys{display:none}.place-touch{display:inline}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+/* Windows contrast themes (forced colors, critic): the browser drops author backgrounds, gradients and shadows. They
+   drew the schedule's bars, its critical path, the meters and every pressed state, and .btn had no border, so here
+   those use system colours and borders instead and no meaning rests on a background alone (WCAG 1.4.1, 1.3.1).
+   A gradient survives only with forced-color-adjust:none, so the hatching sets it on its own boxes. */
+@media (forced-colors:active){
+  .btn{border:2px solid ButtonText}
+  .btn[disabled]{border-color:GrayText}
+  .dlg{border:2px solid CanvasText}
+  /* A results file's debrief keeps its "read only" label boxed (BTC-01). */
+  .from-file{border:1px solid CanvasText}
+  .seg button,.side-tabs button,.tabs button{border:1px solid ButtonText}
+  /* Pressed buttons are filled with the selection colours. They hold plain text only, so they opt out of forcing:
+     forced text gets a Canvas-coloured backplate, which hid the HighlightText words. */
+  :is(.seg button,.side-tabs button,.tabs button,.cb)[aria-pressed="true"]{forced-color-adjust:none;background:Highlight;color:HighlightText;border-color:Highlight}
+  [data-new]::after{background:Highlight}
+  .hood-row{border-color:Canvas}
+  .hood-row[aria-pressed="true"]{border-color:Highlight}
+  .lane{position:relative}
+  .lane[aria-pressed="true"]::after{content:"";position:absolute;inset:0;border:2px solid Highlight;border-radius:inherit;pointer-events:none}
+  .meter i{background:Canvas;border:1px solid CanvasText}
+  .meter i[data-on]{background:CanvasText}
+  /* The small squares before the Neighbors names are the map's colours, and the map keeps its colours. */
+  .hood-name::before{forced-color-adjust:none}
+  .track,.sw{forced-color-adjust:none}
+  .track{background:repeating-linear-gradient(90deg,transparent 0 calc(12.5% - 1px),GrayText calc(12.5% - 1px) 12.5%)}
+  .range-line{background:CanvasText;opacity:1}
+  .gbar,.sw-other,.sw-now{background:CanvasText}
+  .gbar[data-crit="1"],.sw-crit{background:repeating-linear-gradient(135deg,Highlight 0 2px,Canvas 2px 5px);border:1px solid Highlight}
+  .gbar[data-state="now"],.sw-now{box-shadow:none;outline:2px solid CanvasText;outline-offset:1px}
+  /* The schedule as a row of phases (UD-1): the critical path's hatched underline. */
+  @media (min-width:1101px) and (max-height:900px), (min-width:1024px) and (orientation:landscape) and (min-height:601px) and (max-height:900px){
+    body:not([data-plan-open]) .lane[data-crit]::before{content:"";position:absolute;left:12px;right:12px;bottom:0;height:4px;forced-color-adjust:none;background:repeating-linear-gradient(135deg,Highlight 0 2px,transparent 2px 5px)}
+  }
+}

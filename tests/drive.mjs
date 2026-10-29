@@ -1,7 +1,7 @@
 // Shared headless controls for order, playthrough, map and session checks.
-// Runs with any Playwright install: `npm i -D playwright` in the repo, or set PLAYWRIGHT_MODULE to a playwright
-// package folder. The browser is Playwright's own Chromium with a fresh temporary profile; set PW_EXECUTABLE (a
-// browser binary) or PW_CHANNEL to use another. GAME_URL overrides the page (default: ../index.html as a file).
+// Runs with any Playwright install: `npm ci` in the repo (the version package.json pins, as CI uses), or set
+// PLAYWRIGHT_MODULE to a playwright or playwright-core package folder. The browser is Playwright's own Chromium with
+// a fresh temporary profile; set PW_EXECUTABLE (a browser binary) or PW_CHANNEL to use another. GAME_URL overrides the page (default: ../index.html as a file).
 // SHOTS_DIR is where screenshots go (default: the system temp folder). axe-core is optional.
 // The default page is index.test.html, the build that keeps the test hooks (node build.mjs writes it).
 import { createRequire } from "node:module";
@@ -18,7 +18,7 @@ const pw =
   (await tryImport("playwright")) ||
   (process.env.PLAYWRIGHT_MODULE ? await tryImport(pathToFileURL(join(process.env.PLAYWRIGHT_MODULE, "index.mjs")).href) : null) ||
   (await tryImport("/tmp/shots/node_modules/playwright/index.mjs"));
-if (!pw) throw new Error("Playwright not found: npm i -D playwright, or set PLAYWRIGHT_MODULE");
+if (!pw) throw new Error("Playwright not found: npm ci, or set PLAYWRIGHT_MODULE");
 export const chromium = pw.chromium || pw.default?.chromium;
 
 let axeSrc = null;

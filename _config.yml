@@ -1,15 +1,23 @@
 # GitHub Pages runs Jekyll only so this exclude list is applied.
-# The site is the static index.html, the offline kiosk file, the educator sheet, the narration clips and the
-# versioned service worker. Sources, notes, tests and the test build stay out of it.
+# The site is the static index.html, the offline kiosk file, the educator sheet, the narration clips, the
+# versioned service worker and the licence texts. Sources, notes, tests, the test build and the npm and CI files
+# stay out of it. tests/build-check.mjs fails when a new root file is neither excluded here nor on its published list.
 exclude:
   - README.md
   # voice/<lang>/*.mp3 stays published: the web page loads its narration clips from there (I15).
   - voice/en/manifest.json
-  - vendor
+  # three.js and the fonts are inlined into the pages. Their licence texts, vendor/three-LICENSE.txt and
+  # vendor/fonts/LICENSE.txt, stay published, so the pointers in LICENSE and LICENSE-CONTENT resolve.
+  - vendor/three.module.min.js
+  - vendor/fonts/Geist-var.woff2
+  - vendor/fonts/Inter-var.woff2
   - docs
   - tests
   - index.test.html
   - node_modules
+  - package.json
+  - package-lock.json
+  - .github
   - model.mjs
   - strings.mjs
   - game.js

@@ -1,7 +1,10 @@
 // Generates the narration clips with ElevenLabs, using a stock narrator voice (never a cloned one: standing rule 4).
-// The API key is read only from this terminal's environment and is never printed or saved. In PowerShell:
-//   $env:ELEVEN_API_KEY = "sk_..."
+// The API key is read only from this terminal's environment and is never printed or saved. Easiest: double-click
+// make-voice.cmd, which asks for the key with the typing hidden and clears it before the rebuild. By hand, never type
+// the key on the command line (PowerShell saves typed lines in its history file); use a hidden prompt and clear it:
+//   $env:ELEVEN_API_KEY = [Net.NetworkCredential]::new("", (Read-Host "ElevenLabs key" -AsSecureString)).Password
 //   node --dns-result-order=ipv4first voice.mjs        (English; or: voice.mjs es)
+//   Remove-Item Env:ELEVEN_API_KEY
 //   node build.mjs                                     (inlines the clips into index.html)
 // Only lines whose text changed are synthesized again.
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
@@ -11,15 +14,15 @@ import { createHash } from "node:crypto";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const { STRINGS } = await import(pathToFileURL(join(HERE, "strings.mjs")).href);
-const { lines, speakable } = await import(pathToFileURL(join(HERE, "voice-lines.mjs")).href);
+const { lines, speakable, merge } = await import(pathToFileURL(join(HERE, "voice-lines.mjs")).href);
 const KEY = process.env.ELEVEN_API_KEY || process.env.XI_KEY;
 const VOICE_ID = "21m00Tcm4TlvDq8ikWAM"; // ElevenLabs stock "Rachel": calm, warm, clear
 const MODEL = "eleven_multilingual_v2";
 const lang = process.argv[2] || "en";
 
 async function main() {
-  if (!KEY) { console.log("Set ELEVEN_API_KEY to your sk_ key in this terminal first, then run again."); return 2; }
-  const t = { ...STRINGS.en, ...(STRINGS[lang] || {}) };
+  if (!KEY) { console.log("No ElevenLabs key: double-click make-voice.cmd, or set ELEVEN_API_KEY with a hidden prompt (see the top of voice.mjs), then run again."); return 2; }
+  const t = merge(STRINGS.en, STRINGS[lang] || {});
   const dir = join(HERE, "voice", lang);
   mkdirSync(dir, { recursive: true });
   const manifestPath = join(dir, "manifest.json");

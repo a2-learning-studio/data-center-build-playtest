@@ -39,18 +39,22 @@
     margin: 0;
     background: var(--bg);
     color: var(--ink);
-    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    /* Sizes in rem follow the reader's default font size (critic); 0.9375rem is 15 px at the usual 16 px. */
+    font: 0.9375rem/1.45 system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   }
   .page { max-width: 8.5in; margin: 0 auto; padding: 28px 16px 32px; }
   header { border-bottom: 3px solid var(--accent); padding-bottom: 10px; margin-bottom: 14px; }
-  .kicker { margin: 0; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); font-weight: 700; }
-  h1 { margin: 2px 0 4px; font-size: 26px; line-height: 1.15; }
+  .kicker { margin: 0; font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); font-weight: 700; }
+  h1 { margin: 2px 0 4px; font-size: 1.625rem; line-height: 1.15; }
   .lede { margin: 0; color: var(--muted); }
   .facts { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 10px 0 0; padding: 0; list-style: none; font-weight: 600; }
   .facts li::before { content: "\25A0"; color: var(--accent); margin-right: 6px; font-size: 10px; vertical-align: 2px; }
+  /* The game's addresses print, so a handed-on copy still leads to the game. */
+  .addr { margin: 8px 0 0; }
+  .addr a { font-weight: 600; overflow-wrap: anywhere; }
   .cols { columns: 2 300px; column-gap: 26px; }
   section { break-inside: avoid; margin: 0 0 12px; }
-  h2 { margin: 0 0 4px; font-size: 15px; color: var(--accent); text-transform: uppercase; letter-spacing: .04em; }
+  h2 { margin: 0 0 4px; font-size: .9375rem; color: var(--accent); text-transform: uppercase; letter-spacing: .04em; }
   p { margin: 0 0 6px; }
   ul, ol { margin: 0 0 6px; padding-left: 18px; }
   li { margin: 0 0 3px; }
@@ -69,21 +73,30 @@
   table { width: 100%; border-collapse: collapse; font-size: .94em; margin: 0 0 6px; }
   th, td { text-align: left; vertical-align: top; padding: 3px 4px; border-bottom: 1px solid var(--rule); }
   th { font-weight: 700; }
-  footer { border-top: 1px solid var(--rule); margin-top: 6px; padding-top: 8px; font-size: 12.5px; color: var(--muted); }
+  footer { border-top: 1px solid var(--rule); margin-top: 6px; padding-top: 8px; font-size: .78125rem; color: var(--muted); }
   footer p { margin: 0 0 4px; }
   a { color: var(--accent); }
 
   @media print {
     @page { size: letter; margin: 0.4in 0.45in; }
-    body { font-size: 9pt; line-height: 1.28; }
+    /* One US Letter page everywhere: Arial and Courier New have the same widths as Arimo and Cousine (ChromeOS) and
+       Liberation Sans and Mono (Linux), so the lines break alike on every system. tests/debrief-check.mjs checks it. */
+    body { font-size: 8.5pt; line-height: 1.22; font-family: Arial, Arimo, "Liberation Sans", Helvetica, sans-serif; }
+    kbd, code { font-family: "Courier New", Cousine, "Liberation Mono", monospace; }
     .page { max-width: none; padding: 0; }
-    header { padding-bottom: 6px; margin-bottom: 9px; }
-    h1 { font-size: 17pt; }
+    header { padding-bottom: 6px; margin-bottom: 7px; }
+    h1 { font-size: 16pt; }
     h2 { font-size: 10pt; }
+    .kicker { font-size: 9pt; }
+    .facts { gap: 4px 14px; }
     .cols { column-gap: 0.3in; }
-    section { margin-bottom: 6px; }
-    li { margin-bottom: 1px; }
-    footer { font-size: 7.8pt; }
+    section { margin-bottom: 5px; }
+    p { margin-bottom: 4px; }
+    ul, ol { padding-left: 14px; }
+    li { margin-bottom: 0; }
+    dl { font-size: .94em; }
+    td:first-child { white-space: nowrap; }
+    footer { font-size: 7.5pt; }
     a { color: var(--ink); text-decoration: none; }
     .box, kbd, code { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
@@ -94,21 +107,19 @@
   <header>
     <p class="kicker">Educator and facilitator sheet</p>
     <h1>Build the Campus</h1>
-    <p class="lede">A free browser game. Players are the construction manager for a data center campus on a made-up Georgia site and see how each choice moves the schedule, budget, crew safety and the neighbors. The game shows facts and trade-offs. It does not take a side on data centers.</p>
+    <p class="lede">A free browser game. Players are the construction manager for a data center campus on a made-up Georgia site and see how each choice moves the schedule, budget, crew safety and the neighbors. The game shows facts and trade-offs. It does not take a side on data centers. Best fit: grades 8&ndash;12 career-tech, introductory construction management and adult civic sessions; younger players with an adult.</p>
     <ul class="facts">
       <li>For ages 12 and up</li>
-      <li>About 20 minutes per run</li>
-      <li>No sign-up, no personal data</li>
-      <li>Works offline after the first load</li>
+      <li>About 20 minutes</li>
+      <li>No sign-up or personal data</li>
+      <li>Works offline once loaded</li>
+      <li>English only for now</li>
     </ul>
+    <p class="addr"><b>Play:</b> <a href="https://a2-learning-studio.github.io/data-center-build-playtest/">a2-learning-studio.github.io/data-center-build-playtest/</a><br>
+      <b>Class mode:</b> <a href="https://a2-learning-studio.github.io/data-center-build-playtest/?mode=class">a2-learning-studio.github.io/data-center-build-playtest/?mode=class</a></p>
   </header>
 
   <div class="cols">
-    <section>
-      <h2>Who it is for</h2>
-      <p>Ages 12 and up (grade 7 to adult); younger players with an adult. Best fit: grades 8&ndash;12 career-tech classes, introductory construction management, and adult civic sessions such as library panels on data centers.</p>
-    </section>
-
     <section>
       <h2>Learning goals</h2>
       <p>After one run, players can:</p>
@@ -120,14 +131,12 @@
     </section>
 
     <section>
-      <h2>Running it</h2>
+      <h2>Running it in class</h2>
       <ul>
-        <li><b>Library mode.</b> On the first screen, tick <i>Library mode &middot; no voice</i>. Narration is off, all text stays on screen, and the computer remembers it for the next player.</li>
-        <li><b>Class mode.</b> Add <code>?mode=class</code> to the game's web address. The game no longer starts over while players talk, and a reload keeps the game in progress. The end screen is the debrief: results against the plan, the three costliest choices and three questions, with a <i>Print</i> button. (Without class mode, an idle game starts over after about three minutes.)</li>
-        <li><b>Full screen.</b> Press <kbd>F11</kbd> (Windows, ChromeOS) or <kbd>Ctrl</kbd>+<kbd>Cmd</kbd>+<kbd>F</kbd> (Mac). On a projector, the four-corner map button (presenter view) enlarges the map and text.</li>
-        <li><b>Offline.</b> Open the game once while online and a later reload works without a network. For a kiosk with no network, use the offline kiosk file (link in About).</li>
-        <li><b>Siting.</b> The basins, construction exit, substation, data hall and equipment pads are dragged or tapped onto the map. They snap to a grid and have to stay on the site, behind the setback by the homes, and (for the substation) on the utility corridor. <i>Set it here</i> confirms.</li>
-        <li><b>Setbacks.</b> Some phases draw an issue card for weather, a safety near-miss (nobody is hurt), a late delivery or an inspection. Each answer trades time and money.</li>
+        <li><b>Class mode.</b> Use the class-mode address above: the game no longer starts over while players talk, and a reload keeps it until the tab closes. The end screen is the debrief (results, the costliest choices, three questions) with <i>Print this summary</i> and <i>Save results file</i>, a file with no name to hand in (<i>Open results file</i> shows it again).</li>
+        <li><b>Voice.</b> Narration starts on. Use headphones, or press <i>Voice: off</i> (or <kbd>V</kbd>) on each device, which remembers it; <code>&amp;voice=off</code> at the end of the address starts it off.</li>
+        <li><b>Full screen.</b> <kbd>F11</kbd> (Windows), the full-screen key in the top row (Chromebook) or <kbd>Ctrl</kbd>+<kbd>Cmd</kbd>+<kbd>F</kbd> (Mac). On a projector, presenter view (the four-corner map button, or <code>&amp;view=presenter</code>) enlarges the map and text.</li>
+        <li><b>Issue cards</b> bring weather, long-lead equipment, a labor shortage, a safety near miss (nobody is hurt), a late delivery or an inspection. Each answer trades time, money, safety or neighbor effects.</li>
       </ul>
     </section>
 
@@ -135,25 +144,39 @@
       <h2>Controls</h2>
       <table>
         <tr><th scope="col">To</th><th scope="col">Mouse, trackpad, touch</th><th scope="col">Keys (map focused)</th></tr>
-        <tr><td>Turn and tilt</td><td>Drag (when zoomed in: right-drag, <kbd>Shift</kbd>-drag or a two-finger twist)</td><td>Arrows</td></tr>
+        <tr><td>Turn and tilt</td><td>Drag (zoomed in: right-drag, <kbd>Shift</kbd>-drag or a two-finger twist)</td><td>Arrows</td></tr>
         <tr><td>Zoom</td><td>Scroll wheel or pinch</td><td><kbd>+</kbd> <kbd>&minus;</kbd></td></tr>
-        <tr><td>Move around the site</td><td>When zoomed in, drag (or two fingers)</td><td><kbd>Shift</kbd>+arrows</td></tr>
-        <tr><td>Site a piece</td><td>Drag or tap the map, then <i>Set it here</i>. Right-drag or two fingers still turn the view.</td><td>Arrows nudge, then <kbd>N</kbd></td></tr>
+        <tr><td>Move around</td><td>Zoomed in, drag or two fingers</td><td><kbd>Shift</kbd>+arrows</td></tr>
+        <tr><td>Site a piece</td><td>Drag or tap; it is built where you let go, if it fits</td><td>Arrows, then <kbd>N</kbd></td></tr>
       </table>
-      <p><b>On-screen camera buttons</b> do the same without dragging: zoom in and out, turn left and right, and <i>Reset view</i>; when zoomed in, four arrow buttons move the view. Elsewhere: <kbd>Tab</kbd> moves between buttons, <kbd>Enter</kbd> or <kbd>Space</kbd> presses, <kbd>N</kbd> next step, <kbd>M</kbd> map effects on/off, <kbd>V</kbd> voice on/off.</p>
+      <p><b>Siting:</b> pieces stay on the site and behind the setback by the homes, and the substation on the utility corridor. Letting go where a piece fits (green) builds it; <i>Set it here</i> builds it where it is shown.</p>
+      <p><b>Map buttons</b> do the same. <kbd>Tab</kbd> moves between buttons, <kbd>Enter</kbd> or <kbd>Space</kbd> presses, <kbd>N</kbd> next step, <kbd>M</kbd> map effects, <kbd>V</kbd> voice.</p>
+    </section>
+
+    <section>
+      <h2>Library kiosk</h2>
+      <p>With no mode, an idle game starts over after about three minutes, and the end screen clears after about a minute and a half.</p>
+      <ul>
+        <li>Download the offline kiosk file (its address is in About) and open it in the browser&rsquo;s kiosk or full-screen mode. It needs no network.</li>
+        <li>Add <code>?mode=library</code> to its address for no narration. On a kiosk, the <i>Library mode</i> tick on the first screen lasts only that game.</li>
+        <li>Turn off sleep and the screen saver.</li>
+        <li><i>Print this summary</i> opens the print dialog: connect a printer, or say the summary is for the screen.</li>
+        <li>Each morning, check the <i>Play-test v1.5</i> badge; close other tabs.</li>
+      </ul>
     </section>
 
     <section>
       <h2>Words to know</h2>
       <dl>
         <dt>Critical path</dt><dd>the chain of tasks that sets the finish date; a delay on it delays the whole project.</dd>
-        <dt>Long-lead item</dt><dd>equipment, like a large transformer, that takes months or years to arrive, so it must be ordered early.</dd>
-        <dt>Silt fence and sediment basin</dt><dd>barriers and ponds that keep muddy rainwater on the site during earthwork.</dd>
+        <dt>Long-lead item</dt><dd>equipment, like a large transformer, that takes months or years to arrive, so it is ordered early.</dd>
+        <dt>Rezoning</dt><dd>a county&rsquo;s decision, after a public hearing, on how land may be used. Counties can approve, change or deny it; the game approves.</dd>
+        <dt>Silt fence and sediment basin</dt><dd>barriers and ponds that keep muddy rainwater on the site.</dd>
         <dt>MEP</dt><dd>mechanical, electrical and plumbing: the systems that power, cool and protect the building.</dd>
-        <dt>Switchgear</dt><dd>large electrical equipment that controls and protects the power feeding the building.</dd>
-        <dt>Commissioning</dt><dd>testing every system, in levels from factory checks to a planned power cut, before the owner takes over.</dd>
-        <dt>Megawatt (MW)</dt><dd>a unit of electric power; 100 MW is roughly the electricity of 84,000 homes.</dd>
-        <dt>Buffer and berm</dt><dd>the space (at least the setback) and earth mounds that screen a site from its neighbors.</dd>
+        <dt>Switchgear</dt><dd>equipment that routes and protects the building&rsquo;s power.</dd>
+        <dt>Commissioning</dt><dd>testing every system, in levels from factory checks to a planned power cut.</dd>
+        <dt>Megawatt (MW)</dt><dd>a unit of power; 100 MW used all year is about 84,000 U.S. homes&rsquo; electricity. Its emissions depend on how it is generated.</dd>
+        <dt>Buffer and berm</dt><dd>the space (at least the setback) and earth mounds between a site and its neighbors.</dd>
       </dl>
     </section>
 
@@ -168,8 +191,8 @@
   </div>
 
   <footer>
-    <p><b>Privacy:</b> the game collects no personal information. No sign-up, ads, analytics or cookies. Nothing players do is sent anywhere; the browser may remember settings and, in class mode, the game in progress until the tab closes. The host logs IP addresses for security.</p>
-    <p>The site, company and neighbors are made up; the rules and figures are real as of October 2026, with sources in the game&rsquo;s About panel. Narration recorded in advance with ElevenLabs (Impact Program); the game contacts no service while you play.</p>
+    <p><b>Privacy:</b> no personal information, sign-up, ads, analytics or cookies; nothing is sent. A kiosk stores nothing. Class and home modes keep the voice, Library mode, presenter and shortcut settings, and the game and its timed steps until the tab closes; results files only if downloaded. The host logs IPs for security.</p>
+    <p>The site, company and neighbors are made up; the rules and Neighbors facts are real as of October 2026 (sources in About), and costs, delays and points are simplified game values. Narration recorded in advance with ElevenLabs (Impact Program); the game contacts no service while you play.</p>
     <p><b>A project by A2 Learning Studio</b> Questions, problems or corrections: <a href="mailto:akeyvanf@kennesaw.edu">akeyvanf@kennesaw.edu</a>. Code: MIT License. Text, graphics and game design: Creative Commons BY-NC 4.0. three.js (MIT) and the Geist and Inter fonts (SIL Open Font License) keep their own licences; the narration clips follow the ElevenLabs Impact Program terms. Play-test v1.5.</p>
   </footer>
 </main>
