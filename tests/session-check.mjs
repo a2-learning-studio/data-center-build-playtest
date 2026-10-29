@@ -780,6 +780,64 @@ for (const q of ["", "?keys=off"]) {
   await ctx.close();
 }
 
+// 22. The finished campus (BTC-UX-01): Look at the campus sets the summary aside, kept as it is; the Build panel leads
+// back to it. The way back survives the browser's Print, the kiosk's idle countdown and Play again, and a class-mode
+// Play again still asks first.
+{
+  const { ctx, p } = await page();
+  const view = () => ev(p, () => ({
+    end: document.querySelector("[data-end]").open,
+    intro: document.querySelector("[data-intro]").open,
+    back: !!document.querySelector("[data-build] [data-back-end]")?.getClientRects().length,
+    focusBack: document.activeElement?.matches("[data-back-end]") || false,
+    // textContent: a closed dialog has no rendered text, so its innerText would differ from the open one's.
+    stats: document.querySelector("[data-end] .end-stats").textContent.replace(/\s+/g, " ").trim(),
+    map: getComputedStyle(document.querySelector("[data-scene]")).visibility,
+    side: document.querySelector(".p-side").offsetWidth,
+    again: document.activeElement?.matches("[data-again]") || false,
+  }));
+  const look = async () => { await p.click("[data-end-look]"); await p.waitForTimeout(200); return view(); };
+  await finishGame(p);
+  const shown = await view();
+  const looking = await look();
+  check("Look at the campus sets the summary aside, kept, with the map, the Neighbors panel and a way back in sight", shown.end && /Plan: 45 months/.test(shown.stats) && !looking.end && !looking.intro && looking.back && looking.focusBack && looking.map === "visible" && looking.side > 0 && looking.stats === shown.stats, JSON.stringify({ shown: shown.stats.slice(0, 40), looking }));
+  await p.click("[data-back-end]");
+  await p.waitForTimeout(200);
+  const back = await view();
+  check("Back to the summary opens the same summary, focus on Play again", back.end && back.stats === shown.stats && back.again, JSON.stringify(back));
+  await look();
+  await ev(p, () => dispatchEvent(new Event("beforeprint")));
+  const printed = await ev(p, () => ({ end: document.querySelector("[data-end]").open, date: document.querySelector("[data-print-date]").textContent }));
+  check("printing while looking at the campus brings the summary back, dated, for the paper", printed.end && /^Printed /.test(printed.date), JSON.stringify(printed));
+  await look();
+  await ev(p, () => { window.__skew = 61000; });
+  await p.waitForFunction(() => !document.querySelector("[data-end-keep]").hidden, null, { timeout: 12000 }).catch(() => {});
+  const idle = await view();
+  const keep = await ev(p, () => ({ keep: !document.querySelector("[data-end-keep]").hidden, ghost: document.querySelector("[data-again]").classList.contains("btn-ghost") }));
+  check("kiosk: a minute without input while looking brings the summary back with its countdown, Play again not a second primary", idle.end && idle.stats === shown.stats && keep.keep && keep.ghost, JSON.stringify({ idle, keep }));
+  await p.keyboard.press("Enter");
+  await p.waitForTimeout(200);
+  await look();
+  await p.click("[data-back-end]");
+  await p.waitForTimeout(200);
+  await pinned(p, "againAt", 1200, () => p.click("[data-again]"));
+  await p.waitForTimeout(300);
+  const after = await view();
+  check("kiosk: Play again after looking starts the next game, with no summary and no way back left", !after.end && after.intro && !after.back && after.stats === "", JSON.stringify(after));
+  await ctx.close();
+  const { ctx: c2, p: p2 } = await page({}, "?mode=class");
+  await finishGame(p2);
+  await p2.click("[data-end-look]");
+  await p2.waitForTimeout(200);
+  await p2.click("[data-back-end]");
+  await p2.waitForTimeout(200);
+  await p2.click("[data-again]");
+  const ask = await ev(p2, () => ({ open: document.querySelector("[data-confirm]").open, end: document.querySelector("[data-end]").open, yes: document.querySelector("[data-confirm-yes]").textContent }));
+  check("class mode: after looking, Play again still asks first", ask.open && ask.end && ask.yes === "Play again", JSON.stringify(ask));
+  check("finished campus: no errors", !p2.errors.length, p2.errors.join("|"));
+  await c2.close();
+}
+
 await b.close();
 check("no page errors after the last check", true);
 if (fails.length) process.exit(1);

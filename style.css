@@ -78,7 +78,7 @@ body[data-nogl] .scene,body[data-nogl] .tag{visibility:hidden}
 .tag::after{content:"";position:absolute;left:50%;bottom:-5px;width:10px;height:10px;background:var(--pine);transform:translateX(-50%) rotate(45deg);border-radius:2px}
 
 /* floating panels */
-.panel{position:absolute;background:#fffdf8f2;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border:1px solid #dcd7cccc;border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;z-index:2;overflow:auto;scrollbar-width:thin}
+.panel{--pad-x:16px;position:absolute;background:#fffdf8f2;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border:1px solid #dcd7cccc;border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;z-index:2;overflow:auto;scrollbar-width:thin}
 .p-build{left:16px;top:16px;bottom:16px;width:var(--pl)}
 .p-side{right:16px;top:16px;bottom:16px;width:var(--pr);display:flex;flex-direction:column;padding:10px 14px 14px}
 /* --plan-room: the schedule never grows into the toolbar, the narration caption or the map buttons above it (I9);
@@ -114,10 +114,17 @@ body[data-nogl] .cam,body[data-nogl] .hint,body[data-nogl] [data-fx]{display:non
 .game-btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
 .btn-small{min-height:40px;padding:6px 14px;font-size:.88rem}
 .end-btns{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:6px}
+/* During the kiosk countdown Keep is the one primary, at the end of the row, so hiding it moves nothing (BTC-UX-49). */
+.end-btns [data-end-keep]{order:9}
 /* The countdown, Keep and Play again stay pinned at the bottom of the end screen, visible without scrolling, and so
    does About's Close button, so a long sheet never hides the way out (UD-4). */
 .dlg[data-end],.dlg[data-about-dlg]{padding-bottom:0}
 .dlg-foot{position:sticky;bottom:0;background:var(--card);padding:8px 0 20px;box-shadow:0 -10px 12px -10px #163a3033}
+/* A pinned button is always in sight, so focusing or pressing one never scrolls the summary to its end (BTC-UX-61). */
+.dlg-foot :is(button,a),.dlg-intro .intro-btns button{scroll-margin-bottom:calc(-1 * var(--pin-h,120px))}
+/* Save results file says on screen that it saved, as well as to screen readers (BTC-UX-48). */
+.end-saved{margin:0 0 8px;font-size:.9rem;font-weight:600;color:var(--good-ink)}
+.end-look{margin:0 0 14px}
 .end-btns .btn-big{margin-top:0}
 .contact a,.sources a,.dlg p a{color:var(--clay-ink);font-weight:600}
 /* A short message for a click that did nothing; it never takes clicks itself. */
@@ -161,24 +168,37 @@ body[data-nogl] .cam,body[data-nogl] .hint,body[data-nogl] [data-fx]{display:non
 .btn.btn-ghost{background:#fff;color:var(--ink);border:2px solid var(--ink);box-shadow:none}
 .btn.btn-ghost:hover:not([disabled]){background:var(--pine-soft)}
 .btn.btn-ghost[disabled]{background:#fff;color:#6b756f;border-color:#b9b2a6}
+.dlg[data-idle] .intro-btns{margin-top:12px}
 
 /* build panel */
 .btn{background:var(--clay);color:#fff;border:0;border-radius:999px;padding:12px 22px;min-height:50px;font-weight:700;cursor:pointer;box-shadow:0 1px 2px #163a302e,0 3px 8px -2px #163a3042}
-.btn:hover:not([disabled]){background:var(--clay-ink)}
-.btn[disabled]{background:#cfc8bc;color:var(--ink-2);cursor:not-allowed;box-shadow:none}
+.btn:hover:not([disabled]):not([aria-disabled="true"]){background:var(--clay-ink)}
+.btn:is([disabled],[aria-disabled="true"]){background:#cfc8bc;color:var(--ink-2);cursor:not-allowed;box-shadow:none}
+/* The Finish button that waits for the last element is a quiet well, not the heaviest block in the panel, so the
+   change to clay when it can be pressed is the clear one (BTC-UX-V04). */
+.p-build [data-finish][aria-disabled="true"]{background:var(--sunken)}
+/* Once Finish can be pressed, it is pinned to the bottom of the Build panel on a card band, with the dialogs'
+   pinned-footer shadow, so the next step is always in sight (BTC-UX-05). */
+.finish-bar[data-pin]{position:sticky;bottom:0;z-index:1;background:var(--card);margin:0 calc(-1 * var(--pad-x,16px));padding:8px var(--pad-x,16px) 12px;box-shadow:0 -10px 12px -10px #163a3033}
+.p-build:has(.finish-bar[data-pin]){scroll-padding-bottom:84px}
 .btn-wide{width:100%;margin-top:4px}
 .btn-big{font-size:1.1rem;padding:14px 30px;min-height:56px;margin-top:6px}
 .range{display:inline-block;font-size:.8rem;font-weight:600;color:var(--ink-2);background:var(--sunken);border-radius:999px;padding:1px 8px;margin-top:4px}
 .els{list-style:none;margin:10px 0;padding:0;display:grid;gap:6px}
 .el{width:100%;display:grid;grid-template-columns:28px 1fr auto;align-items:center;gap:10px;text-align:left;background:var(--clay-soft);border:2px solid transparent;border-radius:14px;padding:7px 12px;min-height:48px;cursor:pointer;transition:transform .15s,border-color .15s}
-.el:hover:not([disabled]){border-color:var(--clay);transform:translateY(-1px)}
+.el:hover:not([disabled]):not([aria-disabled="true"]){border-color:var(--clay);transform:translateY(-1px)}
 .el-mark{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:var(--clay);color:#fff}
 .el-mark svg{width:15px;height:15px}
 .el-name{font-weight:600;line-height:1.2}
 /* Why a step is locked, on the button itself, so touch screens see it too. */
 .el-why{display:block;font-size:.78rem;font-weight:600;color:var(--ink-2);margin-top:2px}
-.el-act{font-size:.78rem;font-weight:700;color:var(--clay-ink);text-transform:uppercase;letter-spacing:.06em}
-.el[disabled]{opacity:.85;cursor:not-allowed;transform:none;background:var(--sunken)}
+/* Two-word actions break on purpose, right-aligned, instead of squeezing the name (BTC-UX-05). */
+.el-act{font-size:.78rem;font-weight:700;color:var(--clay-ink);text-transform:uppercase;letter-spacing:.06em;max-width:6.5em;text-align:right;line-height:1.15}
+/* A locked step is a grey well with a grey mark and a muted word, so it never reads as the clay "do this next" signal;
+   no opacity, so its reason stays at full contrast (BTC-UX-18). */
+.el:is([disabled],[aria-disabled="true"]){cursor:not-allowed;transform:none;background:var(--sunken)}
+.el:is([disabled],[aria-disabled="true"]) .el-mark{background:#cfc8bc;color:var(--ink-2)}
+.el:is([disabled],[aria-disabled="true"]) .el-act{color:var(--muted)}
 .el[data-done]{background:var(--pine-soft);cursor:default}
 .el[data-done] .el-mark{background:var(--pine)}
 .el[data-done] .el-act{color:var(--muted)}
@@ -301,13 +321,17 @@ html[data-nokeys] .opt kbd{display:none}
 .end-luck{margin:-8px 0 14px}
 .from-file{font-weight:700;color:var(--ink-2);background:var(--sunken);border-radius:12px;padding:8px 12px;margin:0 0 10px}
 .end-costly,.end-talk{margin:0 0 8px;padding-left:22px;display:grid;gap:6px;font-size:.95rem}
+/* When nothing cost more, the sentence is not numbered as if it were a list of one (BTC-UX-66). */
+.end-costly li[data-none]{list-style:none;margin-left:-22px}
 .end-costly .end-fx{display:block;font-size:.84rem;font-weight:600;color:var(--ink-2)}
 .end-talk{margin-bottom:16px}
-.end-btns .btn-ghost{min-height:50px}
+/* Print and the save buttons are the small size, so the class-mode row fits on one line with Play again as its only
+   big button (BTC-UX-V05). */
+.end-btns .btn-ghost:not(.btn-small){min-height:50px}
 /* Phones: the end screen's buttons sit two to a row, so the pinned row stays short with the class-mode save buttons
    (BTC-01). */
 @media (max-width:600px){
-  .end-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .end-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:stretch}
   .end-btns .btn{min-height:48px;padding:8px 12px;font-size:.92rem}
 }
 .print-only{display:none}
@@ -321,7 +345,7 @@ html[data-nokeys] .opt kbd{display:none}
   html,body{background:#fff!important;height:auto!important;overflow:visible!important}
   /* Only an open end screen prints. Anywhere else the page prints a short note instead, never the last player's
      summary or an empty one; reset() also empties the summary. */
-  body>.app,body>dialog:not([data-end]),.dlg-foot,.dlg::backdrop,.dlg-end[open]~.print-empty{display:none!important}
+  body>.app,body>dialog:not([data-end]),.dlg-foot,.end-look,.dlg::backdrop,.dlg-end[open]~.print-empty{display:none!important}
   .dlg-end[open]{position:static!important;display:block!important;max-width:none!important;max-height:none!important;overflow:visible!important;box-shadow:none!important;border-radius:0;padding:0!important;margin:0;color:#000;background:#fff;inset:auto;transform:none}
   .dlg-end{font-size:10pt;line-height:1.25}
   .dlg-end h2{font-size:16pt}
@@ -449,7 +473,7 @@ html[data-nokeys] .opt kbd{display:none}
   .tabs button{border:0;border-radius:999px;background:transparent;color:#f7f4ee;font-weight:700;font-size:.85rem;min-height:40px;cursor:pointer}
   .tabs button[aria-pressed="true"]{background:#f7f4ee;color:var(--pine)}
   .tabs button:focus-visible{outline-color:var(--focus-stage)}
-  .panel{position:relative;grid-row:3;inset:auto;width:auto;border-radius:0;border:0;box-shadow:none;background:var(--card);-webkit-backdrop-filter:none;backdrop-filter:none;display:none;padding:12px 14px}
+  .panel{--pad-x:14px;position:relative;grid-row:3;inset:auto;width:auto;border-radius:0;border:0;box-shadow:none;background:var(--card);-webkit-backdrop-filter:none;backdrop-filter:none;display:none;padding:12px 14px}
   .p-build,.p-side,.p-plan{left:auto;right:auto;top:auto;bottom:auto;width:auto;max-height:none}
   body[data-view="build"] .p-build,body[data-view="plan"] .p-plan{display:block}
   body[data-view="hood"] .p-side,body[data-view="choices"] .p-side{display:flex}
@@ -536,7 +560,7 @@ html[data-nokeys] .opt kbd{display:none}
    A gradient survives only with forced-color-adjust:none, so the hatching sets it on its own boxes. */
 @media (forced-colors:active){
   .btn{border:2px solid ButtonText}
-  .btn[disabled]{border-color:GrayText}
+  .btn:is([disabled],[aria-disabled="true"]){border-color:GrayText}
   .dlg{border:2px solid CanvasText}
   /* A results file's debrief keeps its "read only" label boxed (BTC-01). */
   .from-file{border:1px solid CanvasText}

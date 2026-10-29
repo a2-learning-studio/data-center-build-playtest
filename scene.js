@@ -1459,8 +1459,11 @@ function createScene(canvas, { reduced = () => false, signs = null, onMode = nul
     while (n) { if (!n.visible) return false; n = n.parent; }
     return true;
   };
+  // Held while a dialog covers the map (issue cards, the end screen, About): a change still draws its one frame, but
+  // the fans, trucks and rings stop redrawing behind the backdrop (BTC-UX-20).
+  let held = false;
   function needsFrame() {
-    if (document.hidden) return false;
+    if (document.hidden || held) return false;
     if (attract && !reduced()) return true;
     if (gesture || pointers.size) return true;
     if (Math.abs(want.az - view.az) > 0.001) return true;
@@ -1597,6 +1600,7 @@ function createScene(canvas, { reduced = () => false, signs = null, onMode = nul
     resetView,
     setSafe(r) { Object.assign(safe, r); resize(); },
     setAttract(v) { if (v) resetView(); attract = v; kick(); },
+    hold(on) { const was = held; held = !!on; if (was && !held) kick(); },
     act,
     zoomed: isZoomed,
     refreshSigns() {

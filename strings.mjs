@@ -46,6 +46,8 @@ export const STRINGS = {
     close: "Close",
     resetView: "Reset view",
     phaseOf: "Phase {n} of 9",
+    // Read out to screen readers when a phase opens (BTC-UX-31); not shown.
+    phaseSay: "Phase {n} of 9: {name}.",
     canvasLabel: "3D map of the made-up Red Clay Ridge site. Drag or use the arrow keys to turn the view. Scroll, pinch or press plus or minus to zoom. When zoomed in, drag or press Shift and an arrow key to move the view; right-drag or two fingers turn it. The map buttons do the same, and Reset view shows the whole site. While siting a piece, drag or tap the ground, or press the arrow keys, to move its footprint; the Build panel says whether it fits. Green means the spot fits, and letting go there builds the piece. Set it here builds it where the footprint is.",
     noglLabel: "The 3D map could not start on this device. The panels, the schedule and every choice still work.",
     noScript: "Loading the game. If it does not start, this browser cannot run it: the game needs JavaScript turned on and Chrome or Edge 108 or later, Firefox 101 or later, or Safari 15.4 or later.",
@@ -137,6 +139,9 @@ export const STRINGS = {
     resume: "Resume your game",
     startNew: "Start a new game",
     resumeNote: "This tab kept your game in progress.",
+    // A finished game this tab kept (BTC-UX-47): its summary, not a game in progress.
+    resumeDone: "This tab kept the summary of your finished game.",
+    resumeShow: "Show your summary",
     // A save this build cannot resume (another version of the game wrote it, or it is damaged), and a browser that
     // does not save at all (DE-5, QL-5).
     resumeFail: "This tab kept a game that this version cannot resume, so a new game starts here.",
@@ -144,9 +149,14 @@ export const STRINGS = {
     // Play again in class and home modes, and Start a new game over a kept game, ask first (FEU-1, DE-3).
     confirmEnd: "This summary will be cleared and the intro will open again. Print it or save its results file first to keep a copy.",
     confirmSave: "The game this tab kept will be cleared.",
+    confirmSaveDone: "The summary this tab kept will be cleared. Show it first to print it or save its results file.",
     confirmBack: "Go back",
     scoreLive: "{name}: {value}, {word}.",
     endKeep: "Keep this summary",
+    // The finished campus behind the summary (BTC-UX-01).
+    endLook: "Look at the campus",
+    endBack: "Back to the summary",
+    lookNote: "The campus is finished and running. Look around the map and the Neighbors panel, then go back to the summary.",
     endChose: "Your choices",
     noDecisions: "No choices were recorded.",
     dashTitle: "Dashboard",
@@ -198,7 +208,7 @@ export const STRINGS = {
     orderAct: "Order first",
     factoryAct: "Factory test",
     finishPhase: "Finish phase: {name}",
-    finishNeed: "Place every element to finish this phase",
+    finishNeed: "Place every element first",
     pickPhase: "Pick a ready phase to work on.",
     nextHint: "Next: {name}",
 
@@ -239,9 +249,9 @@ export const STRINGS = {
     tabNew: "updated",
     scoreHelp:
       "How this is scored. Neighbor relations starts at {hood0} when grading begins. Choices and issue cards add or remove points. The truck traffic, noise and dust & night lighting rows remove points as they rise; after opening, noise always counts at its lowest level, so the cooling type is not scored. The other rows are information only, because they are not the same kind of effect. Safety starts at {safety0} and moves with your choices and the issue cards. For safety and neighbor relations, 80 or more is Strong, 60 to 79 Good, 45 to 59 Fair, 30 to 44 Watch and under 30 Concern. The schedule is judged against a {base}-month plan: Strong at or under {base} months, Good up to two months over, Fair up to four over, Watch beyond that. The budget adds up what your choices and the issue cards cost, plus {delay}% for every month they add to the finish, because crews, equipment and loans keep costing while the work runs late. The plan holds {cont}% for surprises: Strong at or under {b0}% of plan, Good up to {b1}%, Fair up to {b2}%, Watch beyond that. Cooling changes power use and water use on the panel; it is not a point for or against the project.",
-    kioskNote: "Kiosk setup: on a library computer, download the offline kiosk file and open it in a full-screen or kiosk browser; ?mode=library added to its address keeps the voice off for every player. It is one file with the narration inside, and it works with no network. Opened from the web, this page also saves a copy, and all the narration once any has played, so a later reload can work offline. The educator sheet has a short set-up checklist.",
+    kioskNote: "Kiosk setup: on a library computer, download the offline kiosk file and open it in a full-screen or kiosk browser; ?mode=library added to its address keeps the voice off for every player. It is one file with the narration inside, and it works with no network. Opened from the web, this page also saves a copy, and all the narration once any has played, so a later reload can work offline. The educator sheet has a short set-up checklist. Where no printer is connected, add ?print=off to the address to leave out the Print button.",
     kioskLink: "Download the offline kiosk file",
-    kioskNoteOffline: "This is the offline kiosk copy: one file with the narration inside. Open it in a full-screen or kiosk browser; it needs no network. Add ?mode=library to the file's address to keep the voice off for every player.",
+    kioskNoteOffline: "This is the offline kiosk copy: one file with the narration inside. Open it in a full-screen or kiosk browser; it needs no network. Add ?mode=library to the file's address to keep the voice off for every player, and ?print=off where no printer is connected.",
     systemTitle: "Browsers and computers",
     systemReq: "Needs a current browser: Chrome or Edge 108 or later, Firefox 101 or later, or Safari 15.4 or later (Mac, iPad and iPhone). The 3D map needs WebGL 2 graphics, which most computers, Chromebooks and tablets in use today have. A screen 1280 × 720 or larger works best; phones show a smaller map. Without 3D graphics the panels, the schedule and every choice still work. Accessibility: the game aims to meet WCAG 2.2 level AA. Known limits: the 3D map is visual only, though everything that counts is also in the panels, the schedule and the Site log as text; and the game is in English only. To report a barrier, write to akeyvanf@kennesaw.edu.",
     qualityNote: "The game picks less 3D detail on slower graphics. Add ?quality=low to the address if the map is slow, or ?quality=high to always use full detail.",
@@ -273,7 +283,7 @@ export const STRINGS = {
     endStartHood: "Started at {n} when grading began",
     endLuck: "Setbacks drawn: {n} of {of}. Setback cards are drawn by chance, so compare choices, not only ratings.",
     endCostly: "What cost the most",
-    endCostlyNote: "Each answer is compared with the best other answer to the same question. One month weighs about the same as 1% of budget, or 5 points of safety or neighbor relations. Answers that were the best on balance are left out.",
+    endCostlyNote: "Each answer is compared with the best other answer to the same question. One month weighs about the same as 1% of budget, or 5 points of safety or neighbor relations. Answers that were the best on balance are left out. Months and budget are for your whole game, so they can differ from the card: later work can hide a delay or add to it.",
     endCostlyNone: "Each of your answers was the best on balance for its question.",
     // What an answer changed against the best other answer, in words (TW-6): "Finish 1 month later".
     endVs: "Compared with “{label}”:",
@@ -566,11 +576,14 @@ export const STRINGS = {
     logPhaseDone: "Phase finished: {name}.",
     logLocked: "{name} is not ready yet. It needs: {list}. {why}",
     logCx: "Level 5 passed. Levels 1 to 4 were already done, one piece of equipment at a time.",
-    logL1: "Level 1 starts at the factory, before this equipment ships.",
+    logL1: "Level 1: {name} is tested at the factory before it ships.",
     logL2: "Level 2: this delivery was checked as it was set in place. {n} of 5 so far.",
     logL3: "Level 3: systems can start up now that permanent power is on.",
     logL4: "Level 4: functional tests use load banks in place of the servers' power draw and heat.",
     logUndo: "The last step was undone.",
+    // What Undo took back (BTC-UX-52): an element, a factory test, a finished phase or a change in the Choices panel.
+    logUndoWhat: "Undone: {what}.",
+    undoFinish: "finishing {name}",
     logResume: "Your game is back where you left it.",
   },
   es: {},

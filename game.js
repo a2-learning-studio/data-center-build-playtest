@@ -121,7 +121,8 @@ const fresh = () => ({
   t0: 0,
   steps: [],
 });
-const ui = { tab: "build", side: "hood", hot: null, picked: null, hoodSig: null, hoodNew: false, planOpen: false };
+// viewing: the finished campus is shown with its summary set aside (BTC-UX-01).
+const ui = { tab: "build", side: "hood", hot: null, picked: null, hoodSig: null, hoodNew: false, planOpen: false, viewing: false };
 // The piece the player is siting on the map, or null. Not saved: a reload returns to the button.
 let placing = null;
 // Plain copies of the state, for undo and for the class/home autosave.
@@ -195,8 +196,9 @@ function rng() {
   return st.seed / 4294967296;
 }
 let history = [];
-function remember() {
-  history.push(JSON.stringify(snapState()));
+// Each step Undo can take back keeps its own words, so Undo says what it took back (BTC-UX-52).
+function remember(label = "") {
+  history.push(JSON.stringify({ label, state: snapState() }));
   if (history.length > 30) history.shift();
 }
 // One timed step of a class or home game, for its results file (BTC-01): the seconds since the game started, what
@@ -561,13 +563,14 @@ function cxTrackHtml() {
   if (!show) return "";
   const row = (id, detail, state) => `<li data-cx="${esc(id)}"><span><b>${esc(t.elements[id].name)}</b> — ${esc(detail)}</span><span>${esc(state)}</span></li>`;
   const gear = MEP.map((id) => `<li data-cx="${esc(id)}"><span><b>${esc(t.elements[id].name)}</b></span><span>${esc(st.cx[id] ? fmt(t.cxLv, { n: st.cx[id] }) : t.cxWait)}</span></li>`);
+  // The substation's factory test sits under level 1, beside the line it belongs to (BTC-UX-X02).
   const rows = [
     row("L1", t.cxWhen.L1, cxState(1)),
+    row("substation", t.cxWhen.L1, st.xfmr ? t.cxDone : t.cxWait),
     row("L2", t.cxWhen.L2, cxState(2)),
     row("L3", t.cxWhen.L3, cxState(3)),
     row("L4", t.cxWhen.L4, cxState(4)),
     ...gear,
-    row("substation", t.cxWhen.L1, st.xfmr ? t.cxDone : t.cxWait),
     row("L5", t.cxWhen.L5, st.placed.has("L5") ? t.cxDone : t.cxWait),
   ];
   return `<p class="log-h">${esc(t.cxTrackTitle)}</p><ul class="cx">${rows.join("")}</ul><p class="muted">${esc(t.cxTrackNote)}</p>`;
@@ -616,12 +619,18 @@ function renderBuild() {
   const next = PH.find((q) => ready(q) && !st.done.has(q.id) && !started(q.id)) || PH.find((q) => ready(q) && !st.done.has(q.id));
   let html = "";
   if (!p) {
-    if (next) {
-      html = `<p class="kicker">${fmt(t.phaseOf, { n: PH.indexOf(next) + 1 })}</p><h2>${esc(t.phases[next.id].name)}</h2><p class="muted">${esc(t.phases[next.id].log)}</p><button type="button" class="btn btn-wide" data-go="${next.id}">${esc(fmt(t.nextHint, { name: t.phases[next.id].name }))}</button>`;
+    if (st.done.has("turn")) {
+      // Looking at the finished campus after the summary (BTC-UX-01): the way back to it is the one next step.
+      html = `<p class="kicker">${esc(fmt(t.phaseOf, { n: PH.length }))}</p><h2>${esc(t.phases.turn.name)}</h2><p class="muted">${esc(t.lookNote)}</p><button type="button" class="btn btn-wide" data-back-end>${esc(t.endBack)}</button>`;
+    } else if (next) {
+      html = `<p class="kicker">${esc(fmt(t.phaseOf, { n: PH.indexOf(next) + 1 }))}</p><h2>${esc(t.phases[next.id].name)}</h2><p class="muted">${esc(t.phases[next.id].log)}</p><button type="button" class="btn btn-wide" data-go="${next.id}">${esc(fmt(t.nextHint, { name: t.phases[next.id].name }))}</button>`;
     } else html = `<p class="muted">${esc(t.pickPhase)}</p>`;
   } else {
     const all = p.els.every((e) => st.placed.has(e));
-    html = `${placeBoxHtml()}<p class="kicker">${fmt(t.phaseOf, { n: PH.indexOf(p) + 1 })}</p><h2>${esc(t.phases[p.id].name)}</h2>
+    // Locked steps and the waiting Finish stay in the Tab order and say why when pressed (aria-disabled, BTC-UX-30).
+    // Once Finish can be pressed it is pinned to the bottom of the panel on a card band, as the dialogs pin theirs,
+    // so a long phase never hides its next step below the fold (BTC-UX-05).
+    html = `${placeBoxHtml()}<p class="kicker">${esc(fmt(t.phaseOf, { n: PH.indexOf(p) + 1 }))}</p><h2>${esc(t.phases[p.id].name)}</h2>
       <p class="muted">${esc(t.phases[p.id].log)} <span class="range">${p.months[0]}–${p.months[1]} ${esc(t.schedAxis)} · ${esc(t.typical)}</span></p>
       <ul class="els">${p.els
         .map((e) => {
@@ -629,30 +638,36 @@ function renderBuild() {
           const why = !done ? blockReason(e) : "";
           const title = why || (done ? t.showOnMap : "");
           const short = why ? blockShort(e) : "";
-          return `<li><button type="button" class="el" data-el="${e}"${done ? " data-done" : ""}${why ? " disabled" : ""} title="${esc(title)}"><span class="el-mark">${done ? ICON.done : why ? ICON.lock : ICON.plus}</span><span class="el-name">${esc(t.elements[e].name)}${short ? `<span class="el-why">${esc(short)}</span>` : ""}</span><span class="el-act">${esc(actLabel(e, done))}</span></button></li>`;
+          return `<li><button type="button" class="el" data-el="${e}"${done ? " data-done" : ""}${why ? ' aria-disabled="true"' : ""} title="${esc(title)}"><span class="el-mark">${done ? ICON.done : why ? ICON.lock : ICON.plus}</span><span class="el-name">${esc(t.elements[e].name)}${short ? `<span class="el-why">${esc(short)}</span>` : ""}</span><span class="el-act">${esc(actLabel(e, done))}</span></button></li>`;
         })
         .join("")}</ul>
-      <button type="button" class="btn btn-wide" data-finish${all ? "" : " disabled"}>${esc(all ? fmt(t.finishPhase, { name: t.phases[p.id].short }) : t.finishNeed)}</button>`;
+      <div class="finish-bar"${all ? " data-pin" : ""}><button type="button" class="btn btn-wide" data-finish${all ? "" : ' aria-disabled="true"'}>${esc(all ? fmt(t.finishPhase, { name: t.phases[p.id].short }) : t.finishNeed)}</button></div>`;
   }
-  html += `${cxTrackHtml()}<p class="log-h">${esc(t.logTitle)}</p><ul class="log">${st.log.slice(0, 3).map((l) => `<li>${esc(l)}</li>`).join("")}</ul>`;
+  // The Site log and Undo come right after the next step, and the commissioning track after them, as reference: the
+  // track pushed both below the fold from Utilities on (BTC-UX-X02).
+  html += `<p class="log-h" role="heading" aria-level="3">${esc(t.logTitle)}</p><ul class="log">${st.log.slice(0, 3).map((l) => `<li>${esc(l)}</li>`).join("")}</ul>`;
   const canUndo = history.length > 0 && !st.done.has("turn");
   html += `<div class="game-btns"><button type="button" class="btn btn-ghost btn-small" data-undo${canUndo ? "" : " disabled"}>${esc(t.undo)}</button><button type="button" class="btn btn-ghost btn-small" data-restart>${esc(t.startOver)}</button></div>`;
+  html += cxTrackHtml();
   const keep = document.activeElement?.matches?.("[data-undo], [data-restart]") ? (document.activeElement.hasAttribute("data-undo") ? "[data-undo]" : "[data-restart]") : "";
   box.innerHTML = html;
   fillPlaceWhy();
   if (keep) $(keep, box)?.focus({ preventScroll: true });
 }
+const locked = (b) => b.getAttribute("aria-disabled") === "true";
 $("[data-build]").addEventListener("click", (e) => {
   const b = e.target.closest("button");
   if (!b || b.disabled) return;
   if (cardPending && !b.matches("[data-restart], [data-undo], [data-done]")) { waitForCard(); return; }
   if (b.hasAttribute("data-undo")) undo();
   else if (b.hasAttribute("data-restart")) askStartOver();
+  else if (b.hasAttribute("data-back-end")) showEnd();
   else if (b.hasAttribute("data-place-set")) confirmPlace();
   else if (b.hasAttribute("data-place-cancel")) { endPlace(); renderBuild(); focusNext(); }
   else if (b.dataset.el && b.hasAttribute("data-done")) { scene?.focus(b.dataset.el); showTag(b.dataset.el); }
+  // A locked step says why (place() toasts its reason), and the waiting Finish says what it waits for.
   else if (b.dataset.el) place(b.dataset.el);
-  else if (b.hasAttribute("data-finish")) finishPhase(st.focus);
+  else if (b.hasAttribute("data-finish")) { if (locked(b)) toast(T().finishNeed); else finishPhase(st.focus); }
   else if (b.dataset.go) pickPhase(b.dataset.go);
 });
 
@@ -939,8 +954,33 @@ function followTag(now) {
 }
 
 // ---------- actions ----------
+// Focus moves without scrolling (the page and the map never move), then only the panel itself scrolls so the
+// focused control is in sight, clear of the pinned Finish band: in Grading and MEP, Finish sat below the fold at
+// 200% zoom, on phones and in short windows, and the next Enter pressed a button nobody could see (BTC-UX-05,
+// WCAG 2.4.7, 2.4.11). In the layouts where the page itself scrolls (very short windows), the page follows too.
+function reveal(node) {
+  const panel = node?.closest?.(".panel");
+  if (!panel) return;
+  const p = panel.getBoundingClientRect(), r = node.getBoundingClientRect();
+  const band = node.closest(".finish-bar") ? null : $(".finish-bar[data-pin]", panel);
+  const bottom = p.bottom - (band ? band.offsetHeight : 0) - 8;
+  if (r.bottom > bottom) panel.scrollTop += Math.min(r.bottom - bottom, r.top - p.top - 8);
+  else if (r.top < p.top + 8) panel.scrollTop -= p.top + 8 - r.top;
+  const page = document.scrollingElement;
+  if (page && page.scrollHeight > innerHeight + 1) {
+    const s = node.getBoundingClientRect();
+    if (s.bottom > innerHeight - 8) page.scrollTop += s.bottom - innerHeight + 8;
+    else if (s.top < 8) page.scrollTop -= 8 - s.top;
+  }
+}
+const OPEN_EL = '.el:not([data-done]):not([aria-disabled="true"])';
+function focusOn(node) {
+  if (!node) return;
+  node.focus({ preventScroll: true });
+  reveal(node);
+}
 function focusNext() {
-  ($(".el:not([data-done]):not([disabled])") || $("[data-finish]:not([disabled])"))?.focus({ preventScroll: true });
+  focusOn($(OPEN_EL) || $('[data-finish]:not([aria-disabled="true"])'));
 }
 function decisionsDue(e) {
   const due = [];
@@ -969,6 +1009,7 @@ function advanceCx() {
   syncCx();
   return notes;
 }
+let phaseSayTimer = 0;
 function pickPhase(id) {
   const t = T();
   const p = PH.find((q) => q.id === id);
@@ -980,6 +1021,7 @@ function pickPhase(id) {
   }
   if (st.done.has(id)) return;
   const opening = st.focus !== id && !started(id);
+  const moved = st.focus !== id;
   if (placing && phaseOf[placing.id] !== id) endPlace();
   st.focus = id;
   if (opening) logStep("phase", id);
@@ -987,7 +1029,15 @@ function pickPhase(id) {
   renderAll();
   if (opening) speak(`phase:${id}`);
   if (ui.tab !== "build") setTab("build");
-  $(".el:not([data-done]):not([disabled])")?.focus({ preventScroll: true });
+  // Another phase starts at the top of the panel, with its name in sight.
+  if (moved) $(".p-build").scrollTop = 0;
+  focusOn($(OPEN_EL));
+  // Screen readers hear which phase opened once the focus move has been read; the visible log is left alone
+  // (BTC-UX-31). The status line is the polite one the Site log uses.
+  if (moved) {
+    clearTimeout(phaseSayTimer);
+    phaseSayTimer = setTimeout(() => { if (st.focus === id && !$$("dialog").some((d) => d.open)) status.textContent = fmt(t.phaseSay, { n: PH.indexOf(p) + 1, name: t.phases[id].name }); }, 600);
+  }
 }
 function placeIssueText(code) {
   const t = T();
@@ -1069,21 +1119,37 @@ function onPlacePointer(ev) {
   }
 }
 function beginPlace(e) {
-  if (!M.LAYOUT[e] || !scene) { commitElement(e, { x: 0, z: 0 }); return; }
+  // With no 3D map, or with its context lost mid-game, there is no map to drag on: the piece goes where it was last
+  // set, or at the suggested spot (BTC-UX-56).
+  if (!M.LAYOUT[e] || !scene || document.body.hasAttribute("data-nogl")) {
+    const prev = st.layout[e];
+    commitElement(e, prev && !M.layoutIssue(e, prev.x, prev.z, layoutPlaced(e)) ? prev : { x: 0, z: 0 });
+    return;
+  }
   const prev = st.layout[e] || { x: 0, z: 0 };
   placing = { id: e, dx: prev.x, dz: prev.z };
   scene.setPlaceMode(true, onPlacePointer);
   renderBuild();
   paintFootprints();
   onCamMode(!!scene.zoomed());
-  $("[data-place-box]")?.scrollIntoView({ block: "nearest" });
-  $("[data-place-set]")?.focus({ preventScroll: true });
+  $(".p-build").scrollTop = 0;
+  focusOn($("[data-place-set]"));
 }
 function confirmPlace() {
   if (!placing) return;
   const { id, dx, dz } = placing;
   const issue = M.layoutIssue(id, dx, dz, layoutPlaced(id));
-  if (issue) { toast(placeIssueText(issue)); fillPlaceWhy(); return; }
+  // The reason is already written in the siting box, beside Set it here; a toast over the map buttons repeated it
+  // word for word and covered Cancel on phones. It shows only when the box has scrolled out of sight (BTC-UX-15).
+  if (issue) {
+    fillPlaceWhy();
+    const why = $("[data-place-why]"), panel = why?.closest(".panel");
+    const r = why?.getBoundingClientRect(), pr = panel?.getBoundingClientRect();
+    const seen = r && pr && r.height > 0 && r.top >= pr.top - 1 && r.bottom <= pr.bottom + 1 && r.bottom <= innerHeight;
+    if (seen) status.textContent = placeIssueText(issue);
+    else toast(placeIssueText(issue));
+    return;
+  }
   endPlace();
   commitElement(id, { x: dx, z: dz });
 }
@@ -1108,20 +1174,20 @@ function place(e) {
     return;
   }
   if (e === "substation" && !st.xfmr) {
-    remember();
+    remember(`${t.factoryAct} · ${t.elements[e].name}`);
     st.xfmr = 1;
     logStep("factory", e);
-    say(t.logL1);
+    say(fmt(t.logL1, { name: t.elements[e].name }));
     renderAll();
     focusNext();
     return;
   }
   if (MEP.includes(e) && !st.cx[e]) {
-    remember();
+    remember(`${t.factoryAct} · ${t.elements[e].name}`);
     st.cx[e] = 1;
     logStep("factory", e);
     syncCx();
-    say(t.logL1);
+    say(fmt(t.logL1, { name: t.elements[e].name }));
     renderAll();
     focusNext();
     return;
@@ -1144,7 +1210,7 @@ function place(e) {
 }
 function commitElement(e, offset) {
   const t = T();
-  remember();
+  remember(t.elements[e].name);
   if (offset) st.layout[e] = { x: offset.x, z: offset.z };
   st.placed.add(e);
   logStep("place", e);
@@ -1176,7 +1242,7 @@ function phaseSettled(id) {
   if (id === "turn") logStep("end");
   renderAll();
   if (id === "turn") openEnd();
-  else $("[data-go]")?.focus({ preventScroll: true });
+  else focusOn($("[data-go]"));
 }
 // An issue card that was due but not answered (after undo or a resumed game) is offered again.
 // A setback drawn at the end of a phase still finishes that phase once it is answered.
@@ -1190,7 +1256,8 @@ function reofferCards() {
 // Undo takes back the last placement, finished phase or change in the Choices panel (I7, DE-4).
 function undo() {
   if (!history.length || st.done.has("turn") || dlg.open) return;
-  const back = loadState(JSON.parse(history.pop()));
+  const step = JSON.parse(history.pop());
+  const back = loadState(step.state);
   if (!back) return;
   playGen += 1;
   clearCardTimers();
@@ -1206,7 +1273,7 @@ function undo() {
   back.ov = st.ov;
   st = back;
   logStep("undo");
-  say(T().logUndo);
+  say(step.label ? fmt(T().logUndoWhat, { what: step.label }) : T().logUndo);
   renderAll(false);
   reofferCards();
   focusNext();
@@ -1218,7 +1285,7 @@ function finishPhase(id) {
   const missing = (PHASE_REQUIRED[id] || []).filter((c) => !st.choice[c]);
   if (missing.length) { openDecide(missing[0], () => finishPhase(id)); return; }
   if (!st.done.has(id)) {
-    remember();
+    remember(fmt(t.undoFinish, { name: t.phases[id].name }));
     st.done.add(id);
     logStep("done", id);
     say(fmt(t.logPhaseDone, { name: t.phases[id].name }));
@@ -1248,7 +1315,7 @@ function choose(c, v, opts = {}) {
   const t = T();
   if (choiceLocked(c) || st.choice[c] === v || !EFFECT[c]?.[v]) return;
   // A change in the Choices panel is a step of its own, so Undo takes back that change first (DE-4).
-  if (opts.step) remember();
+  if (opts.step) remember(`${t.choices[c].name} → ${t.choices[c][v].label}`);
   st.choice[c] = v;
   logStep("choice", c, v);
   say(fmt(t.logChoice, { name: t.choices[c].name, value: t.choices[c][v].label }));
@@ -1258,6 +1325,7 @@ function choose(c, v, opts = {}) {
 }
 function next() {
   if (dlg.open) return;
+  if (st.done.has("turn") && !endDlg.open) { showEnd(); return; }
   if (cardPending) { waitForCard(); return; }
   if (placing) { confirmPlace(); return; }
   const p = PH.find((q) => q.id === st.focus);
@@ -1569,11 +1637,12 @@ $(".card-opts", dlg).addEventListener("click", (e) => {
   if (st.cards[id]) { closeDlg(dlg); return; }
   st.cards[id] = b.dataset.o;
   logStep("card", id, b.dataset.o);
-  say(T().cards[id][b.dataset.o].log);
   speak(`opt:${id}:${b.dataset.o}`);
   const fn = cardAfter;
   cardAfter = null;
   closeDlg(dlg);
+  // Written once the dialog has closed: the status line is outside it, and inert while the modal is open (BTC-UX-32).
+  say(T().cards[id][b.dataset.o].log);
   renderAll();
   fn?.();
 });
@@ -1641,7 +1710,8 @@ function stampPrint() {
   const date = new Date().toLocaleDateString(t.lang, { year: "numeric", month: "long", day: "numeric" });
   $("[data-print-date]").textContent = endDlg.open ? fmt(t.printDate, { date }) : "";
 }
-addEventListener("beforeprint", stampPrint);
+// A player looking at the finished campus who prints (the browser's own Print) gets the summary, not the short note.
+addEventListener("beforeprint", () => { if (ui.viewing && !endDlg.open) showEnd(); stampPrint(); });
 // On a kiosk, Enter on the end screen still means Play again. In class and home modes the summary is the class's
 // record, so focus starts on its title and Play again asks first (FEU-1). When the game puts focus on Play again
 // (here, and after Keep this summary), Enter or Space within a second of that was meant for the button before: a
@@ -1690,7 +1760,7 @@ function fillEnd(rec) {
   // Titles that end in a colon are joined to the answer with a dash, never a second colon (TW-6).
   $(".end-costly", endDlg).innerHTML = rec.costliest.length
     ? rec.costliest.map((x) => `<li><b>${esc(x.name)}</b> — ${esc(x.label)}<span class="end-fx">${esc(fmt(t.endVs, { label: x.vsLabel }))} ${esc(x.effect)}</span></li>`).join("")
-    : `<li>${esc(t.endCostlyNone)}</li>`;
+    : `<li data-none>${esc(t.endCostlyNone)}</li>`;
   const made = [...rec.choices, ...rec.cards].map((x) => `<li><b>${esc(x.name)}</b> — ${esc(x.label)}</li>`);
   $(".end-chose", endDlg).innerHTML = made.length ? made.join("") : `<li>${esc(t.noDecisions)}</li>`;
   // Each question gets lines to answer on, on paper only (FEU-3).
@@ -1699,7 +1769,7 @@ function fillEnd(rec) {
 // The end screen shows this game's debrief or, in class and home modes, a results file's, read only: that one has
 // Close instead of Play again and the save buttons.
 function endButtons(fromFile) {
-  for (const b of $$("[data-again], [data-save-file], [data-save-csv]", endDlg)) b.hidden = fromFile;
+  for (const b of $$("[data-again], [data-save-file], [data-save-csv], [data-end-look]", endDlg)) b.hidden = fromFile;
   const close = $("[data-end-close]", endDlg);
   if (close) close.hidden = !fromFile;
 }
@@ -1711,9 +1781,14 @@ function clearEnd() {
   const from = $("[data-end-from]", endDlg);
   from.textContent = "";
   from.hidden = true;
+  const saved = $("[data-end-saved]", endDlg);
+  saved.textContent = "";
+  saved.hidden = true;
+  ui.viewing = false;
   endButtons(false);
 }
 function showEnd() {
+  ui.viewing = false;
   openDlg(endDlg);
   stampPrint();
   pinPad();
@@ -1730,6 +1805,21 @@ $("[data-print]").addEventListener("click", () => {
   keepGoing();
   window.print();
 });
+// The finished campus (BTC-UX-01): the summary steps aside, kept as it is, so the player can see the campus and the
+// operating Neighbors rows the answers promised. The Build panel leads back to it; on a kiosk it comes back by
+// itself after a minute without input, with its countdown, and Print brings it back too.
+$("[data-end-look]").addEventListener("click", () => {
+  keepGoing();
+  closeDlg(endDlg);
+  ui.viewing = true;
+  if (TABBED.matches) setTab("build");
+  else { ui.side = "hood"; renderSide(); }
+  renderBuild();
+  focusOn($("[data-back-end]"));
+});
+// A kiosk with no printer can drop the Print button with ?print=off, so a visitor never leaves the print dialog
+// open over the game (BTC-UX-X06). The print styles stay.
+if (arg("print") === "off") $("[data-print]").remove();
 $("[data-again]").addEventListener("click", () => {
   if (STAFFED) { askStartOver("end"); return; }
   closeDlg(endDlg);
@@ -1750,6 +1840,11 @@ function saveResults(ext, type, text, when) {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 30000);
   alertNow(fmt(T().endSaved, { file: name }));
+  // Seen as well as heard: managed browsers often hide their download bar (BTC-UX-48).
+  const line = $("[data-end-saved]", endDlg);
+  line.textContent = fmt(T().endSaved, { file: name });
+  line.hidden = false;
+  pinPad();
 }
 // One header row and one row of values, for a spreadsheet. Every value comes from the game, never from typing; one a
 // spreadsheet could read as a formula would start with an apostrophe. The byte-order mark makes Excel read UTF-8.
@@ -1831,6 +1926,10 @@ $("[data-end-close]")?.addEventListener("click", () => {
 const introDlg = $("[data-intro]");
 const aboutDlg = $("[data-about-dlg]");
 const confirmDlg = $("[data-confirm]");
+// The map stops redrawing while any dialog but the intro covers it (BTC-UX-20). The intro keeps the slow turn behind
+// it; every other dialog is opened and closed in more than one place, so this follows their open attribute.
+const syncHold = () => scene?.hold($$("dialog").some((d) => d.open && d !== introDlg));
+new MutationObserver(syncHold).observe(document.body, { attributes: true, subtree: true, attributeFilter: ["open"] });
 // About opens at its title, not on the first link halfway down (on a small phone that scrolled the title away).
 $("[data-about]").addEventListener("click", () => {
   aboutDlg.showModal();
@@ -1851,12 +1950,17 @@ function beginGame() {
 // Over a game this tab kept, Start a new game asks first (DE-3).
 $("[data-start]").addEventListener("click", () => (savedGame().back ? askStartOver("save") : beginGame()));
 // The intro offers Resume for a game this tab kept, and says so when this build cannot resume one (DE-5).
+let keptDone = false;
 function offerResume() {
   const t = T();
   const { back, bad } = savedGame();
   if (bad) clearSave();
+  // A finished game this tab kept is a summary, not a game in progress (BTC-UX-47).
+  keptDone = !!back?.done.has("turn");
   $("[data-resume]").hidden = !back;
+  $("[data-resume]").textContent = keptDone ? t.resumeShow : t.resume;
   $("[data-resume-note]").hidden = !back;
+  $("[data-resume-note]").textContent = keptDone ? t.resumeDone : t.resumeNote;
   $("[data-resume-fail]").hidden = !bad;
   const startBtn = $("[data-start]");
   startBtn.textContent = back ? t.startNew : t.start;
@@ -1880,7 +1984,7 @@ $("[data-resume]").addEventListener("click", () => {
   if (st.done.has("turn")) { openEnd(); return; }
   reofferCards();
   if (st.focus) focusNext();
-  else $("[data-go]")?.focus({ preventScroll: true });
+  else focusOn($("[data-go]"));
 });
 guard(introDlg, () => $("[data-start]").focus({ preventScroll: true }));
 // One question for every way to clear a game: Start over, Play again in class and home modes, and Start a new game
@@ -1889,8 +1993,10 @@ function askStartOver(about = "game") {
   if (confirmDlg.open) return;
   const t = T();
   confirmDlg.dataset.about = about;
-  $("#confirm-body").textContent = about === "end" ? t.confirmEnd : about === "save" ? t.confirmSave : t.confirmBody;
+  $("#confirm-body").textContent = about === "end" ? t.confirmEnd : about === "save" ? (keptDone ? t.confirmSaveDone : t.confirmSave) : t.confirmBody;
   $("[data-confirm-no]").textContent = about === "end" ? t.endKeep : about === "save" ? t.confirmBack : t.confirmNo;
+  // The yes button names what happens next for each question (BTC-UX-54).
+  $("[data-confirm-yes]").textContent = about === "end" ? t.endAgain : about === "save" ? t.startNew : t.confirmYes;
   confirmDlg.showModal();
   $("[data-confirm-no]").focus();
 }
@@ -2012,7 +2118,7 @@ function reset({ clear = true } = {}) {
   st = fresh();
   say(T().log0);
   // The next player starts on the default panels, scrolled to the top.
-  Object.assign(ui, { hot: null, picked: null, side: "hood", hoodSig: null, hoodNew: false, planOpen: false });
+  Object.assign(ui, { hot: null, picked: null, side: "hood", hoodSig: null, hoodNew: false, planOpen: false, viewing: false });
   document.body.removeAttribute("data-plan-open");
   for (const p of $$(".panel")) p.scrollTop = 0;
   toastEl.hidden = true;
@@ -2072,9 +2178,10 @@ function stopCountdowns() {
   endShown = false;
   endClear.hidden = true;
   endKeep.hidden = true;
+  $("[data-again]").classList.remove("btn-ghost");
   if (keepHadFocus && endDlg.open) {
     againAt = performance.now();
-    $("[data-again]").focus();
+    $("[data-again]").focus({ preventScroll: true });
   }
 }
 function keepGoing() {
@@ -2087,8 +2194,12 @@ function startEndCountdown() {
   endClear.textContent = countText("endClear", endLeft);
   endClear.hidden = false;
   endKeep.hidden = false;
-  // Focus moves to Keep, so Enter keeps the summary instead of starting over.
-  endKeep.focus();
+  // While Keep shows, it is the one primary: Play again turns ghost and Keep sits at the end of the row, so nothing
+  // slides under the pointer when it goes (BTC-UX-49). Focus moves to Keep without scrolling the summary away
+  // (BTC-UX-61), so Enter keeps the summary instead of starting over.
+  $("[data-again]").classList.add("btn-ghost");
+  pinPad();
+  endKeep.focus({ preventScroll: true });
   alertNow(endClear.textContent);
   endTimer = setInterval(() => {
     endLeft -= 1;
@@ -2140,7 +2251,8 @@ for (const type of ["pointerdown", "pointermove", "keydown", "wheel", "touchstar
 setInterval(() => {
   if (STAFFED || !st.started || introDlg.open || prompting() || dismissing) return;
   const idle = performance.now() - lastInput;
-  if (endDlg.open) { if (idle >= 60000) startEndCountdown(); return; }
+  // A player looking at the finished campus gets the summary back, with its countdown, as if it had stayed open.
+  if (endDlg.open || ui.viewing) { if (idle >= 60000) { if (!endDlg.open) showEnd(); startEndCountdown(); } return; }
   if (idle < (testHooks.idleMs || 150000)) return;
   // The prompt opens over About or the Start-over question, so Keep playing goes back to them where they were;
   // only the reset closes them.
@@ -2156,6 +2268,8 @@ setInterval(() => {
   }, 1000);
 }, 5000);
 $("[data-idle-keep]").addEventListener("click", keepGoing);
+// The next visitor can start fresh from the prompt itself instead of keeping the last player's game (BTC-UX-X04).
+$("[data-idle-new]").addEventListener("click", () => reset());
 endKeep.addEventListener("click", keepGoing);
 idleDlg.addEventListener("cancel", (ev) => { ev.preventDefault(); keepGoing(); });
 
