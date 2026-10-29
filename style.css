@@ -198,7 +198,8 @@ body[data-nogl] .cam,body[data-nogl] .hint,body[data-nogl] [data-fx]{display:non
 .dlg-intro .intro-btns{position:sticky;bottom:0;background:var(--card);padding:10px 0 20px;box-shadow:0 -10px 12px -10px #163a3033}
 .dlg-intro .intro-btns .btn-big{margin-top:0}
 .btn.btn-ghost{background:#fff;color:var(--ink);border:2px solid var(--ink);box-shadow:none}
-@media (hover:hover){.btn.btn-ghost:hover:not([disabled]){background:var(--pine-soft)}}
+/* As specific as the clay hover below, which would otherwise turn a ghost button dark under the pointer. */
+@media (hover:hover){.btn.btn-ghost:hover:not([disabled]):not([aria-disabled="true"]){background:var(--pine-soft)}}
 .btn.btn-ghost[disabled]{background:#fff;color:#6b756f;border-color:var(--line-strong)}
 .dlg[data-idle] .intro-btns{margin-top:12px}
 
@@ -394,7 +395,7 @@ html[data-nokeys] .opt kbd{display:none}
   html,body{background:#fff!important;height:auto!important;overflow:visible!important}
   /* Only an open end screen prints. Anywhere else the page prints a short note instead, never the last player's
      summary or an empty one; reset() also empties the summary. */
-  body>.app,body>dialog:not([data-end]),.dlg-foot,.end-look,.dlg::backdrop,.dlg-end[open]~.print-empty{display:none!important}
+  body>.app,body>dialog:not([data-end]),.dlg-foot,.end-look,.end-why,.dlg::backdrop,.dlg-end[open]~.print-empty{display:none!important}
   .dlg-end[open]{position:static!important;display:block!important;max-width:none!important;max-height:none!important;overflow:visible!important;box-shadow:none!important;border-radius:0;padding:0!important;margin:0;color:#000;background:#fff;inset:auto;transform:none}
   .dlg-end{font-size:10pt;line-height:1.25}
   .dlg-end h2{font-size:16pt}

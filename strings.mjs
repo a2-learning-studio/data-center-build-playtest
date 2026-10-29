@@ -313,7 +313,9 @@ export const STRINGS = {
     endStartHood: "Started at {n} when grading began",
     endLuck: "Setbacks drawn: {n} of {of}. Setback cards are drawn by chance, so compare choices, not only ratings.",
     endCostly: "What cost the most",
-    endCostlyNote: "Each answer is compared with the best other answer to the same question. One month weighs about the same as 1% of budget, or 5 points of safety or neighbor relations. Answers that were the best on balance are left out. Months and budget are for your whole game, so they can differ from the card: later work can hide a delay or add to it.",
+    endCostlyNote: "Each answer is compared with the best other answer to the same question. One month weighs about the same as 1% of budget, or 5 points of safety or neighbor relations. Answers that were the best on balance are left out.",
+    // On screen only, so the printed debrief still fits one page (BTC-UX-X03).
+    endCostlyWhy: "Months and budget are for your whole game, so they can differ from the card: later work can hide a delay or add to it.",
     endCostlyNone: "Each of your answers was the best on balance for its question.",
     // What an answer changed against the best other answer, in words (TW-6): "Finish 1 month later".
     endVs: "Compared with “{label}”:",
