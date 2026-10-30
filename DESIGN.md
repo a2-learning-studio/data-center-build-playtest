@@ -384,8 +384,8 @@ The small square before each Neighbors row names that effect's color on the map:
 
 Type tokens on `:root`: `--fs-xs` .75rem, `--fs-sm` .8rem, `--fs-row` .85rem and `--fs-ui` .9rem; sizes within .01rem of them use them. The .78, .82, .88 and .92rem sizes remain where they are.
 - **Display**: the intro title and `h1`. Geist 700, `clamp(1.7rem, 1.2rem + 1.6vw, 2.4rem)`, line height 1.15.
-- **Headline**: the dialog titles and the phase name in the Build panel (`h2`). Geist 700, 1.25rem, line height 1.15.
-- **Title**: `h3` sections in dialogs, and the schedule heading. Geist 700, 1rem.
+- **Headline**: the dialog titles and the phase name in the Build panel (`h2`). Geist 700, 1.25rem, line height 1.15; 1.375rem in dialogs other than the intro (BTC-UX-V09).
+- **Title**: `h3` sections in dialogs, and the schedule heading. Geist 700, 1rem; 1.125rem in dialogs.
 - **Brand**: the game's name in the bar. Geist 700, 1.2rem (1.05rem tabbed, 1rem on a 1024 px projector), no wrap.
 - **Score**: the tile values. Geist 700, 1.05rem, tabular figures (0.95rem at 1040 px and below, 0.8rem tabbed).
 - **Body**: Inter 400, 1.0625rem at line height 1.45 (16 px in the tabbed layout). Paragraph spacing 0 0 10px. There is no set line length; dialogs cap at 620 to 700 px.
@@ -456,6 +456,7 @@ Depth is a hybrid of translucency and soft, pine-tinted shadow. Surfaces over th
 
 Soft and friendly. Every action is a full pill (999 px); containers use large radii that step down as they nest.
 
+- The typical-range pill on a phase (`.range`) is rounded at 0.8em, so it follows its text size (BTC-UX-V08).
 - Radii in use: dialog 24 px · panel 20 px (`--radius`) · siting box and answer option 16 px · tiles, element rows, toast, caption, setting rows and end-stat tiles 14 px · map buttons, hood rows and segment tracks 12 px (map buttons 10 px tabbed) · segment buttons 9 px · lanes and kbd 8 px · schedule bars 4 px · meter cells and legend swatches 3 px · circles 50% (element marks, lane icons, dots).
 - Borders: 2 px solid ink on ghost buttons, map pills, map buttons and the timeline toggle; 2 px paper at 80% on the bar pills; 2 px line on answer options; 1 px line at 80% on panels; 2 px transparent on element and hood rows, which turns clay or pine on hover or press. A map pill that is off (`aria-pressed="false"`) has a **dashed** border.
 - The built tag has a 10 px rotated-square pointer. The schedule track has a 12.5% grid of 1 px `track-grid` lines.
@@ -610,10 +611,12 @@ A static Letter page in `system-ui`:
 
 Within the same look:
 - **Build panel:** once Finish can be pressed it is pinned to the panel's bottom on a card band with the pinned-footer shadow. A locked step is a sunken well with a `#cfc8bc` mark and a muted word, at full opacity, and stays in the Tab order (`aria-disabled`). The waiting Finish is a sunken pill. The Site log and Undo come before the commissioning track. After turnover the panel offers "Back to the summary".
-- **Neighbors beside the panels:** the rows scroll in their own area; the fact box sits under them with a height cap, then the breakdown.
-- **Presenter view:** the toolbar adds a "Neighbors" pill and a "Presenter view: on" pill. Under 1600 px the opened panel lies over the map below the toolbar; at 1600 px and up it takes its usual place. The Build panel width is `clamp(16.5rem, 28vw, 22rem)`.
+- **Neighbors beside the panels:** the rows, the score note and the breakdown scroll in their own area. Under them the fact box has one fixed height, `clamp(6.5rem, 20dvh, 12rem)`, whatever it holds, so pointing at a row never moves anything; a longer fact scrolls inside it. While rows wait below the fold the box carries the pinned-footer shadow. On short laptop screens (up to 800 px tall) the rows are 34 px. On the phone tab the fact comes right under the rows.
+- **Presenter view:** the toolbar adds a "Neighbors" pill and a "Presenter view: on" pill. From 1280 px the opened panel takes its usual place on the right and the map tools move clear of it; under 1280 px it lies over the open map below the toolbar, the map buttons wait under it, and a caption still shows over it. The Build panel width is `clamp(16.5rem, 28vw, 22rem)`.
 - **Score tiles:** a tile that changed gets a 2 px `#f7f4eecc` inset ring for 4 s and, from 1366 px, the change after its word. The label spans `auto 1fr`.
-- **End screen:** "Look at the campus" under the opening paragraph; Print and the save buttons are `.btn-small`; during the kiosk countdown Keep is the one clay button, at the end of the row.
+- **End screen:** "Look at the campus" under the opening paragraph (left out when there is no 3D map); Print and the save buttons are `.btn-small`. During the kiosk countdown Keep is the one clay button, on the countdown's own line above the other buttons (full width on phones), so nothing moves when it goes.
+- **Map tag:** a part built out of the open map gets its "Built:" or "Done:" tag at the nearest edge of the open map, its pointer turned towards the part.
+- **Short phones held upright:** the map's share is 38% of the window (`svh`), and scrolled past the map the Build panel fills the window under the tabs.
 - **Map buttons:** where the zoomed-in set would wrap, the move buttons take their own row (`html[data-cam-split]`). On touch screens the buttons sit 8 px apart.
 - **Answer options** have a 2 px `muted` edge; empty meter cells use `line-strong`. Panel and dialog scrollbars are `muted` on transparent.
 

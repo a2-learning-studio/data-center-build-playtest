@@ -85,6 +85,7 @@ export const STRINGS = {
     // BTC-UX-38: a motion switch kiosk visitors can reach.
     stillPref: "Keep the map still",
     stillNote: "Stops the slow turn behind the first screen and the moving fans, trucks and rings, and the view jumps instead of gliding. In class and home modes this device remembers the setting; on a library kiosk it lasts one game. ?⁠motion=off in the address turns it on for every game.",
+    stillSystem: "This device already asks for less motion, so the map is kept still.",
     keysPref: "Single-key shortcuts: N, M, V and the number keys on issue cards",
     keysPrefNote: "Turn them off if a stray key press causes trouble. In class and home modes this device remembers the setting; on a library kiosk it lasts one game. ?⁠keys=off in the address turns them off for every game.",
     voiceCredit: "Narration recorded in advance with ElevenLabs (Impact Program); the game contacts no service while you play.",

@@ -3,7 +3,8 @@
 // Every part sits in a tagged group { show, hide, opt, keep } that the game shows or hides.
 // Reduced detail for weak graphics (I17). ?quality=low or ?quality=high in the address overrides the guess.
 function detectLowQ() {
-  const q = new URLSearchParams(location.search).get("quality");
+  // A setting copied from About carries a word joiner after its "?" (game.js QUERY).
+  const q = new URLSearchParams(location.search.replace(/%E2%81%A0|\u2060/gi, "")).get("quality");
   if (q === "low") return true;
   if (q === "high") return false;
   let gpu = "";
@@ -1255,12 +1256,14 @@ function createScene(canvas, { reduced = () => false, signs = null, onMode = nul
     zoomBy(Math.exp(Math.max(-lim, Math.min(lim, dy)) * (pinch ? 0.01 : 0.0012)), e.clientX, e.clientY);
   }, { passive: false });
   // Safari on a Mac sends a trackpad pinch as gesture events: zoom the map toward the pointer instead of the page.
+  // Safari on an iPhone or iPad sends them for a two-finger touch as well, beside the pointer events the pinch above
+  // already zooms by, so they zoom only while no finger is down; with both, a pinch zoomed twice per step (repair).
   let gestureScale = 1;
   canvas.addEventListener("gesturestart", (e) => { e.preventDefault(); gestureScale = e.scale || 1; });
   canvas.addEventListener("gesturechange", (e) => {
     e.preventDefault();
     const sc = e.scale || 1;
-    zoomBy(gestureScale / sc, e.clientX, e.clientY);
+    if (!pointers.size) zoomBy(gestureScale / sc, e.clientX, e.clientY);
     gestureScale = sc;
   });
   canvas.addEventListener("gestureend", (e) => e.preventDefault());
@@ -1660,6 +1663,13 @@ function createScene(canvas, { reduced = () => false, signs = null, onMode = nul
       kick();
     },
     lookAt(x, z, force = false) { aim(x * 0.6 + HOME.x * 0.4, z * 0.6 + HOME.z * 0.4, force); },
+    // Where a ground point is on the map, in its own pixels (null behind the camera), and a press that centres the
+    // view on one (siting a piece that is out of sight, game.js showSpot).
+    screenAt(x, z) {
+      const p = new T3.Vector3(x, 0, z).project(camera);
+      return p.z > 1 ? null : [((p.x + 1) / 2) * canvas.clientWidth, ((1 - p.y) / 2) * canvas.clientHeight];
+    },
+    show(x, z) { aim(x, z, true); },
     setView(o) { if (o.az != null) want.az = o.az; if (o.el != null) want.el = o.el; if (o.dist != null) want.dist = o.dist; if (o.x != null) want.target.set(o.x, 0, o.z); clampTarget(); manual(); notifyMode(); kick(); },
     // For checks: where the camera is headed, and the bounds it may move within.
     cam: () => ({ az: want.az, el: want.el, dist: want.dist, x: want.target.x, z: want.target.z, vx: view.target.x, vz: view.target.z, vdist: view.dist, vaz: view.az, vel: view.el, fitDist, zoomed: isZoomed(), bounds: bounds(), manualAt }),

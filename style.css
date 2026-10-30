@@ -100,6 +100,11 @@ body[data-nogl] .nogl{display:block}
 body[data-nogl] .scene,body[data-nogl] .tag{visibility:hidden}
 .tag{position:absolute;left:0;top:0;pointer-events:none;background:var(--pine);color:#fff;font-weight:700;font-size:var(--fs-row);padding:6px 12px;border-radius:999px;box-shadow:var(--shadow);white-space:nowrap;z-index:3}
 .tag::after{content:"";position:absolute;left:50%;bottom:-5px;width:10px;height:10px;background:var(--pine);transform:translateX(-50%) rotate(45deg);border-radius:2px}
+/* A part out of the open map: the tag waits at the nearest edge with its pointer turned towards the part (repair). */
+.tag[data-edge="left"]::after,.tag[data-edge="right"]::after{top:50%;bottom:auto;transform:translateY(-50%) rotate(45deg)}
+.tag[data-edge="left"]::after{left:-5px}
+.tag[data-edge="right"]::after{left:auto;right:-5px}
+.tag[data-edge="up"]::after{top:-5px;bottom:auto}
 
 /* floating panels */
 .panel,.dlg{scrollbar-color:var(--muted) transparent}
@@ -144,8 +149,6 @@ body[data-nogl] .cam,body[data-nogl] .hint,body[data-nogl] [data-fx]{display:non
 .game-btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
 .btn-small{min-height:40px;padding:6px 14px;font-size:.88rem}
 .end-btns{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:6px}
-/* During the kiosk countdown Keep is the one primary, at the end of the row, so hiding it moves nothing (BTC-UX-49). */
-.end-btns [data-end-keep]{order:9}
 /* The countdown, Keep and Play again stay pinned at the bottom of the end screen, visible without scrolling, and so
    does About's Close button, so a long sheet never hides the way out (UD-4). */
 .dlg[data-end],.dlg[data-about-dlg]{padding-bottom:0}
@@ -175,7 +178,13 @@ body[data-nogl] .cam,body[data-nogl] .hint,body[data-nogl] [data-fx]{display:non
 /* The credit is a footer on every screen width, outside the map and panels (C7, I9). */
 .foot{font-size:.82rem;font-weight:600;color:var(--muted);text-align:center;padding:6px max(16px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));background:var(--paper);border-top:1px solid #dcd7cc80}
 .audience{font-weight:700;color:var(--pine);margin:0 0 6px}
-.end-clear{font-weight:700;color:var(--ink);margin:12px 0 0}
+.end-clear{font-weight:700;color:var(--ink);margin:0}
+/* During the kiosk countdown, Keep is the one primary and sits on the countdown's own line, above the other buttons,
+   first in the Tab order as on screen. The footer is pinned to the bottom of the end screen, so when the line and
+   Keep go, the buttons under them stay where they are and a second tap lands on the summary, never on Play again
+   (BTC-UX-49, repair: on phones Keep was the last row, and Print and Play again slid 56 px down into its place). */
+.end-count{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin:12px 0 10px}
+.end-count[hidden]{display:none}
 .plan-head small{font-weight:500;color:var(--muted);font-size:var(--fs-sm)}
 .tabs{display:none}
 /* Narration captions sit just under the toolbar, so they never cover its buttons; clicks pass through them. */
@@ -383,7 +392,7 @@ html[data-nokeys] .opt kbd{display:none}
    (BTC-01). */
 @media (max-width:600px){
   .end-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:stretch}
-  .end-btns [data-end-keep]{grid-column:1/-1}
+  .end-count [data-end-keep]{flex:1 1 100%;min-height:48px}
   .end-btns .btn{min-height:48px;padding:8px 12px;font-size:.92rem}
 }
 .print-only{display:none}
@@ -456,17 +465,19 @@ html[data-nokeys] .opt kbd{display:none}
   html[data-present] :is(.tools,.cam,.caption,.nogl,.toast){right:16px}
   html[data-present] .kpi-val .long{display:inline}html[data-present] .kpi-val .short{display:none}
   html[data-present] .tools :is([data-side-toggle],[data-present-off]){display:inline-block}
-  /* The Neighbors toggle brings the side panel back (BTC-UX-07). On screens 1600 px and wider it takes its usual
-     place and the map tools move clear of it. */
+  /* The Neighbors toggle brings the side panel back (BTC-UX-07). From 1280 px wide it takes its usual place and the
+     map tools move clear of it, so the effect a row lights up stays in sight beside it (repair: under 1600 px it lay
+     over the whole map, with the map buttons and the caption hidden). */
   html[data-present][data-side-open] .p-side{display:flex}
   html[data-present][data-side-open] :is(.tools,.cam,.caption,.nogl,.toast){right:calc(var(--pr) + 32px)}
 }
-/* Under 1600 px the opened panel lies over the map instead, below the toolbar and across the open middle, so the map
-   does not shrink to a strip; the map buttons, the caption and the hint wait under it until it is closed. */
-@media (min-width:1101px) and (max-width:1599px), (min-width:1024px) and (max-width:1599px) and (orientation:landscape) and (min-height:601px){
+/* Under 1280 px that would leave the map a strip, so the opened panel lies over the map instead, below the toolbar and
+   across the open middle; the map buttons and the hint wait under it until it is closed. A narration caption still
+   shows, over the panel's top (repair: it was hidden, and the narration played with no words on screen). */
+@media (min-width:1101px) and (max-width:1279px), (min-width:1024px) and (max-width:1279px) and (orientation:landscape) and (min-height:601px){
   html[data-present][data-side-open] .p-side{left:calc(var(--pl) + 32px);right:16px;top:calc(var(--tools-b, 64px) + 8px);width:auto}
   html[data-present][data-side-open] :is(.tools,.cam,.caption,.nogl,.toast){right:16px}
-  html[data-present][data-side-open] :is(.cam,.caption,.hint){display:none}
+  html[data-present][data-side-open] :is(.cam,.hint){display:none}
 }
 @media (min-width:1024px) and (max-width:1500px) and (orientation:landscape) and (min-height:601px){
   html[data-present] .kpi-val .long{display:none}html[data-present] .kpi-val .short{display:inline}
@@ -485,13 +496,18 @@ html[data-nokeys] .opt kbd{display:none}
 @media (max-height:800px) and (min-width:761px){
   .plan-note{display:none}
   .hood-detail{min-height:70px}
+  /* Slimmer rows on short laptop screens, so one more shows above the fact box (fingers keep 44 px, BTC-UX-37). */
+  .hood-row{min-height:34px;padding:3px 8px}
 }
-/* Beside the panels, the Neighbors rows scroll in their own area and the fact box keeps a fixed height under them, with
-   the breakdown below it, so whatever row is pointed at, its fact is in sight and the rows never move under the
-   pointer: only the bottom edge of their area does (BTC-UX-06). The score note scrolls with the rows. A fact longer than its box scrolls inside it (game.js fitDetail). */
+/* Beside the panels, the Neighbors rows, the score note and the breakdown scroll in their own area, and the fact box
+   under them has one fixed height whatever it holds, so whatever row is pointed at, its fact is in sight and nothing
+   moves: a box that grew with its fact shrank the rows area, slid the bottom row out from under a resting mouse and
+   back, and flickered (BTC-UX-06, repair). A fact longer than the box scrolls inside it (game.js fitDetail). While
+   rows wait below the fold, the box carries the pinned-footer shadow the dialogs use, so the cut row reads as more. */
 @media (min-width:1101px), (min-width:1024px) and (orientation:landscape) and (min-height:601px){
   .p-side .hood-scroll{flex:1 1 auto;min-height:7rem;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;margin:0 -6px;padding:0 6px 2px}
-  .p-side .hood-detail{max-height:clamp(84px,30dvh,15rem);overflow:auto;align-content:start}
+  .p-side .hood-detail{flex:none;height:clamp(6.5rem,20dvh,12rem);min-height:0;overflow:auto;align-content:start}
+  .p-side .side-hood[data-more] .hood-detail{box-shadow:0 -10px 12px -10px #163a3033}
 }
 /* Laptop windows up to 900 px tall, in the side-panel layout (UD-1): the full schedule needs 440 to 490 px, which left
    the map a strip of 76 to 180 px. Here the schedule starts as its total and a row of phase buttons, critical-path
@@ -562,6 +578,10 @@ html[data-nokeys] .opt kbd{display:none}
   .lane{grid-template-columns:20px 5.25rem 1fr;min-height:32px}
   .axis{grid-template-columns:calc(5.25rem + 40px) 1fr}
   .hood-row{grid-template-columns:1fr auto minmax(64px,auto)}
+  /* On the phone Neighbors tab the fact comes right under the rows, before the score note and its breakdown, so a
+     pressed row's fact is close by (BTC-UX-06). */
+  .hood-scroll{display:contents}
+  .hood-detail{order:1}.hood-score{order:2}.hood-break{order:3}
   .dlg{padding:20px}
   .dlg-intro{padding-bottom:0}
 }
@@ -633,7 +653,11 @@ html[data-nokeys] .opt kbd{display:none}
   html{overflow-x:hidden;overflow-y:auto}
   body{height:auto;overflow:visible}
   .app{height:auto;min-height:100dvh}
-  .stage{height:calc(var(--scene-row) + 52px + 15rem)}
+  /* The map's share is of the window, not of the page: a share of the page grew with the Build panel's own overflow
+     and left a blank band of 221 to 494 px under it (repair). Scrolled past the map, the Build panel fills the window
+     under the tabs. svh, so the page does not change height as the browser's address bar comes and goes. */
+  html{--scene-h:38svh;--scene-row:max(var(--scene-h),var(--scene-min,0px))}
+  .stage{height:calc(var(--scene-row) + 52px + max(15rem, 100svh - 52px))}
   .foot{padding-top:3px;padding-bottom:max(3px,env(safe-area-inset-bottom))}
 }
 /* Very short windows at any width (400% zoom on a 1280 x 720 or 1280 x 1024 screen is 320 x 180 or 320 x 256): a
@@ -641,6 +665,8 @@ html[data-nokeys] .opt kbd{display:none}
 @media (max-height:300px){
   .dlg-intro .intro-btns,.dlg-foot{position:static;box-shadow:none}
   .dlg-intro,.dlg[data-end],.dlg[data-about-dlg]{scroll-padding-bottom:0}
+  /* Here the row scrolls with the dialog, so Tab must bring each of its buttons fully into view (WCAG 2.4.11). */
+  .dlg-foot :is(button,a),.dlg-intro .intro-btns button{scroll-margin-bottom:0}
 }
 /* Touch screens (library iPads, phones): the schedule toggle and lanes, and the Neighbors rows, are finger-sized, and
    the map buttons sit 8 px apart, so a miss on Zoom in or Turn right does not land on the next button (BTC-UX-37). */
@@ -653,7 +679,10 @@ html[data-nokeys] .opt kbd{display:none}
 /* Touch-only devices: the keyboard line on the intro is left out (it stays in About), so Start sits higher, and the
    siting box says how to site with fingers instead of a mouse and keys (UD-8). */
 @media (pointer:coarse) and (hover:none){.dlg-intro .keys-hint,.place-keys{display:none}.place-touch{display:inline}}
-@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}
+  /* The requirements line under the loading note is a step, not motion, so it still appears after ten seconds. */
+  .nojs-req{animation:nojs-req 0s 10s forwards!important}
+}
 /* Keep the map still, in About or ?motion=off (BTC-UX-38), stops the one CSS transition too. */
 html[data-still] *{transition:none!important}
 /* Windows contrast themes (forced colors, critic): the browser drops author backgrounds, gradients and shadows. They
@@ -663,6 +692,8 @@ html[data-still] *{transition:none!important}
 @media (forced-colors:active){
   .btn{border:2px solid ButtonText}
   .btn:is([disabled],[aria-disabled="true"]){border-color:GrayText}
+  /* aria-disabled leaves the text in ButtonText, so a locked step and the waiting Finish read as live (repair). */
+  :is(.btn,.el)[aria-disabled="true"],:is(.btn,.el)[aria-disabled="true"] *{color:GrayText}
   .dlg{border:2px solid CanvasText}
   /* A results file's debrief keeps its "read only" label boxed (BTC-01). */
   .from-file{border:1px solid CanvasText}
@@ -685,6 +716,7 @@ html[data-still] *{transition:none!important}
   /* The small squares before the Neighbors names are the map's colours, and the map keeps its colours. */
   .hood-name::before{forced-color-adjust:none}
   .track,.sw{forced-color-adjust:none}
+  .sw-range{border-color:CanvasText;background:linear-gradient(CanvasText,CanvasText) center/100% 2px no-repeat;opacity:1}
   .track{background:repeating-linear-gradient(90deg,transparent 0 calc(100% / var(--cols, 8) - 1px),GrayText calc(100% / var(--cols, 8) - 1px) calc(100% / var(--cols, 8)))}
   .range-line{background:CanvasText;opacity:1}
   .gbar,.sw-other,.sw-now{background:CanvasText}

@@ -27,13 +27,19 @@ const el = (tag, attrs = {}, html) => {
   return node;
 };
 const motionOff = matchMedia("(prefers-reduced-motion: reduce)");
+// Whether the last input was a key press (pickPhase).
+let keyed = false;
+addEventListener("keydown", () => { keyed = true; }, true);
+addEventListener("pointerdown", () => { keyed = false; }, true);
 
 // ---------- modes and device settings ----------
 // No mode: a library kiosk. It clears itself after a pause and saves nothing. ?mode=class and ?mode=home suspend
 // both resets and keep the game in progress for this tab (sessionStorage). ?mode=library is the kiosk, voice off.
 // Values are trimmed and lower-cased, and a second "?" counts as "&", so ?mode=Class and ?view=presenter?mode=class
-// work as meant (FEU-2).
-const QUERY = new URLSearchParams(location.search.replace(/\?/g, "&"));
+// work as meant (FEU-2). About quotes each setting with a word joiner after its "?" so a line never breaks there; a
+// setting copied from it carries the joiner along, so it is dropped here (repair: ?mode=class pasted from About was
+// read as an unknown setting, and the game stayed a kiosk).
+const QUERY = new URLSearchParams(location.search.replace(/%E2%81%A0|\u2060/gi, "").replace(/\?/g, "&"));
 const arg = (key) => (QUERY.get(key) || "").trim().toLowerCase();
 const URL_MODE = arg("mode");
 const MODE = ["class", "home", "library"].includes(URL_MODE) ? URL_MODE : "kiosk";
@@ -465,11 +471,12 @@ function measureSafe() {
   const c = canvas.getBoundingClientRect();
   safeRect = { x: 0, y: 0, w: c.width, h: c.height };
   if (TABBED.matches) return scene.setSafe(safeRect);
-  // The open map area between the panels. Presenter view hides the side panel and the schedule; its Neighbors panel,
-  // opened on a screen under 1600 px wide, lies over the map without moving the campus (BTC-UX-07).
+  // The open map area between the panels. Presenter view hides the side panel and the schedule; its Neighbors panel
+  // takes its usual place on the right when opened, and only under 1280 px wide does it lie over the open map without
+  // moving the campus (BTC-UX-07, repair).
   const b = $(".p-build").getBoundingClientRect();
   const s = $(".p-side").getBoundingClientRect();
-  const drawer = document.body.hasAttribute("data-present") && innerWidth < 1600;
+  const drawer = document.body.hasAttribute("data-present") && innerWidth < 1280;
   const x = b.width ? b.right - c.left : 0;
   const r = s.width && !drawer ? s.left - c.left : c.width;
   const bottom = p.height ? p.top - c.top : c.height;
@@ -478,6 +485,8 @@ function measureSafe() {
 }
 // The open map area last measured, in the map's own pixels: the floating tag stays inside it (BTC-UX-17).
 let safeRect = null;
+// Presenter view under 1280 px: the opened Neighbors panel lies over the whole open map (style.css).
+const drawerCovers = () => document.body.hasAttribute("data-present") && sideOpen() && !TABBED.matches && innerWidth < 1280;
 // Dialogs with a pinned button row keep focused controls clear of it (scroll-padding-bottom, WCAG 2.4.11).
 function pinPad() {
   for (const [d, sel] of [[$("[data-intro]"), ".intro-btns"], [$("[data-end]"), ".dlg-foot"], [$("[data-about-dlg]"), ".dlg-foot"]]) {
@@ -694,7 +703,10 @@ function renderBuild() {
   const canUndo = history.length > 0 && !st.done.has("turn");
   html += `<div class="game-btns"><button type="button" class="btn btn-ghost btn-small" data-undo${canUndo ? "" : " disabled"}>${esc(t.undo)}</button><button type="button" class="btn btn-ghost btn-small" data-restart>${esc(t.startOver)}</button></div>`;
   html += cxTrackHtml();
-  const keep = document.activeElement?.matches?.("[data-undo], [data-restart]") ? (document.activeElement.hasAttribute("data-undo") ? "[data-undo]" : "[data-restart]") : "";
+  // Focus stays on the control it was on: a locked step or the waiting Finish says why when pressed and keeps focus,
+  // instead of dropping it to the page with the old copy of the panel (BTC-UX-30, repair).
+  const a = document.activeElement;
+  const keep = !box.contains(a) ? "" : a.matches("[data-undo]") ? "[data-undo]" : a.matches("[data-restart]") ? "[data-restart]" : a.dataset.el ? `[data-el="${a.dataset.el}"]` : a.matches("[data-finish]") ? "[data-finish]" : "";
   box.innerHTML = html;
   fillPlaceWhy();
   if (keep) $(keep, box)?.focus({ preventScroll: true });
@@ -705,7 +717,8 @@ $("[data-build]").addEventListener("click", (e) => {
   if (!b || b.disabled) return;
   if (cardPending && !b.matches("[data-restart], [data-undo], [data-done]")) { waitForCard(); return; }
   if (b.hasAttribute("data-undo")) undo();
-  else if (b.hasAttribute("data-restart")) askStartOver();
+  // A finished class or home game is the class's record, so clearing it asks as Play again does (FEU-1, repair).
+  else if (b.hasAttribute("data-restart")) askStartOver(STAFFED && st.done.has("turn") ? "end" : "game");
   else if (b.hasAttribute("data-back-end")) showEnd();
   else if (b.hasAttribute("data-place-set")) confirmPlace();
   else if (b.hasAttribute("data-place-cancel")) { endPlace(); renderBuild(); focusNext(); }
@@ -860,7 +873,15 @@ function fitDetail() {
   const box = $("[data-hood-detail]");
   if (box.scrollHeight > box.clientHeight + 1) box.tabIndex = 0;
   else box.removeAttribute("tabindex");
+  markMore();
 }
+// While rows wait below the fold of their area, the fact box under it carries the pinned-footer shadow (style.css).
+function markMore() {
+  const sc = $("[data-hood-scroll]");
+  const more = getComputedStyle(sc).overflowY !== "visible" && sc.scrollHeight - sc.scrollTop - sc.clientHeight > 1;
+  $(".side-hood").toggleAttribute("data-more", more);
+}
+$("[data-hood-scroll]").addEventListener("scroll", markMore, { passive: true });
 // How the neighbor score is made up right now, so the first reading at grading is explained (I4, C9).
 function hoodBreakdown() {
   const t = T();
@@ -922,15 +943,18 @@ $("[data-hood]").addEventListener("pointerover", (e) => {
 });
 // A row the pointer only passed over is not left shown (and every other effect faded) once the pointer leaves the
 // list; a row that was pressed stays (BTC-UX-65).
-$("[data-hood]").addEventListener("pointerleave", (e) => {
-  if (e.pointerType !== "mouse") return;
+// The pointer may go from the rows on to the fact box, to scroll a long fact, and the fact stays while it is there.
+function leaveHood(e, into) {
+  if (e.pointerType !== "mouse" || (e.relatedTarget && into.contains(e.relatedTarget))) return;
   // A row that has keyboard focus counts as shown too.
   const focused = $("[data-hood]").contains(document.activeElement) ? document.activeElement.closest("[data-key]")?.dataset.key : null;
   const keep = ui.picked || focused || null;
   if (keep === ui.hot) return;
   detailLive(false);
   showHood(keep);
-});
+}
+$("[data-hood]").addEventListener("pointerleave", (e) => leaveHood(e, $("[data-hood-detail]")));
+$("[data-hood-detail]").addEventListener("pointerleave", (e) => leaveHood(e, $("[data-hood]")));
 $("[data-hood]").addEventListener("focusin", (e) => {
   const b = e.target.closest("[data-key]");
   if (!b) return;
@@ -945,6 +969,8 @@ $("[data-hood]").addEventListener("click", (e) => {
   detailLive(true);
   focusHood(b.dataset.key, ui.picked === b.dataset.key, true);
   ui.picked = ui.hot;
+  // On the phone Neighbors tab the fact sits under the list, out of sight after a press on a lower row (BTC-UX-06).
+  if (TABBED.matches && ui.hot) $("[data-hood-detail]").scrollIntoView({ block: "nearest" });
 });
 $("[data-choices]").addEventListener("click", (e) => {
   const b = e.target.closest("[data-choice]");
@@ -969,8 +995,9 @@ function setTab(tab) {
 // The tiles' last values, unrounded, so a change shows on the tile that changed (BTC-UX-12), half a month included.
 let dashWas = null, dashTimer = 0;
 const dashDelta = {
-  schedule: (d) => `${d > 0 ? "+" : "−"}${fmt(T().dashMonthsShort, { n: Math.abs(Math.round(d * 2) / 2) })}`,
-  budget: (d) => `${d > 0 ? "+" : "−"}${Math.abs(Math.round(d * 10) / 10)}%`,
+  // Rounded by size, so a change of a quarter month or 0.05% reads 0.5 mo or 0.1% either way, never "−0" (repair).
+  schedule: (d) => `${d > 0 ? "+" : "−"}${fmt(T().dashMonthsShort, { n: Math.max(0.5, Math.round(Math.abs(d) * 2) / 2) })}`,
+  budget: (d) => `${d > 0 ? "+" : "−"}${Math.max(0.1, Math.round(Math.abs(d) * 10) / 10)}%`,
   safety: (d) => signed(d),
   hood: (d) => signed(d),
 };
@@ -1072,12 +1099,24 @@ function followTag(now) {
   // Under the toolbar the tag could not be read, so it stays out of sight while its part is that high (UD-11); the
   // same under a narration caption, which shows at the same moment on a phone (BTC-UX-62), and outside the open map
   // between the panels, where it was drawn over panel text or off the screen (BTC-UX-17).
+  // A part out of the open map gets the tag at the nearest edge of it, pointing its way, so a build off screen still
+  // shows on the map, above all under reduced motion, where the camera does not frame it (checklist 36, repair).
   let top = parseFloat(document.documentElement.style.getPropertyValue("--tools-b")) || 0;
   if (!capEl.hidden) top = Math.max(top, capEl.offsetTop + capEl.offsetHeight + 4);
-  const r = safeRect;
-  const out = p && r && (p[0] - tagW / 2 < r.x || p[0] + tagW / 2 > r.x + r.w || p[1] > r.y + r.h);
-  if (!p || p[1] - tagH < top || out) tagEl.hidden = true;
-  else { tagEl.hidden = false; tagEl.style.transform = `translate(${p[0].toFixed(0)}px, ${p[1].toFixed(0)}px) translate(-50%, -100%)`; }
+  const r = safeRect || { x: 0, y: 0, w: canvas.clientWidth, h: canvas.clientHeight };
+  // It stays above the map buttons too.
+  const cam = $(".cam");
+  const floor = cam.offsetParent ? Math.min(r.y + r.h, cam.offsetTop) : r.y + r.h;
+  const x0 = r.x + tagW / 2 + 8, x1 = r.x + r.w - tagW / 2 - 8, y0 = top + tagH + 8, y1 = floor - 8;
+  if (!p || x1 < x0 || y1 < y0 || drawerCovers()) tagEl.hidden = true;
+  else {
+    const x = Math.min(x1, Math.max(x0, p[0])), y = Math.min(y1, Math.max(y0, p[1]));
+    const edge = p[0] < x0 ? "left" : p[0] > x1 ? "right" : p[1] < y0 ? "up" : p[1] > y1 ? "down" : "";
+    if (edge) tagEl.dataset.edge = edge;
+    else delete tagEl.dataset.edge;
+    tagEl.hidden = false;
+    tagEl.style.transform = `translate(${x.toFixed(0)}px, ${y.toFixed(0)}px) translate(-50%, -100%)`;
+  }
   tagRaf = requestAnimationFrame(followTag);
 }
 
@@ -1157,9 +1196,12 @@ function pickPhase(id) {
   renderAll();
   if (opening) speak(`phase:${id}`);
   if (ui.tab !== "build") setTab("build");
-  // Another phase starts at the top of the panel, with its name in sight.
+  // Another phase starts at the top of the panel, with its name in sight. Keyboard players get the first step
+  // scrolled into view as well, so their focus is never out of sight; for a click or a tap the focus ring does not
+  // show, and on a landscape phone that scroll pushed the phase's name out of view (repair).
   if (moved) $(".p-build").scrollTop = 0;
-  focusOn($(OPEN_EL));
+  if (keyed || !moved) focusOn($(OPEN_EL));
+  else $(OPEN_EL)?.focus({ preventScroll: true });
   // Screen readers hear which phase opened once the focus move has been read; the visible log is left alone
   // (BTC-UX-31). The status line is the polite one the Site log uses.
   if (moved) {
@@ -1250,12 +1292,49 @@ function onPlacePointer(ev) {
     if (!M.layoutIssue(placing.id, placing.dx, placing.dz, layoutPlaced(placing.id))) confirmPlace();
   }
 }
+// With no map to drag on, a piece goes where it was last set, else at the suggested spot, else at the nearest spot on
+// the siting grid that fits: the suggested spot can break the 70 m rule or overlap a piece the player moved
+// (BTC-UX-56, repair).
+function fallbackSpot(e) {
+  const others = layoutPlaced(e);
+  const fits = (d) => !!d && !M.layoutIssue(e, d.x, d.z, others);
+  if (fits(st.layout[e])) return st.layout[e];
+  if (fits({ x: 0, z: 0 })) return { x: 0, z: 0 };
+  const g = M.LAYOUT_GRID || 10, zOnly = M.LAYOUT[e]?.axis === "z";
+  for (let r = 1; r <= 30; r++) {
+    for (let i = -r; i <= r; i++) {
+      for (let j = -r; j <= r; j++) {
+        if (Math.max(Math.abs(i), Math.abs(j)) !== r || (zOnly && i)) continue;
+        const d = { x: i * g, z: j * g };
+        if (fits(d)) return d;
+      }
+    }
+  }
+  return { x: 0, z: 0 };
+}
+// A spot out of the open map is brought into view as siting starts: the player asked to place the piece, and the
+// camera never frames a piece under reduced motion, so its footprint could be off screen (checklist 36, repair). It
+// cuts under reduced motion and eases otherwise.
+function showSpot(e, d) {
+  const r = M.LAYOUT[e]?.rects?.[0];
+  if (!r || !scene?.screenAt || !safeRect) return;
+  const cx = r.x + r.w / 2 + d.x, cz = r.z + r.h / 2 + d.z;
+  const p = scene.screenAt(cx, cz);
+  const top = (parseFloat(document.documentElement.style.getPropertyValue("--tools-b")) || 0) + 16;
+  const seen = p && p[0] >= safeRect.x + 24 && p[0] <= safeRect.x + safeRect.w - 24 && p[1] >= top && p[1] <= safeRect.y + safeRect.h - 24;
+  if (!seen) scene.show(cx, cz);
+}
+// Where the page itself scrolls (short phones, 400% zoom), the bottom of a node lines up with the bottom of the
+// window, so the map above it keeps as much room in sight as it can (repair: siting at 360 x 640 left the map off
+// screen, with Build it here below it).
+function pageEnd(node) {
+  const page = document.scrollingElement;
+  if (!node || !page || page.scrollHeight <= innerHeight + 1) return;
+  page.scrollTop += node.getBoundingClientRect().bottom - innerHeight + 8;
+}
 function beginPlace(e) {
-  // With no 3D map, or with its context lost mid-game, there is no map to drag on: the piece goes where it was last
-  // set, or at the suggested spot (BTC-UX-56).
   if (!M.LAYOUT[e] || !scene || document.body.hasAttribute("data-nogl")) {
-    const prev = st.layout[e];
-    commitElement(e, prev && !M.layoutIssue(e, prev.x, prev.z, layoutPlaced(e)) ? prev : { x: 0, z: 0 });
+    commitElement(e, fallbackSpot(e));
     return;
   }
   const prev = st.layout[e] || { x: 0, z: 0 };
@@ -1264,8 +1343,10 @@ function beginPlace(e) {
   renderBuild();
   paintFootprints();
   onCamMode(!!scene.zoomed());
+  showSpot(e, prev);
   $(".p-build").scrollTop = 0;
   focusOn($("[data-place-set]"));
+  pageEnd($("[data-place-box]"));
 }
 function confirmPlace() {
   if (!placing) return;
@@ -1619,9 +1700,12 @@ function renderVoiceBtn() {
   }
   // In class and home modes the checkbox is the device setting for the next player; on a kiosk it is this game only,
   // like the Voice button.
+  // With ?mode=library the address sets it, until a player turns the voice on for this game: the box is then theirs
+  // again, as on a kiosk, instead of an unticked box beside "Set by the address" (repair).
+  const byAddress = MODE === "library" && !voice.on;
   libBox.checked = libraryOn() && !voice.on;
-  libBox.disabled = MODE === "library";
-  $("[data-libmode-note]").textContent = MODE === "library" ? t.libraryModeUrl : STAFFED ? t.libraryModeNote : t.libraryModeKiosk;
+  libBox.disabled = byAddress;
+  $("[data-libmode-note]").textContent = byAddress ? t.libraryModeUrl : STAFFED ? t.libraryModeNote : t.libraryModeKiosk;
   voiceBtn.hidden = !Object.keys(D.VOICE.en || {}).length;
   $("[data-voice-line]").hidden = voiceBtn.hidden;
   $("[data-listen]").hidden = !voice.on || !(D.VOICE.en || {}).intro;
@@ -1657,11 +1741,16 @@ keysBox.addEventListener("change", (e) => { prefs.keys = e.target.checked; saveP
 // Keep the map still (BTC-UX-38): the intro turn, the fans, trucks and rings stop, and the camera cuts instead of
 // easing, as with the system's reduced-motion setting, for visitors who cannot reach that setting on a kiosk.
 const stillBox = $("[data-still-pref]");
+// With the device's own reduced-motion setting on, the map is already still: the box shows ticked, and says why it
+// cannot be unticked here (repair: it showed off while the map was kept still).
 function renderStill() {
-  stillBox.checked = prefs.still;
+  stillBox.checked = prefs.still || motionOff.matches;
+  stillBox.disabled = motionOff.matches;
+  $("[data-still-system]").hidden = !motionOff.matches;
   document.documentElement.toggleAttribute("data-still", prefs.still);
   scene?.start();
 }
+motionOff.addEventListener?.("change", renderStill);
 stillBox.addEventListener("change", (e) => { prefs.still = e.target.checked; savePref("still", e.target.checked); renderStill(); });
 for (const box of presentBoxes()) box.addEventListener("change", (e) => setPresent(e.target.checked, true));
 $("[data-listen]").addEventListener("click", () => speak("intro"));
@@ -1921,7 +2010,9 @@ function fillEnd(rec) {
 // The end screen shows this game's debrief or, in class and home modes, a results file's, read only: that one has
 // Close instead of Play again and the save buttons.
 function endButtons(fromFile) {
-  for (const b of $$("[data-again], [data-save-file], [data-save-csv], [data-end-look]", endDlg)) b.hidden = fromFile;
+  for (const b of $$("[data-again], [data-save-file], [data-save-csv]", endDlg)) b.hidden = fromFile;
+  // With no 3D map there is no campus to look at (repair).
+  $(".end-look", endDlg).hidden = $("[data-end-look]", endDlg).hidden = fromFile || document.body.hasAttribute("data-nogl");
   const close = $("[data-end-close]", endDlg);
   if (close) close.hidden = !fromFile;
 }
@@ -1941,11 +2032,28 @@ function clearEnd() {
 }
 function showEnd() {
   ui.viewing = false;
+  $(".end-look", endDlg).hidden = $("[data-end-look]", endDlg).hidden = $("[data-again]", endDlg).hidden || document.body.hasAttribute("data-nogl");
   openDlg(endDlg);
   stampPrint();
   pinPad();
   endDlg.scrollTop = 0;
   endFocus();
+  holdTop(endDlg);
+}
+// Safari scrolls a dialog to its focused button some 40 ms after it opens, so the title, the opening paragraph and
+// Look at the campus were out of sight on iPhones and iPads (repair). Until the player touches, scrolls or presses a
+// key, or for 600 ms, the dialog stays at its top.
+function holdTop(d) {
+  const until = Date.now() + 600;
+  const kinds = ["pointerdown", "touchstart", "wheel", "keydown"];
+  const onScroll = () => { if (Date.now() < until && d.open) d.scrollTop = 0; else stop(); };
+  const stop = () => {
+    d.removeEventListener("scroll", onScroll);
+    for (const k of kinds) removeEventListener(k, stop, true);
+  };
+  d.addEventListener("scroll", onScroll);
+  for (const k of kinds) addEventListener(k, stop, { capture: true, once: true });
+  setTimeout(stop, 600);
 }
 function openEnd() {
   clearEnd();
@@ -1960,19 +2068,28 @@ $("[data-print]").addEventListener("click", () => {
 // The finished campus (BTC-UX-01): the summary steps aside, kept as it is, so the player can see the campus and the
 // operating Neighbors rows the answers promised. The Build panel leads back to it; on a kiosk it comes back by
 // itself after a minute without input, with its countdown, and Print brings it back too.
+// The end narration is about the summary, so it stops as the summary steps aside: on phones its caption covered
+// about half the map for 15 s (repair). In presenter view the Neighbors panel opens with the map, where it leaves the
+// map in sight. Where the page itself scrolls, it goes back to its top, so the map is in view: on a short phone the
+// player had scrolled down to Finish, and the map was out of sight (repair).
 $("[data-end-look]").addEventListener("click", () => {
   keepGoing();
+  hush();
   closeDlg(endDlg);
   ui.viewing = true;
   if (TABBED.matches) setTab("build");
   else { ui.side = "hood"; renderSide(); }
+  if (document.body.hasAttribute("data-present") && !TABBED.matches && innerWidth >= 1280) setSideOpen(true);
   renderBuild();
+  document.scrollingElement.scrollTop = 0;
   focusOn($("[data-back-end]"));
 });
 // A kiosk with no printer can drop the Print button with ?print=off, so a visitor never leaves the print dialog
 // open over the game (BTC-UX-X06). The print styles stay.
 if (arg("print") === "off") $("[data-print]").remove();
 $("[data-again]").addEventListener("click", () => {
+  // A quick second tap after Keep this summary was meant for Keep, never for Play again (BTC-UX-49, repair).
+  if (performance.now() - keptAt < 700) return;
   if (STAFFED) { askStartOver("end"); return; }
   closeDlg(endDlg);
   reset();
@@ -2280,7 +2397,7 @@ function reset({ clear = true } = {}) {
   document.documentElement.removeAttribute("data-side-open");
   $("[data-side-toggle]").setAttribute("aria-pressed", "false");
   document.body.removeAttribute("data-plan-open");
-  for (const p of $$(".panel")) p.scrollTop = 0;
+  for (const p of $$(".panel, [data-hood-scroll]")) p.scrollTop = 0;
   toastEl.hidden = true;
   // Each new player starts from this device's settings, whatever the last player pressed (I8). On a kiosk that is
   // the address, for presenter view, Library mode and the shortcut switch too (PA-1).
@@ -2311,6 +2428,8 @@ const idleDlg = $("[data-idle]");
 const idleBody = $(".idle-body", idleDlg);
 const endClear = $("[data-end-clear]");
 const endKeep = $("[data-end-keep]");
+const endCount = $("[data-end-count]");
+let keptAt = -Infinity;
 const alertEl = $("[data-alert]");
 const endAlert = $("[data-alert-end]");
 const idleAlert = $("[data-alert-idle]");
@@ -2339,6 +2458,7 @@ function stopCountdowns() {
   endShown = false;
   endClear.hidden = true;
   endKeep.hidden = true;
+  endCount.hidden = true;
   $("[data-again]").classList.remove("btn-ghost");
   if (keepHadFocus && endDlg.open) {
     againAt = performance.now();
@@ -2355,9 +2475,10 @@ function startEndCountdown() {
   endClear.textContent = countText("endClear", endLeft);
   endClear.hidden = false;
   endKeep.hidden = false;
-  // While Keep shows, it is the one primary: Play again turns ghost and Keep sits at the end of the row, so nothing
-  // slides under the pointer when it goes (BTC-UX-49). Focus moves to Keep without scrolling the summary away
-  // (BTC-UX-61), so Enter keeps the summary instead of starting over.
+  endCount.hidden = false;
+  // While Keep shows, it is the one primary: Play again turns ghost, and Keep sits on the countdown's line above the
+  // other buttons, so nothing slides under the pointer when it goes (BTC-UX-49). Focus moves to Keep without scrolling
+  // the summary away (BTC-UX-61), so Enter keeps the summary instead of starting over.
   $("[data-again]").classList.add("btn-ghost");
   pinPad();
   endKeep.focus({ preventScroll: true });
@@ -2386,6 +2507,12 @@ function deferDismiss() {
   addEventListener("click", onClick, { capture: true, once: true });
   dismissTimer = setTimeout(finish, 1200);
 }
+function onIdlePrompt(ev) {
+  if (ev.type === "keydown") return !ev.repeat && ["Tab", "Enter", " "].includes(ev.key) && idleDlg.contains(document.activeElement);
+  if (ev.type !== "pointermove") return false;
+  const r = idleDlg.getBoundingClientRect();
+  return ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom;
+}
 function activity(ev) {
   if (ev.type === "pointermove") {
     // Mouse movement counts, but not a few pixels of jitter.
@@ -2395,6 +2522,15 @@ function activity(ev) {
   }
   lastInput = performance.now();
   if (!prompting()) return;
+  // On the idle prompt itself a visitor is choosing between its two buttons: Tab, Shift+Tab, Enter and Space work as
+  // usual, and the mouse may move over the prompt to Start a new game; either one restarts the countdown instead of
+  // closing the prompt (repair: both closed it before its second button could be reached). Other keys, and movement
+  // elsewhere, still mean Keep playing.
+  if (idleDlg.open && onIdlePrompt(ev)) {
+    idleLeft = 20;
+    idleBody.textContent = countText("idleBody", idleLeft);
+    return;
+  }
   if (ev.type === "keydown") {
     // The key that dismisses a prompt does nothing else.
     ev.preventDefault();
@@ -2413,7 +2549,14 @@ setInterval(() => {
   if (STAFFED || !st.started || introDlg.open || prompting() || dismissing) return;
   const idle = performance.now() - lastInput;
   // A player looking at the finished campus gets the summary back, with its countdown, as if it had stayed open.
-  if (endDlg.open || ui.viewing) { if (idle >= 60000) { if (!endDlg.open) showEnd(); startEndCountdown(); } return; }
+  if (endDlg.open || ui.viewing) {
+    if (idle >= 60000) {
+      // About or the start-over question, opened while looking, would stay open under the summary (repair).
+      if (!endDlg.open) { for (const d of [aboutDlg, confirmDlg]) if (d.open) d.close(); showEnd(); }
+      startEndCountdown();
+    }
+    return;
+  }
   if (idle < (testHooks.idleMs || 150000)) return;
   // The prompt opens over About or the Start-over question, so Keep playing goes back to them where they were;
   // only the reset closes them.
@@ -2431,7 +2574,7 @@ setInterval(() => {
 $("[data-idle-keep]").addEventListener("click", keepGoing);
 // The next visitor can start fresh from the prompt itself instead of keeping the last player's game (BTC-UX-X04).
 $("[data-idle-new]").addEventListener("click", () => reset());
-endKeep.addEventListener("click", keepGoing);
+endKeep.addEventListener("click", () => { keptAt = performance.now(); keepGoing(); });
 idleDlg.addEventListener("cancel", (ev) => { ev.preventDefault(); keepGoing(); });
 
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
