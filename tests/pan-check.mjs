@@ -171,11 +171,74 @@ for (const [w, h] of [[375, 812], [834, 1194], [1366, 768], [1920, 1080]]) {
     }
   }
 
+  // BTC-UX-10: while siting a piece, a pinch whose fingers lift one at a time neither builds the piece nor moves its
+  // footprint: the finger left on the glass used to become a tap that did both.
+  if (tag === "375x812") {
+    const cdp = await ctx.newCDPSession(page);
+    const t = (type, pts) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: pts.map(([x, y], i) => ({ x, y, id: i })) });
+    await page.click("[data-reset]");
+    await settle(page);
+    await page.evaluate(() => { const s = window.__dc.state(); s.placed.delete("ponds"); s.focus = "grade"; window.__dc.render(); window.__dc.tab("build"); document.querySelector('[data-el="ponds"]').click(); });
+    await page.waitForTimeout(300);
+    const siting = () => page.evaluate(() => ({ box: !!document.querySelector("[data-place-box]"), why: document.querySelector("[data-place-why]")?.textContent || "", ponds: window.__dc.state().placed.has("ponds"), dist: window.__dc.cam().dist }));
+    const before = await siting();
+    const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
+    await t("touchStart", [[cx - 30, cy], [cx + 30, cy]]);
+    for (let k = 1; k <= 6; k++) await t("touchMove", [[cx - 30 - k * 10, cy], [cx + 30 + k * 10, cy]]);
+    // the first finger moves on its own, then both lift (a touchMove that leaves a point out keeps it down, and this
+    // touchEnd lifts both)
+    await t("touchMove", [[cx - 90, cy]]);
+    await t("touchMove", [[cx - 84, cy + 4]]);
+    await t("touchEnd", []);
+    await page.waitForTimeout(900);
+    const after = await siting();
+    check(before.box && !before.ponds && after.dist < before.dist && after.box && !after.ponds && after.why === before.why, `${tag}: a pinch while siting built or moved the piece ${JSON.stringify({ before, after })}`);
+    // The same pinch with the fingers really lifted one at a time (review): the second finger's touchEnd lists it, so
+    // only it lifts; the first then drags across the map on its own before it lifts.
+    const tp = (type, pts) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: pts.map(([x, y, id]) => ({ x, y, id })) });
+    await tp("touchStart", [[cx - 30, cy, 0], [cx + 30, cy, 1]]);
+    for (let k = 1; k <= 4; k++) await tp("touchMove", [[cx - 30 - k * 10, cy, 0], [cx + 30 + k * 10, cy, 1]]);
+    await tp("touchEnd", [[cx + 70, cy, 1]]);
+    for (let k = 1; k <= 6; k++) await tp("touchMove", [[cx - 70 + k * 20, cy + k * 8, 0]]);
+    await tp("touchEnd", []);
+    await page.waitForTimeout(900);
+    const after2 = await siting();
+    check(after2.box && !after2.ponds && after2.why === after.why, `${tag}: a pinch while siting, its fingers lifted one at a time, built or moved the piece ${JSON.stringify({ after, after2 })}`);
+    await page.evaluate(() => document.querySelector("[data-place-cancel]")?.click());
+  }
+
   await page.click("[data-reset]");
   c = await cam();
   check(c.x === home.x && c.z === home.z && !c.zoomed, `${tag}: Reset view did not return home`);
   check(errors.length === 0, `${tag}: console ${errors.join(" | ")}`);
   console.log(tag, "checked");
+  await ctx.close();
+}
+
+// BTC-UX-04: after a long turn behind the intro (here 30 rad, as about ten minutes of the slow turn give), Start goes
+// home the short way, at most half a turn, and Reset view does the same after many turns by hand.
+{
+  const ctx = await browser.newContext({ viewport: { width: 1366, height: 768 } });
+  const page = await ctx.newPage();
+  const errors = [];
+  watch(page, errors);
+  await openGame(page);
+  const HOME_AZ = 0.78;
+  const wrap = (a) => a - 2 * Math.PI * Math.round(a / (2 * Math.PI));
+  const turnLeft = () => page.evaluate(() => { const c = window.__dc.cam(); return { left: Math.abs(c.az - c.vaz), az: c.az }; });
+  await page.evaluate((az) => window.__dc.view({ az }), HOME_AZ + 30);
+  await page.waitForTimeout(1500);
+  await startGame(page);
+  const start = await turnLeft();
+  check(start.left <= Math.PI + 1e-6 && Math.abs(wrap(start.az - HOME_AZ)) < 1e-6, `Start after a long intro turn spins ${start.left.toFixed(2)} rad (at most pi)`);
+  await settle(page);
+  await page.evaluate(() => { const c = window.__dc.cam(); window.__dc.view({ az: c.az + 30 }); });
+  await page.waitForTimeout(1500);
+  await page.click("[data-reset]");
+  const reset = await turnLeft();
+  check(reset.left <= Math.PI + 1e-6 && Math.abs(wrap(reset.az - HOME_AZ)) < 1e-6, `Reset view after many turns spins ${reset.left.toFixed(2)} rad (at most pi)`);
+  check(errors.length === 0, `long turn: console ${errors.join(" | ")}`);
+  console.log("long turn checked");
   await ctx.close();
 }
 
