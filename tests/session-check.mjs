@@ -796,7 +796,12 @@ for (const q of ["", "?keys=off"]) {
     side: document.querySelector(".p-side").offsetWidth,
     again: document.activeElement?.matches("[data-again]") || false,
   }));
-  const look = async () => { await p.click("[data-end-look]"); await p.waitForTimeout(200); return view(); };
+  // A build without the button reports a FAIL here instead of stopping the whole run at a timeout (review).
+  const look = async () => {
+    await p.click("[data-end-look]", { timeout: 10000 }).catch((e) => check("the end screen offers Look at the campus", false, String(e).split("\n")[0]));
+    await p.waitForTimeout(200);
+    return view();
+  };
   await finishGame(p);
   const shown = await view();
   const looking = await look();

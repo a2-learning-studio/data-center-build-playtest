@@ -185,13 +185,25 @@ for (const [w, h] of [[375, 812], [834, 1194], [1366, 768], [1920, 1080]]) {
     const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
     await t("touchStart", [[cx - 30, cy], [cx + 30, cy]]);
     for (let k = 1; k <= 6; k++) await t("touchMove", [[cx - 30 - k * 10, cy], [cx + 30 + k * 10, cy]]);
-    // lift the second finger, then the first, after a small move
+    // the first finger moves on its own, then both lift (a touchMove that leaves a point out keeps it down, and this
+    // touchEnd lifts both)
     await t("touchMove", [[cx - 90, cy]]);
     await t("touchMove", [[cx - 84, cy + 4]]);
     await t("touchEnd", []);
     await page.waitForTimeout(900);
     const after = await siting();
     check(before.box && !before.ponds && after.dist < before.dist && after.box && !after.ponds && after.why === before.why, `${tag}: a pinch while siting built or moved the piece ${JSON.stringify({ before, after })}`);
+    // The same pinch with the fingers really lifted one at a time (review): the second finger's touchEnd lists it, so
+    // only it lifts; the first then drags across the map on its own before it lifts.
+    const tp = (type, pts) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: pts.map(([x, y, id]) => ({ x, y, id })) });
+    await tp("touchStart", [[cx - 30, cy, 0], [cx + 30, cy, 1]]);
+    for (let k = 1; k <= 4; k++) await tp("touchMove", [[cx - 30 - k * 10, cy, 0], [cx + 30 + k * 10, cy, 1]]);
+    await tp("touchEnd", [[cx + 70, cy, 1]]);
+    for (let k = 1; k <= 6; k++) await tp("touchMove", [[cx - 70 + k * 20, cy + k * 8, 0]]);
+    await tp("touchEnd", []);
+    await page.waitForTimeout(900);
+    const after2 = await siting();
+    check(after2.box && !after2.ponds && after2.why === after.why, `${tag}: a pinch while siting, its fingers lifted one at a time, built or moved the piece ${JSON.stringify({ after, after2 })}`);
     await page.evaluate(() => document.querySelector("[data-place-cancel]")?.click());
   }
 
