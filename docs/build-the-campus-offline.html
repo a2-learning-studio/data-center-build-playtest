@@ -694,6 +694,7 @@ html[data-still] *{transition:none!important}
   .btn:is([disabled],[aria-disabled="true"]){border-color:GrayText}
   /* aria-disabled leaves the text in ButtonText, so a locked step and the waiting Finish read as live (repair). */
   :is(.btn,.el)[aria-disabled="true"],:is(.btn,.el)[aria-disabled="true"] *{color:GrayText}
+  .el:is([disabled],[aria-disabled="true"]) .el-act{color:GrayText}
   .dlg{border:2px solid CanvasText}
   /* A results file's debrief keeps its "read only" label boxed (BTC-01). */
   .from-file{border:1px solid CanvasText}
