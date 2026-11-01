@@ -4,6 +4,9 @@
 # stay out of it. tests/build-check.mjs fails when a new root file is neither excluded here nor on its published list.
 exclude:
   - README.md
+  # The design-audit records (product context and the current design language) are for contributors, not the site.
+  - PRODUCT.md
+  - DESIGN.md
   # voice/<lang>/*.mp3 stays published: the web page loads its narration clips from there (I15).
   - voice/en/manifest.json
   # three.js and the fonts are inlined into the pages. Their licence texts, vendor/three-LICENSE.txt and

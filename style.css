@@ -1,9 +1,13 @@
 /* Build the Campus — one fixed screen. Chrome matches Community Builders of Pecan Grove:
    pine stage #163a30, paper #f7f4ee, clay #a9492a pill buttons, Geist headings, Inter body. */
 :root{
-  --pine:#163a30;--pine-2:#1e5a47;--paper:#f7f4ee;--card:#fffdf8;--sunken:#efeae1;--ink:#163a30;--ink-2:#33443d;--muted:#5d6b64;--line:#dcd7cc;
+  --pine:#163a30;--paper:#f7f4ee;--card:#fffdf8;--sunken:#efeae1;--ink:#163a30;--ink-2:#33443d;--muted:#5d6b64;--line:#dcd7cc;--line-strong:#b9b2a6;
   --clay:#a9492a;--clay-ink:#94401f;--clay-soft:#f6e4da;--pine-soft:#e6f0eb;--gold:#e69f00;--focus:#13243b;--focus-stage:#f0b43c;
   --good:#1f8a5b;--warn:#d08a00;--bad:#c2452a;--good-ink:#1f6f4f;
+  /* The card at 95%, 90% and 85%: the floating panels, the map pills and buttons, and the drag hint (BTC-UX-58). */
+  --card-glass:#fffdf8f2;--card-veil:#fffdf8e6;--card-mist:#fffdf8d9;
+  /* Type steps (BTC-UX-57): labels, small labels, panel rows and small UI text. */
+  --fs-xs:.75rem;--fs-sm:.8rem;--fs-row:.85rem;--fs-ui:.9rem;
   --shadow:0 2px 4px #163a3024,0 14px 32px -10px #163a3070;
   --radius:20px;
   --font-body:Inter,"Segoe UI",ui-sans-serif,system-ui,sans-serif;--font-display:Geist,"Segoe UI",ui-sans-serif,system-ui,sans-serif;
@@ -15,6 +19,8 @@ html{font-size:16px;--pl:20.6rem;--pr:22rem}
 @media (min-width:1900px) and (min-height:1000px){html{font-size:20px}}
 body{background:var(--paper);color:var(--ink);font:1.0625rem/1.45 var(--font-body);-webkit-font-smoothing:antialiased}
 h1,h2,h3{font-family:var(--font-display);margin:0 0 6px;line-height:1.15;color:var(--ink)}
+/* Titles and captions break into even lines instead of leaving one word on the last (BTC-UX-V09). */
+h1,h2,.caption{text-wrap:balance}
 h1{font-size:clamp(1.7rem,1.2rem + 1.6vw,2.4rem)}
 h2{font-size:1.25rem}
 h3{font-size:1rem}
@@ -29,44 +35,62 @@ button{font:inherit;color:inherit}
 /* Until game.js runs (build.mjs): while the page loads, then for good where the game cannot run (critic). */
 .nojs{position:fixed;inset:0;z-index:50;display:grid;place-items:center;padding:16px;background:linear-gradient(#0a1a1500,#0a1a1580)}
 .nojs p{max-width:30rem;margin:0;padding:20px 24px;border-radius:var(--radius);background:var(--card);color:var(--ink);box-shadow:var(--shadow);font-weight:600;text-align:center}
-.muted{color:var(--muted);font-size:.9rem}
-.kicker{text-transform:uppercase;letter-spacing:.09em;font-size:.75rem;font-weight:700;color:var(--clay-ink);margin-bottom:4px}
+/* A slow load first says only that it is loading. The browser requirements follow after ten seconds, in case the game
+   cannot run here, and at once with scripts off (the noscript style in build.mjs). It is a step, not motion, so it
+   runs under reduced motion too (BTC-UX-22). */
+.nojs-req{display:block;max-height:0;overflow:hidden;visibility:hidden;animation:nojs-req 0s 10s forwards}
+@keyframes nojs-req{to{max-height:20em;visibility:visible;margin-top:8px}}
+.muted{color:var(--muted);font-size:var(--fs-ui)}
+.kicker{text-transform:uppercase;letter-spacing:.08em;font-size:var(--fs-xs);font-weight:700;color:var(--clay-ink);margin-bottom:4px}
 .byline{font-weight:700;color:var(--ink-2)}
+/* On the intro the age line is the one bold line under the title; the credit and the mode line are quieter
+   (BTC-UX-V10). */
+.dlg-intro .byline{font-weight:600;font-size:var(--fs-ui);color:var(--muted)}
+.dlg-intro .mode-line{font-size:var(--fs-ui)}
 
 /* the frame: header + stage fill the screen exactly */
 .app{height:100dvh;display:grid;grid-template-rows:auto 1fr auto;grid-template-columns:minmax(0,1fr)}
-.bar{background:var(--pine);color:#f7f4ee;display:flex;align-items:center;gap:16px;padding:8px 16px;min-height:64px}
+/* Notched phones draw under the sensor housing, the rounded corners and the home indicator: the bar, the footer and
+   the landscape split keep their content inside the safe area (viewport-fit=cover, BTC-UX-11). */
+.bar{background:var(--pine);color:var(--paper);display:flex;align-items:center;gap:16px;padding:8px max(16px,env(safe-area-inset-right)) 8px max(16px,env(safe-area-inset-left));min-height:64px}
 .brand{display:flex;align-items:center;gap:10px;flex:none}
 h1.brand-name{font-family:var(--font-display);font-weight:700;font-size:1.2rem;line-height:1.15;margin:0;color:inherit;white-space:nowrap}
 .dlg-title{font-size:clamp(1.7rem,1.2rem + 1.6vw,2.4rem)}
-.badge{background:var(--gold);color:var(--pine);border-radius:999px;padding:2px 10px;font-size:.8rem;font-weight:700;white-space:nowrap}
+.badge{background:var(--gold);color:var(--pine);border-radius:999px;padding:2px 10px;font-size:var(--fs-sm);font-weight:700;white-space:nowrap}
 .badge-short{display:none}
 .kpis{display:flex;flex-wrap:wrap;gap:8px;flex:1;justify-content:center;min-width:0}
-.kpi{display:grid;grid-template-columns:auto auto;grid-template-rows:auto auto;column-gap:8px;align-items:baseline;background:#ffffff12;border-radius:14px;padding:5px 12px 6px 22px;position:relative;min-width:0}
+.kpi{display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto auto;column-gap:8px;align-items:baseline;background:#ffffff12;border-radius:14px;padding:5px 12px 6px 22px;position:relative;min-width:0}
 .kpi::before{content:"";position:absolute;left:9px;top:11px;width:8px;height:8px;border-radius:50%;background:#5fd39a;box-shadow:0 0 0 3px #5fd39a33}
 /* One colour per word on every tile: Strong and Good green, Fair gold, Watch and Concern red (C10 follow-up). */
 .kpi[data-level="2"]::before{background:#f0b43c;box-shadow:0 0 0 3px #f0b43c33}
 .kpi[data-level="1"]::before,.kpi[data-level="0"]::before{background:#ff7a5a;box-shadow:0 0 0 3px #ff7a5a33}
 .kpi[data-level="none"]::before{background:#9fb3aa;box-shadow:0 0 0 3px #9fb3aa33}
-.kpi-label{grid-column:1/-1;font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;color:#bfd1c8;font-weight:700;white-space:nowrap}
+.kpi-label{grid-column:1/-1;font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.08em;color:#bfd1c8;font-weight:700;white-space:nowrap}
 .kpi-label .short{display:none}
 .kpi-val{font-family:var(--font-display);font-weight:700;font-size:1.05rem;font-variant-numeric:tabular-nums;white-space:nowrap}
 /* The rating word shows at every width (I3); narrow layouts use its short form. */
 .kpi-word{font-size:.78rem;color:#e3ece7;font-weight:600;white-space:nowrap}
 .kpi-word .short{display:none}
+/* A tile that just changed: a light ring for a few seconds (no hue, so it never reads as a rating), and from 1366 px
+   the size of the change after the word (BTC-UX-12). */
+.kpi[data-changed]{box-shadow:inset 0 0 0 2px #f7f4eecc}
+.kpi-delta{display:none;font-weight:700}
+@media (min-width:1366px){.kpi-delta{display:inline}}
 .kpi-val .short{display:none}
 .bar-btns{display:flex;gap:8px;flex:none}
-.pill{background:transparent;color:#f7f4ee;border:2px solid #f7f4eecc;border-radius:999px;padding:6px 16px;font-weight:700;min-height:44px;cursor:pointer}
-.pill:hover{background:#ffffff1a}
+.pill{background:transparent;color:var(--paper);border:2px solid #f7f4eecc;border-radius:999px;padding:6px 16px;font-weight:700;min-height:44px;cursor:pointer}
+@media (hover:hover){.pill:hover{background:#ffffff1a}}
 .bar .pill:focus-visible{outline-color:var(--focus-stage)}
-.pill-dark{color:var(--ink);border-color:var(--ink);background:#fffdf8e6;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
-.pill-dark:hover{background:#fff}
+.pill-dark{color:var(--ink);border-color:var(--ink);background:var(--card-veil);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+@media (hover:hover){.pill-dark:hover{background:#fff}}
 .pill-dark[aria-pressed="false"]{border-style:dashed}
 
 .stage{position:relative;overflow:hidden;min-height:0;background:linear-gradient(#cfe0ec,#f4ecdf)}
 .scene{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
 .scene:active{cursor:grabbing}
 .scene[data-zoomed]{cursor:move}
+/* A zoomed-in drag shows the grabbing hand, as at the overview (BTC-UX-41). */
+.scene[data-zoomed]:active{cursor:grabbing}
 .scene[data-placing],.scene[data-placing]:active{cursor:crosshair}
 .scene:focus-visible{outline-offset:-4px}
 /* Without WebGL, or with its context lost, the note sits over the open map where the map buttons would be, above the
@@ -74,11 +98,17 @@ h1.brand-name{font-family:var(--font-display);font-weight:700;font-size:1.2rem;l
 .nogl{display:none;position:absolute;left:calc(var(--pl) + 32px);right:calc(var(--pr) + 32px);bottom:calc(26px + min(var(--plan-h, 290px), max(150px, calc(100% - var(--top-room, 0px) - var(--cam-h, 0px) - 26px))));z-index:4;width:fit-content;max-width:420px;margin:0 auto;padding:10px 16px;border-radius:14px;background:var(--card);box-shadow:var(--shadow);font-weight:600;text-align:center}
 body[data-nogl] .nogl{display:block}
 body[data-nogl] .scene,body[data-nogl] .tag{visibility:hidden}
-.tag{position:absolute;left:0;top:0;pointer-events:none;background:var(--pine);color:#fff;font-weight:700;font-size:.85rem;padding:6px 12px;border-radius:999px;box-shadow:var(--shadow);white-space:nowrap;z-index:3}
+.tag{position:absolute;left:0;top:0;pointer-events:none;background:var(--pine);color:#fff;font-weight:700;font-size:var(--fs-row);padding:6px 12px;border-radius:999px;box-shadow:var(--shadow);white-space:nowrap;z-index:3}
 .tag::after{content:"";position:absolute;left:50%;bottom:-5px;width:10px;height:10px;background:var(--pine);transform:translateX(-50%) rotate(45deg);border-radius:2px}
+/* A part out of the open map: the tag waits at the nearest edge with its pointer turned towards the part (repair). */
+.tag[data-edge="left"]::after,.tag[data-edge="right"]::after{top:50%;bottom:auto;transform:translateY(-50%) rotate(45deg)}
+.tag[data-edge="left"]::after{left:-5px}
+.tag[data-edge="right"]::after{left:auto;right:-5px}
+.tag[data-edge="up"]::after{top:-5px;bottom:auto}
 
 /* floating panels */
-.panel{position:absolute;background:#fffdf8f2;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border:1px solid #dcd7cccc;border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;z-index:2;overflow:auto;scrollbar-width:thin}
+.panel,.dlg{scrollbar-color:var(--muted) transparent}
+.panel{--pad-x:16px;position:absolute;background:var(--card-glass);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border:1px solid #dcd7cccc;border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;z-index:2;overflow:auto;scrollbar-width:thin}
 .p-build{left:16px;top:16px;bottom:16px;width:var(--pl)}
 .p-side{right:16px;top:16px;bottom:16px;width:var(--pr);display:flex;flex-direction:column;padding:10px 14px 14px}
 /* --plan-room: the schedule never grows into the toolbar, the narration caption or the map buttons above it (I9);
@@ -88,16 +118,21 @@ body[data-nogl] .scene,body[data-nogl] .tag{visibility:hidden}
    side panel, and only the buttons take clicks, so they cannot block tabs or panel controls (I9). */
 .tools{position:absolute;left:calc(var(--pl) + 32px);right:calc(var(--pr) + 32px);top:16px;display:flex;gap:8px;align-items:center;z-index:4;flex-wrap:wrap;pointer-events:none}
 .tools .pill,.cam button{pointer-events:auto}
-.hint{font-size:.8rem;color:var(--ink-2);background:#fffdf8d9;border-radius:999px;padding:4px 10px}
+/* Presenter view's Neighbors toggle and its own off switch show only in presenter view beside the panels. */
+.tools :is([data-side-toggle],[data-present-off]){display:none}
+.hint{font-size:var(--fs-sm);color:var(--ink-2);background:var(--card-mist);border-radius:999px;padding:4px 10px}
 .hint.hint-new{background:var(--gold);color:var(--pine);font-weight:700}
 .hint .short{display:none}
 @media (max-width:420px){.hint .long{display:none}.hint .short{display:inline}}
 .cam{position:absolute;left:calc(var(--pl) + 32px);right:calc(var(--pr) + 32px);bottom:calc(26px + min(var(--plan-h, 290px), max(150px, calc(100% - var(--top-room, 0px) - var(--cam-h, 0px) - 26px))));display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:6px;z-index:4;pointer-events:none}
 .cam-move{display:flex;gap:6px}
 .cam-move[hidden]{display:none}
-.cb{width:40px;height:40px;padding:0;border-radius:12px;border:2px solid var(--ink);background:#fffdf8e6;color:var(--ink);display:grid;place-items:center;cursor:pointer;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
-.cb:hover{background:#fff}
-.cb svg{width:20px;height:20px}
+/* Where the zoomed-in set would wrap, the move buttons take their own row above the others, so nothing jumps under
+   the pointer at the zoom step (game.js measureSafe, BTC-UX-08). */
+html[data-cam-split] .cam-move{flex-basis:100%;justify-content:flex-end}
+.cb{width:2.5rem;height:2.5rem;padding:0;border-radius:12px;border:2px solid var(--ink);background:var(--card-veil);color:var(--ink);display:grid;place-items:center;cursor:pointer;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+@media (hover:hover){.cb:hover{background:#fff}}
+.cb svg{width:1.25rem;height:1.25rem}
 .cam .pill{min-height:40px}
 body[data-nogl] .cam,body[data-nogl] .hint,body[data-nogl] [data-fx]{display:none}
 .cb[aria-pressed="true"]{background:var(--pine);color:#fff;border-color:var(--pine)}
@@ -113,42 +148,56 @@ body[data-nogl] .cam,body[data-nogl] .hint,body[data-nogl] [data-fx]{display:non
 .place-actions .btn{min-height:44px}
 .game-btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
 .btn-small{min-height:40px;padding:6px 14px;font-size:.88rem}
-.end-btns{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:6px}
+.end-btns{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:6px}
 /* The countdown, Keep and Play again stay pinned at the bottom of the end screen, visible without scrolling, and so
    does About's Close button, so a long sheet never hides the way out (UD-4). */
 .dlg[data-end],.dlg[data-about-dlg]{padding-bottom:0}
 .dlg-foot{position:sticky;bottom:0;background:var(--card);padding:8px 0 20px;box-shadow:0 -10px 12px -10px #163a3033}
-.end-btns .btn-big{margin-top:0}
+/* A pinned button is always in sight, so focusing or pressing one never scrolls the summary to its end (BTC-UX-61). */
+.dlg-foot :is(button,a),.dlg-intro .intro-btns button{scroll-margin-bottom:calc(-1 * var(--pin-h,120px))}
+/* Save results file says on screen that it saved, as well as to screen readers (BTC-UX-48). */
+.end-saved{margin:0 0 8px;font-size:var(--fs-ui);font-weight:600;color:var(--good-ink)}
+.end-look{margin:0 0 14px}
+/* A little narrower than elsewhere, so class mode's four buttons share one row (BTC-UX-V05). */
+.end-btns .btn-big{margin-top:0;padding-left:24px;padding-right:24px}
 .contact a,.sources a,.dlg p a{color:var(--clay-ink);font-weight:600}
 /* A short message for a click that did nothing; it never takes clicks itself. */
-.toast{position:fixed;left:50%;bottom:44px;transform:translateX(-50%);z-index:20;max-width:min(560px,calc(100% - 32px));margin:0;background:var(--pine);color:#fff;font-weight:600;font-size:.95rem;line-height:1.35;padding:10px 16px;border-radius:14px;box-shadow:var(--shadow);pointer-events:none;text-align:center}
+/* It sits over the map, just above the map buttons, between the panels: at the bottom of the screen it covered the
+   schedule's focused phase and, on phones, Set it here and Cancel (BTC-UX-15). */
+.toast{position:absolute;left:calc(var(--pl) + 32px);right:calc(var(--pr) + 32px);bottom:calc(36px + min(var(--plan-h, 290px), max(150px, calc(100% - var(--top-room, 0px) - var(--cam-h, 0px) - 26px))) + var(--cam-h, 40px));width:fit-content;z-index:20;max-width:35rem;margin:0 auto;background:var(--pine);color:#fff;font-weight:600;font-size:.95rem;line-height:1.35;padding:10px 16px;border-radius:14px;box-shadow:var(--shadow);pointer-events:none;text-align:center}
 .choices-note{margin:0 0 2px;font-size:.82rem;color:var(--ink-2)}
 .hood-break{margin:8px 0 0;font-size:.82rem;font-weight:600;color:var(--ink-2)}
 /* A dot on the Neighbors tab when that panel changed out of sight (I4). */
-[data-side-tab],.tabs button{position:relative}
+[data-side-tab],.tabs button,[data-side-toggle]{position:relative}
 [data-new]::after{content:"";position:absolute;top:4px;right:4px;width:9px;height:9px;border-radius:50%;background:var(--clay);box-shadow:0 0 0 2px #fff}
-.sources{margin:0 0 10px;padding-left:20px;display:grid;gap:4px;font-size:.9rem}
+.sources{margin:0 0 10px;padding-left:20px;display:grid;gap:4px;font-size:var(--fs-ui)}
 /* On a kiosk, About prints its addresses instead of linking them (SA-1); a long one wraps anywhere. */
 .addr{overflow-wrap:anywhere}
 .sources .addr{display:block;color:var(--muted)}
 .resume-note,.mode-line{font-weight:600;color:var(--ink-2);margin:0 0 6px}
 /* The credit is a footer on every screen width, outside the map and panels (C7, I9). */
-.foot{font-size:.82rem;font-weight:600;color:var(--muted);text-align:center;padding:6px 16px 8px;background:var(--paper);border-top:1px solid #dcd7cc80}
+.foot{font-size:.82rem;font-weight:600;color:var(--muted);text-align:center;padding:6px max(16px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));background:var(--paper);border-top:1px solid #dcd7cc80}
 .audience{font-weight:700;color:var(--pine);margin:0 0 6px}
-.end-clear{font-weight:700;color:var(--ink);margin:12px 0 0}
-.plan-head small{font-weight:500;color:var(--muted);font-size:.8rem}
+.end-clear{font-weight:700;color:var(--ink);margin:0}
+/* During the kiosk countdown, Keep is the one primary and sits on the countdown's own line, above the other buttons,
+   first in the Tab order as on screen. The footer is pinned to the bottom of the end screen, so when the line and
+   Keep go, the buttons under them stay where they are and a second tap lands on the summary, never on Play again
+   (BTC-UX-49, repair: on phones Keep was the last row, and Print and Play again slid 56 px down into its place). */
+.end-count{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin:12px 0 10px}
+.end-count[hidden]{display:none}
+.plan-head small{font-weight:500;color:var(--muted);font-size:var(--fs-sm)}
 .tabs{display:none}
 /* Narration captions sit just under the toolbar, so they never cover its buttons; clicks pass through them. */
-.caption{position:absolute;left:calc(var(--pl) + 32px);right:calc(var(--pr) + 32px);top:calc(var(--tools-b, 64px) + 8px);margin:0 auto;max-width:640px;width:fit-content;background:#163a30e6;color:#fff;font-size:1rem;line-height:1.35;padding:8px 16px;border-radius:14px;z-index:3;text-align:center;box-shadow:var(--shadow);pointer-events:none;max-height:max(calc(1.35em + 16px),calc(var(--cam-t, 999px) - var(--tools-b, 64px) - 16px));overflow:hidden}
+.caption{position:absolute;left:calc(var(--pl) + 32px);right:calc(var(--pr) + 32px);top:calc(var(--tools-b, 64px) + 8px);margin:0 auto;max-width:40rem;width:fit-content;background:#163a30e6;color:#fff;font-size:1rem;line-height:1.35;padding:8px 16px;border-radius:14px;z-index:3;text-align:center;box-shadow:var(--shadow);pointer-events:none;max-height:max(calc(1.35em + 16px),calc(var(--cam-t, 999px) - var(--tools-b, 64px) - 16px));overflow:hidden}
 .libmode{display:flex;gap:12px;align-items:flex-start;background:var(--sunken);border-radius:14px;padding:10px 14px;margin:4px 0 8px;cursor:pointer}
 .libmode input{width:22px;height:22px;margin-top:2px;accent-color:var(--pine);flex:none}
 /* For screen-reader users: the voice can be turned off before the narration starts (AS-11). */
 .intro-voice{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;margin:0 0 8px}
 .intro-voice[hidden]{display:none}
-.intro-voice p{margin:0;flex:1 1 15rem;font-size:.9rem;color:var(--ink-2)}
+.intro-voice p{margin:0;flex:1 1 15rem;font-size:var(--fs-ui);color:var(--ink-2)}
 /* Class and home modes: a results file saved at the end of a game opens again, read only (BTC-01). */
 .intro-file{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;margin:0 0 8px}
-.intro-file p{margin:0;flex:1 1 15rem;font-size:.9rem;color:var(--ink-2)}
+.intro-file p{margin:0;flex:1 1 15rem;font-size:var(--fs-ui);color:var(--ink-2)}
 .intro-file .file-bad{flex-basis:100%;font-size:1rem;font-weight:700;color:var(--clay-ink)}
 .intro-btns{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 /* The intro's buttons stay pinned at the bottom of the dialog, so on a phone both the age line at the top and
@@ -159,31 +208,46 @@ body[data-nogl] .cam,body[data-nogl] .hint,body[data-nogl] [data-fx]{display:non
 .dlg-intro .intro-btns{position:sticky;bottom:0;background:var(--card);padding:10px 0 20px;box-shadow:0 -10px 12px -10px #163a3033}
 .dlg-intro .intro-btns .btn-big{margin-top:0}
 .btn.btn-ghost{background:#fff;color:var(--ink);border:2px solid var(--ink);box-shadow:none}
-.btn.btn-ghost:hover:not([disabled]){background:var(--pine-soft)}
-.btn.btn-ghost[disabled]{background:#fff;color:#6b756f;border-color:#b9b2a6}
+/* As specific as the clay hover below, which would otherwise turn a ghost button dark under the pointer. */
+@media (hover:hover){.btn.btn-ghost:hover:not([disabled]):not([aria-disabled="true"]){background:var(--pine-soft)}}
+.btn.btn-ghost[disabled]{background:#fff;color:#6b756f;border-color:var(--line-strong)}
+.dlg[data-idle] .intro-btns{margin-top:12px}
 
 /* build panel */
 .btn{background:var(--clay);color:#fff;border:0;border-radius:999px;padding:12px 22px;min-height:50px;font-weight:700;cursor:pointer;box-shadow:0 1px 2px #163a302e,0 3px 8px -2px #163a3042}
-.btn:hover:not([disabled]){background:var(--clay-ink)}
-.btn[disabled]{background:#cfc8bc;color:var(--ink-2);cursor:not-allowed;box-shadow:none}
+@media (hover:hover){.btn:hover:not([disabled]):not([aria-disabled="true"]){background:var(--clay-ink)}}
+.btn:is([disabled],[aria-disabled="true"]){background:#cfc8bc;color:var(--ink-2);cursor:not-allowed;box-shadow:none}
+/* The Finish button that waits for the last element is a quiet well, not the heaviest block in the panel, so the
+   change to clay when it can be pressed is the clear one (BTC-UX-V04). */
+.p-build [data-finish][aria-disabled="true"]{background:var(--sunken)}
+/* Once Finish can be pressed, it is pinned to the bottom of the Build panel on a card band, with the dialogs'
+   pinned-footer shadow, so the next step is always in sight (BTC-UX-05). */
+.finish-bar[data-pin]{position:sticky;bottom:0;z-index:1;background:var(--card);margin:0 calc(-1 * var(--pad-x,16px));padding:8px var(--pad-x,16px) 12px;box-shadow:0 -10px 12px -10px #163a3033}
+.p-build:has(.finish-bar[data-pin]){scroll-padding-bottom:84px}
 .btn-wide{width:100%;margin-top:4px}
 .btn-big{font-size:1.1rem;padding:14px 30px;min-height:56px;margin-top:6px}
-.range{display:inline-block;font-size:.8rem;font-weight:600;color:var(--ink-2);background:var(--sunken);border-radius:999px;padding:1px 8px;margin-top:4px}
+/* A rounded box rather than a pill, so it still looks whole when it wraps onto a second line (BTC-UX-V08). */
+.range{display:inline-block;font-size:var(--fs-sm);font-weight:600;color:var(--ink-2);background:var(--sunken);border-radius:.8em;padding:1px 8px;margin-top:4px}
 .els{list-style:none;margin:10px 0;padding:0;display:grid;gap:6px}
 .el{width:100%;display:grid;grid-template-columns:28px 1fr auto;align-items:center;gap:10px;text-align:left;background:var(--clay-soft);border:2px solid transparent;border-radius:14px;padding:7px 12px;min-height:48px;cursor:pointer;transition:transform .15s,border-color .15s}
-.el:hover:not([disabled]){border-color:var(--clay);transform:translateY(-1px)}
+@media (hover:hover){.el:hover:not([disabled]):not([aria-disabled="true"]){border-color:var(--clay);transform:translateY(-1px)}}
 .el-mark{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:var(--clay);color:#fff}
 .el-mark svg{width:15px;height:15px}
 .el-name{font-weight:600;line-height:1.2}
 /* Why a step is locked, on the button itself, so touch screens see it too. */
 .el-why{display:block;font-size:.78rem;font-weight:600;color:var(--ink-2);margin-top:2px}
-.el-act{font-size:.78rem;font-weight:700;color:var(--clay-ink);text-transform:uppercase;letter-spacing:.06em}
-.el[disabled]{opacity:.85;cursor:not-allowed;transform:none;background:var(--sunken)}
+/* Two-word actions break on purpose, right-aligned, instead of squeezing the name (BTC-UX-05). */
+.el-act{font-size:.78rem;font-weight:700;color:var(--clay-ink);text-transform:uppercase;letter-spacing:.06em;max-width:6.5em;text-align:right;line-height:1.15}
+/* A locked step is a grey well with a grey mark and a muted word, so it never reads as the clay "do this next" signal;
+   no opacity, so its reason stays at full contrast (BTC-UX-18). */
+.el:is([disabled],[aria-disabled="true"]){cursor:not-allowed;transform:none;background:var(--sunken)}
+.el:is([disabled],[aria-disabled="true"]) .el-mark{background:#cfc8bc;color:var(--ink-2)}
+.el:is([disabled],[aria-disabled="true"]) .el-act{color:var(--muted)}
 .el[data-done]{background:var(--pine-soft);cursor:default}
 .el[data-done] .el-mark{background:var(--pine)}
 .el[data-done] .el-act{color:var(--muted)}
-.log-h{margin-top:14px;font-size:.85rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
-.log{list-style:none;margin:0;padding:0;display:grid;gap:5px;font-size:.86rem;color:var(--muted)}
+.log-h{margin-top:14px;font-size:var(--fs-row);text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.log{list-style:none;margin:0;padding:0;display:grid;gap:5px;font-size:var(--fs-row);color:var(--muted)}
 .log li:first-child{color:var(--ink);font-weight:600}
 
 /* side panel: neighbors and choices */
@@ -191,19 +255,25 @@ body[data-nogl] .cam,body[data-nogl] .hint,body[data-nogl] [data-fx]{display:non
 .side-tabs button{border:0;background:transparent;border-radius:999px;min-height:40px;font-weight:700;font-size:.92rem;cursor:pointer;color:var(--ink-2)}
 .side-tabs button[aria-pressed="true"]{background:var(--pine);color:#fff}
 .side-hood,.side-choices{display:none;flex:1;min-height:0;flex-direction:column}
+/* Nothing in the Neighbors panel shrinks below its text: the fact box used to, and its words ran over the breakdown
+   and the score note (BTC-UX-60). */
+.side-hood>*{flex-shrink:0}
 body[data-side="hood"] .side-hood,body[data-side="choices"] .side-choices{display:flex}
 .hood{list-style:none;margin:0;padding:0;display:grid;gap:4px}
-.hood-h{list-style:none;margin:8px 0 2px;font-size:.78rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
-.hood-score{margin:8px 0 0;font-size:.8rem;color:var(--muted)}
+.hood-h{margin:8px 0 2px;font-size:.78rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.hood-score{margin:8px 0 0;font-size:var(--fs-sm);color:var(--muted)}
 .hood-row{width:100%;display:grid;grid-template-columns:1fr auto minmax(4.6rem,auto);gap:8px;align-items:center;text-align:left;background:transparent;border:2px solid transparent;border-radius:12px;padding:5px 8px;min-height:38px;cursor:pointer}
-.hood-row:hover{background:var(--sunken)}
+@media (hover:hover){.hood-row:hover{background:var(--sunken)}}
 .hood-row[aria-pressed="true"]{background:var(--pine-soft);border-color:var(--pine)}
 .hood-name{font-weight:600;font-size:.88rem;line-height:1.2;display:flex;gap:6px;align-items:baseline}
-.hood-word{font-size:.8rem;color:var(--muted);text-align:right;line-height:1.15}
+/* A long word wraps onto two lines at most, so the name beside it keeps its room (BTC-UX-V03). */
+.hood-word{font-size:var(--fs-sm);color:var(--muted);text-align:right;line-height:1.15;max-width:6rem}
 .meter{display:inline-flex;gap:3px}
-.meter i{width:13px;height:10px;border-radius:3px;background:#fff;box-shadow:inset 0 0 0 1.5px var(--line)}
+/* Empty cells keep the 4-step scale in sight on a projector: the stronger line (BTC-UX-19). */
+.meter i{width:.8125rem;height:.625rem;border-radius:3px;background:#fff;box-shadow:inset 0 0 0 1.5px var(--line-strong)}
 /* Every meter fills in one ink: it shows an amount, not a rating, so red, gold and green keep meaning the dashboard's
-   status words (UD-6). The small square before a name is that effect's colour on the map. */
+   status words (UD-6). The small square before a name stands for that effect's layer on the map, in a shade picked to
+   read on the cream panel; four of the six are a little darker than the map's own (BTC-UX-58). */
 .meter i[data-on]{background:var(--pine);box-shadow:none}
 .hood-name::before{content:"";flex:none;width:9px;height:9px;border-radius:3px;background:var(--sw,transparent)}
 .hood-row[data-key="noise"],.hood-row[data-key="gens"]{--sw:#d4532c}
@@ -212,44 +282,46 @@ body[data-side="hood"] .side-hood,body[data-side="choices"] .side-choices{displa
 .hood-row[data-key="power"]{--sw:#c04f9f}
 .hood-row[data-key="setback"]{--sw:#00a37a}
 .hood-row[data-key="dust"]{--sw:#b0743c}
-.hood-detail{margin:10px 0 0;padding:10px 12px;background:var(--sunken);border-radius:14px;font-size:.85rem;color:var(--ink-2);display:grid;gap:4px;min-height:84px}
+.hood-detail{margin:10px 0 0;padding:10px 12px;background:var(--sunken);border-radius:14px;font-size:var(--fs-row);color:var(--ink-2);display:grid;gap:4px;min-height:84px}
 .hood-detail b{color:var(--ink)}
 .hood-detail .you{font-weight:600;color:var(--ink)}
 .choices{display:grid;gap:8px}
 .choice{display:grid;gap:4px}
 .choice-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
-.choice-name{font-weight:700;font-size:.86rem}
-.lock{display:inline-flex;align-items:center;gap:4px;font-size:.75rem;color:var(--muted);font-weight:600}
+.choice-name{font-weight:700;font-size:var(--fs-row)}
+.lock{display:inline-flex;align-items:center;gap:4px;font-size:var(--fs-xs);color:var(--muted);font-weight:600}
 .lock svg{width:12px;height:12px}
 .seg{display:grid;grid-template-columns:1fr 1fr;background:var(--sunken);border-radius:12px;padding:3px;gap:3px}
-.seg button{border:0;border-radius:9px;background:transparent;min-height:40px;padding:4px 8px;font-size:.84rem;font-weight:600;cursor:pointer;line-height:1.15;color:var(--ink-2)}
-.seg button:hover:not([disabled]){background:#fff}
+.seg button{border:0;border-radius:9px;background:transparent;min-height:40px;padding:4px 8px;font-size:var(--fs-row);font-weight:600;cursor:pointer;line-height:1.15;color:var(--ink-2)}
+@media (hover:hover){.seg button:hover:not([disabled]){background:#fff}}
 .seg button[aria-pressed="true"]{background:#fff;color:var(--ink);box-shadow:0 1px 3px #163a3033,inset 0 0 0 2px var(--pine)}
 .seg button[disabled]{opacity:.45;cursor:not-allowed}
-.choice-note{margin:0;font-size:.8rem;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.choice-note{margin:0;font-size:var(--fs-sm);color:var(--muted);display:flex;flex-wrap:wrap;gap:4px;align-items:center}
 .chips{display:inline-flex;flex-wrap:wrap;gap:4px}
-.chip{font-size:.76rem;font-weight:700;border-radius:999px;padding:1px 7px;background:var(--sunken);color:var(--ink)}
+.chip{font-size:var(--fs-xs);font-weight:700;border-radius:999px;padding:1px 7px;background:var(--sunken);color:var(--ink)}
 .chip[data-tone="bad"]{background:var(--clay-soft);color:var(--clay-ink)}
-.chip[data-tone="good"]{background:#dff1e8;color:#1f6f4f}
+.chip[data-tone="good"]{background:#dff1e8;color:var(--good-ink)}
 .chip[data-tone="neutral"]{background:#e7eef2;color:var(--ink)}
 
 /* schedule: lanes are also the phase picker */
 .plan-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
 .plan-head h2{font-size:1rem;margin:0}
-.plan-total{margin:0;font-weight:700;font-size:.9rem}
+.plan-total{margin:0;font-weight:700;font-size:var(--fs-ui)}
 .lanes{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:2px}
 .lane{width:100%;display:grid;grid-template-columns:22px 6.5rem 1fr;gap:8px;align-items:center;background:transparent;border:0;border-radius:8px;padding:1px 4px;min-height:28px;cursor:pointer;text-align:left}
-.lane:hover{background:var(--sunken)}
-.lane[aria-pressed="true"]{background:var(--pine-soft)}
+@media (hover:hover){.lane:hover{background:var(--sunken)}}
+/* The phase in focus has a pine ring as well as the pale tint, which alone was 1.15:1 (BTC-UX-35, WCAG 1.4.11). */
+.lane[aria-pressed="true"]{background:var(--pine-soft);box-shadow:inset 0 0 0 2px var(--pine)}
 .lane-icon{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;background:var(--sunken);font-size:.78rem;color:var(--ink-2)}
 .lane-icon svg{width:12px;height:12px}
 .lane[data-state="done"] .lane-icon{background:var(--pine);color:#fff}
 .lane[data-state="now"] .lane-icon,.lane[data-state="ready"] .lane-icon{background:var(--clay);color:#fff}
 .lane[data-state="locked"]{cursor:not-allowed}
-.lane[data-state="locked"] .lane-name{color:#5f6b65}
+.lane[data-state="locked"] .lane-name{color:var(--muted)}
 /* A name wider than its column wraps instead of being cut off, also with user text spacing (AS-7, WCAG 1.4.12). */
-.lane-name{font-size:.84rem;font-weight:600;overflow-wrap:anywhere;hyphens:auto}
-.track{position:relative;height:14px;background:repeating-linear-gradient(90deg,transparent 0 calc(12.5% - 1px),#e5dfd4 calc(12.5% - 1px) 12.5%)}
+.lane-name{font-size:var(--fs-row);font-weight:600;overflow-wrap:anywhere;hyphens:auto}
+/* One gridline every six months, under every axis tick, however long the run (--cols from game.js, BTC-UX-14). */
+.track{position:relative;height:14px;background:repeating-linear-gradient(90deg,transparent 0 calc(100% / var(--cols, 8) - 1px),#e5dfd4 calc(100% / var(--cols, 8) - 1px) calc(100% / var(--cols, 8)))}
 .range-line{position:absolute;top:6px;height:2px;background:var(--ink-2);opacity:.5}
 .range-line::before,.range-line::after{content:"";position:absolute;top:-4px;width:2px;height:10px;background:inherit}
 .range-line::before{left:0}.range-line::after{right:0}
@@ -262,52 +334,65 @@ body[data-side="hood"] .side-hood,body[data-side="choices"] .side-choices{displa
 .legend span{display:inline-flex;align-items:center;gap:6px}
 .sw{display:inline-block;width:20px;height:10px;border-radius:3px}
 .sw-other,.sw-now{background:#6f9a7a}
-.axis{display:grid;grid-template-columns:calc(6.5rem + 38px) 1fr;font-size:.78rem;color:var(--muted);height:16px;margin-top:2px}
+/* The thin typical-range line with its end ticks, as on the bars (BTC-UX-14). */
+.sw-range{border-left:2px solid var(--ink-2);border-right:2px solid var(--ink-2);border-radius:0;background:linear-gradient(var(--ink-2),var(--ink-2)) center/100% 2px no-repeat;opacity:.5}
+/* The axis starts and ends where the tracks do: 4 px lane padding, the 22 px icon, two 8 px gaps (BTC-UX-14). */
+.axis{display:grid;grid-template-columns:calc(6.5rem + 42px) 1fr;padding-right:4px;font-size:.78rem;color:var(--muted);height:16px;margin-top:2px}
 .axis-track{position:relative}
 .axis-track span{position:absolute;transform:translateX(-50%)}
 .axis-track em{position:absolute;right:0;top:0;font-style:normal;background:#fffdf8;padding-left:4px}
-.plan-note{margin:4px 0 0;font-size:.8rem;color:var(--muted)}
+.plan-note{margin:4px 0 0;font-size:var(--fs-sm);color:var(--muted)}
 
 /* dialogs */
-.dlg{border:0;border-radius:24px;padding:26px 28px;max-width:min(620px,calc(100% - 24px));max-height:calc(100dvh - 24px);overflow:auto;box-shadow:0 30px 70px -18px #0a1a1599;color:var(--ink);background:var(--card)}
+.dlg{border:0;border-radius:24px;padding:26px 28px;max-width:min(38.75rem,calc(100% - 24px));max-height:calc(100dvh - 24px);overflow:auto;box-shadow:0 30px 70px -18px #0a1a1599;color:var(--ink);background:var(--card)}
 .dlg::backdrop{background:#0a1a1566;-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px)}
-.dlg-intro{max-width:min(660px,calc(100% - 24px))}
+.dlg-intro{max-width:min(41.25rem,calc(100% - 24px))}
+/* Dialog headings step up clearly from the 1.0625rem text they introduce (BTC-UX-V09). */
+.dlg h2:where(:not(.dlg-title)){font-size:1.375rem}
+.dlg h3{font-size:1.125rem}
 .dlg-intro::backdrop{background:linear-gradient(#0a1a1500,#0a1a1580)}
 .card-opts{display:grid;gap:10px;margin-top:6px}
-.opt{display:grid;gap:6px;text-align:left;background:#fff;border:2px solid var(--line);border-radius:16px;padding:12px 14px;min-height:60px;cursor:pointer}
-.opt:hover{border-color:var(--pine)}
+/* Each answer has a clear edge on a washed-out projector too (BTC-UX-19): muted, 5.5:1, instead of 1.41:1. */
+.opt{display:grid;gap:6px;text-align:left;background:#fff;border:2px solid var(--muted);border-radius:16px;padding:12px 14px;min-height:60px;cursor:pointer}
+@media (hover:hover){.opt:hover{border-color:var(--pine);background:var(--pine-soft)}}
 .opt-label{font-weight:700;display:flex;gap:8px;align-items:center}
-.opt-note{font-size:.85rem;color:var(--muted);font-weight:500}
+.opt-note{font-size:var(--fs-row);color:var(--muted);font-weight:500}
 .cx{list-style:none;margin:0 0 8px;padding:0;display:grid;gap:3px}
-.cx li{display:flex;justify-content:space-between;gap:8px;font-size:.86rem;align-items:baseline}
+.cx li{display:flex;justify-content:space-between;gap:8px;font-size:var(--fs-row);align-items:baseline}
 .cx li span:first-child{flex:1}
 .cx b{font-weight:600}
 .opt kbd{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:8px;background:var(--sunken);font:inherit;font-size:.82rem;flex:none}
 html[data-nokeys] .opt kbd{display:none}
 .end-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:8px 0 18px}
 .end-stats div{background:var(--sunken);border-radius:14px;padding:10px 14px}
-.end-stats dt{font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;font-weight:700;color:var(--muted)}
+.end-stats dt{font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.08em;font-weight:700;color:var(--muted)}
 .end-stats dd{margin:0;font-weight:700}
 .end-chose{margin:0 0 16px;padding-left:20px;display:grid;gap:3px;font-size:.92rem;color:var(--ink-2)}
 /* Debrief (C11): results against the plan, the costliest answers and the questions; prints on its own. */
-.dlg-end{max-width:min(700px,calc(100% - 24px))}
+.dlg-end{max-width:min(43.75rem,calc(100% - 24px))}
 .end-stats dd{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px}
 .end-word{display:inline-flex;align-items:center;gap:6px;font-weight:700}
 .end-dot{width:10px;height:10px;border-radius:50%;background:#9fb3aa;flex:none}
-.end-stats [data-level="4"] .end-dot,.end-stats [data-level="3"] .end-dot{background:#2f9e6a}
-.end-stats [data-level="2"] .end-dot{background:#d89a1c}
-.end-stats [data-level="1"] .end-dot,.end-stats [data-level="0"] .end-dot{background:#d9573b}
+/* The status tokens, so the end screen has no third rating palette (BTC-UX-58). */
+.end-stats [data-level="4"] .end-dot,.end-stats [data-level="3"] .end-dot{background:var(--good)}
+.end-stats [data-level="2"] .end-dot{background:var(--warn)}
+.end-stats [data-level="1"] .end-dot,.end-stats [data-level="0"] .end-dot{background:var(--bad)}
 .end-ref{flex-basis:100%;font-size:.82rem;font-weight:600;color:var(--ink-2)}
 .end-luck{margin:-8px 0 14px}
 .from-file{font-weight:700;color:var(--ink-2);background:var(--sunken);border-radius:12px;padding:8px 12px;margin:0 0 10px}
 .end-costly,.end-talk{margin:0 0 8px;padding-left:22px;display:grid;gap:6px;font-size:.95rem}
-.end-costly .end-fx{display:block;font-size:.84rem;font-weight:600;color:var(--ink-2)}
+/* When nothing cost more, the sentence is not numbered as if it were a list of one (BTC-UX-66). */
+.end-costly li[data-none]{list-style:none;margin-left:-22px}
+.end-costly .end-fx{display:block;font-size:var(--fs-row);font-weight:600;color:var(--ink-2)}
 .end-talk{margin-bottom:16px}
-.end-btns .btn-ghost{min-height:50px}
+/* Print and the save buttons are the small size, so the class-mode row fits on one line with Play again as its only
+   big button (BTC-UX-V05). */
+.end-btns .btn-ghost:not(.btn-small){min-height:50px}
 /* Phones: the end screen's buttons sit two to a row, so the pinned row stays short with the class-mode save buttons
    (BTC-01). */
 @media (max-width:600px){
-  .end-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .end-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:stretch}
+  .end-count [data-end-keep]{flex:1 1 100%;min-height:48px}
   .end-btns .btn{min-height:48px;padding:8px 12px;font-size:.92rem}
 }
 .print-only{display:none}
@@ -321,7 +406,7 @@ html[data-nokeys] .opt kbd{display:none}
   html,body{background:#fff!important;height:auto!important;overflow:visible!important}
   /* Only an open end screen prints. Anywhere else the page prints a short note instead, never the last player's
      summary or an empty one; reset() also empties the summary. */
-  body>.app,body>dialog:not([data-end]),.dlg-foot,.dlg::backdrop,.dlg-end[open]~.print-empty{display:none!important}
+  body>.app,body>dialog:not([data-end]),.dlg-foot,.end-look,.end-why,.dlg::backdrop,.dlg-end[open]~.print-empty{display:none!important}
   .dlg-end[open]{position:static!important;display:block!important;max-width:none!important;max-height:none!important;overflow:visible!important;box-shadow:none!important;border-radius:0;padding:0!important;margin:0;color:#000;background:#fff;inset:auto;transform:none}
   .dlg-end{font-size:10pt;line-height:1.25}
   .dlg-end h2{font-size:16pt}
@@ -362,24 +447,41 @@ html[data-nokeys] .opt kbd{display:none}
 }
 @media (max-width:1100px){html{--pl:17.5rem;--pr:18.5rem}}
 @media (max-width:1040px){
-  .kpi{padding:4px 10px 5px 20px}.kpi-label{font-size:.75rem}.kpi-val{font-size:.95rem}
+  .kpi{padding:4px 10px 5px 20px}.kpi-label{font-size:var(--fs-xs)}.kpi-val{font-size:.95rem}
   .badge-long{display:none}.badge-short{display:inline}
 }
 /* Kiosk screens (1920 x 1080 and up): no label smaller than 16 px. */
 @media (min-width:1900px) and (min-height:1000px){
-  .kicker,.kpi-label,.kpi-word,.el-act,.el-why,.lock,.chip,.hood-h,.lane-icon,.axis,.legend,.end-stats dt{font-size:.8rem}
+  .kicker,.kpi-label,.kpi-word,.el-act,.el-why,.lock,.chip,.hood-h,.lane-icon,.axis,.legend,.end-stats dt{font-size:var(--fs-sm)}
 }
 /* Presenter view (I10), in the side-panel layout: the side panel and the schedule step aside, the map takes their
    place, and every label is at least 16 px. Keep the media query the complement of the tabbed layout below. */
 @media (min-width:1101px), (min-width:1024px) and (orientation:landscape) and (min-height:601px){
-  html[data-present]{font-size:20px;--pl:16.5rem}
-  html[data-present] :is(.kicker,.kpi-label,.kpi-word,.el-act,.el-why,.lock,.chip,.hood-h,.lane-icon,.axis,.legend,.end-stats dt){font-size:.8rem}
+  /* The Build panel names the class's next step, so it widens with the screen: 330 px at 1024, about 380 at 1366 and
+     440 at 1920, where its names fit on one line (BTC-UX-V01). */
+  html[data-present]{font-size:20px;--pl:clamp(16.5rem,28vw,22rem)}
+  html[data-present] :is(.kicker,.kpi-label,.kpi-word,.el-act,.el-why,.lock,.chip,.hood-h,.lane-icon,.axis,.legend,.end-stats dt){font-size:var(--fs-sm)}
   html[data-present] .p-side,html[data-present] .p-plan{display:none}
-  html[data-present] .tools,html[data-present] .cam,html[data-present] .caption,html[data-present] .nogl{right:16px}
+  html[data-present] :is(.tools,.cam,.caption,.nogl,.toast){right:16px}
   html[data-present] .kpi-val .long{display:inline}html[data-present] .kpi-val .short{display:none}
+  html[data-present] .tools :is([data-side-toggle],[data-present-off]){display:inline-block}
+  /* The Neighbors toggle brings the side panel back (BTC-UX-07). From 1280 px wide it takes its usual place and the
+     map tools move clear of it, so the effect a row lights up stays in sight beside it (repair: under 1600 px it lay
+     over the whole map, with the map buttons and the caption hidden). */
+  html[data-present][data-side-open] .p-side{display:flex}
+  html[data-present][data-side-open] :is(.tools,.cam,.caption,.nogl,.toast){right:calc(var(--pr) + 32px)}
+}
+/* Under 1280 px that would leave the map a strip, so the opened panel lies over the map instead, below the toolbar and
+   across the open middle; the map buttons and the hint wait under it until it is closed. A narration caption still
+   shows, over the panel's top (repair: it was hidden, and the narration played with no words on screen). */
+@media (min-width:1101px) and (max-width:1279px), (min-width:1024px) and (max-width:1279px) and (orientation:landscape) and (min-height:601px){
+  html[data-present][data-side-open] .p-side{left:calc(var(--pl) + 32px);right:16px;top:calc(var(--tools-b, 64px) + 8px);width:auto}
+  html[data-present][data-side-open] :is(.tools,.cam,.caption,.nogl,.toast){right:16px}
+  html[data-present][data-side-open] :is(.cam,.hint){display:none}
 }
 @media (min-width:1024px) and (max-width:1500px) and (orientation:landscape) and (min-height:601px){
   html[data-present] .kpi-val .long{display:none}html[data-present] .kpi-val .short{display:inline}
+  html[data-present] .kpi-delta{display:none}
   html[data-present] :is(.kpi-label,.kpi-word) .long{display:none}html[data-present] :is(.kpi-label,.kpi-word) .short{display:inline}
 }
 /* A 1024-wide projector: keep the header on one row. */
@@ -394,17 +496,33 @@ html[data-nokeys] .opt kbd{display:none}
 @media (max-height:800px) and (min-width:761px){
   .plan-note{display:none}
   .hood-detail{min-height:70px}
+  /* Slimmer rows on short laptop screens, so one more shows above the fact box (fingers keep 44 px, BTC-UX-37). */
+  .hood-row{min-height:34px;padding:3px 8px}
+}
+/* Beside the panels, the Neighbors rows, the score note and the breakdown scroll in their own area, and the fact box
+   under them has one fixed height whatever it holds, so whatever row is pointed at, its fact is in sight and nothing
+   moves: a box that grew with its fact shrank the rows area, slid the bottom row out from under a resting mouse and
+   back, and flickered (BTC-UX-06, repair). A fact longer than the box scrolls inside it (game.js fitDetail). While
+   rows wait below the fold, the box carries the pinned-footer shadow the dialogs use, so the cut row reads as more. */
+@media (min-width:1101px), (min-width:1024px) and (orientation:landscape) and (min-height:601px){
+  .p-side .hood-scroll{flex:1 1 auto;min-height:7rem;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;margin:0 -6px;padding:0 6px 2px}
+  .p-side .hood-detail{flex:none;height:clamp(6.5rem,20dvh,12rem);min-height:0;overflow:auto;align-content:start}
+  .p-side .side-hood[data-more] .hood-detail{box-shadow:0 -10px 12px -10px #163a3033}
 }
 /* Laptop windows up to 900 px tall, in the side-panel layout (UD-1): the full schedule needs 440 to 490 px, which left
    the map a strip of 76 to 180 px. Here the schedule starts as its total and a row of phase buttons, critical-path
    phases underlined in the hatch of their bars; Show timeline brings the bars back. */
 .plan-toggle{display:none;border:2px solid var(--ink);background:#fff;color:var(--ink);border-radius:999px;min-height:28px;padding:1px 12px;margin:-5px 0;font-weight:700;font-size:.82rem;cursor:pointer}
-.plan-toggle:hover{background:var(--pine-soft)}
+@media (hover:hover){.plan-toggle:hover{background:var(--pine-soft)}}
 @media (min-width:1101px) and (max-height:900px), (min-width:1024px) and (orientation:landscape) and (min-height:601px) and (max-height:900px){
   .plan-toggle{display:inline-block}
   body:not([data-plan-open]) .lanes{display:flex;flex-wrap:wrap;gap:4px}
   body:not([data-plan-open]) .lane{display:flex;width:auto;gap:5px;padding:2px 10px 2px 3px;border-radius:999px;background:var(--sunken)}
-  body:not([data-plan-open]) .lane:hover{background:#e5dfd4}
+  @media (hover:hover){
+    body:not([data-plan-open]) .lane:hover{background:#e5dfd4}
+    /* A locked phase keeps its readable well on hover (BTC-UX-35: its name fell to 4.2:1). */
+    body:not([data-plan-open]) .lane[data-state="locked"]:hover{background:var(--sunken)}
+  }
   body:not([data-plan-open]) .lane[aria-pressed="true"]{background:var(--pine-soft);box-shadow:inset 0 0 0 2px var(--pine)}
   body:not([data-plan-open]) .lane[data-crit]{background-image:repeating-linear-gradient(135deg,var(--clay) 0 2px,transparent 2px 5px);background-size:calc(100% - 24px) 4px;background-position:12px 100%;background-repeat:no-repeat}
   body:not([data-plan-open]) :is(.track,.axis,.plan-note){display:none}
@@ -416,19 +534,19 @@ html[data-nokeys] .opt kbd{display:none}
 @media (max-width:1023px), (max-width:1100px) and (orientation:portrait), (max-width:1100px) and (max-height:600px){
   html{--scene-h:38%;--scene-row:max(var(--scene-h),var(--scene-min,0px))}
   body{font-size:16px}
-  .bar{flex-wrap:wrap;gap:6px 10px;padding:8px 10px;min-height:0}
+  .bar{flex-wrap:wrap;gap:6px 10px;padding:8px max(10px,env(safe-area-inset-right)) 8px max(10px,env(safe-area-inset-left));min-height:0}
   .brand-name{font-size:1.05rem}
-  .badge{font-size:.75rem;padding:1px 8px}
+  .badge{font-size:var(--fs-xs);padding:1px 8px}
   .bar-btns{margin-left:auto}
-  .pill{min-height:40px;padding:4px 12px;font-size:.85rem}
+  .pill{min-height:40px;padding:4px 12px;font-size:var(--fs-row)}
   .kpis{order:3;flex-basis:100%;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
   .kpi{padding:4px 4px 5px 16px;grid-template-columns:1fr}
   .kpi::before{left:6px;top:9px;width:7px;height:7px}
   /* Labels wrap instead of being cut, also with user text spacing (WCAG 1.4.12). */
-  .kpi-label{font-size:.75rem;letter-spacing:0;text-transform:none;white-space:normal;overflow-wrap:anywhere;line-height:1.2}
+  .kpi-label{font-size:var(--fs-xs);letter-spacing:0;text-transform:none;white-space:normal;overflow-wrap:anywhere;line-height:1.2}
   .kpi-label .long{display:none}.kpi-label .short{display:inline}
-  .kpi-val{font-size:.8rem;overflow:hidden;text-overflow:ellipsis}
-  .kpi-word{font-size:.75rem;overflow:hidden;text-overflow:ellipsis}
+  .kpi-val{font-size:var(--fs-sm);overflow:hidden;text-overflow:ellipsis}
+  .kpi-word{font-size:var(--fs-xs);overflow:hidden;text-overflow:ellipsis}
   .kpi-word .long{display:none}.kpi-word .short{display:inline}
   .kpi-val .long{display:none}.kpi-val .short{display:inline}
   html[data-present]{--scene-h:62%}
@@ -437,19 +555,20 @@ html[data-nokeys] .opt kbd{display:none}
   .scene{position:relative;grid-row:1;inset:auto}
   .tools{left:8px;right:8px;top:8px;gap:6px}
   .tools .pill{min-height:36px;font-size:.78rem}
-  .hint{font-size:.74rem;padding:3px 8px}
+  .hint{font-size:var(--fs-xs);padding:3px 8px}
   .cam,.nogl{left:8px;right:8px;bottom:calc(100% - var(--scene-row) + 8px)}
+  .toast{left:8px;right:8px;bottom:calc(100% - var(--scene-row) + var(--cam-h, 40px) + 16px)}
   .cam{gap:4px}
   .cam-move{gap:4px}
-  .cb{width:36px;height:36px;border-radius:10px}
-  .cb svg{width:18px;height:18px}
+  .cb{width:2.25rem;height:2.25rem;border-radius:10px}
+  .cb svg{width:1.125rem;height:1.125rem}
   .cam .pill{min-height:36px;font-size:.78rem;padding:4px 10px}
-  .caption{left:8px;right:8px;top:calc(var(--tools-b, 56px) + 6px);font-size:.85rem;max-width:none}
+  .caption{left:8px;right:8px;top:calc(var(--tools-b, 56px) + 6px);font-size:var(--fs-row);max-width:none}
   .tabs{display:grid;grid-row:2;grid-template-columns:repeat(4,1fr);gap:4px;padding:6px 8px;background:var(--pine)}
-  .tabs button{border:0;border-radius:999px;background:transparent;color:#f7f4ee;font-weight:700;font-size:.85rem;min-height:40px;cursor:pointer}
-  .tabs button[aria-pressed="true"]{background:#f7f4ee;color:var(--pine)}
+  .tabs button{border:0;border-radius:999px;background:transparent;color:var(--paper);font-weight:700;font-size:var(--fs-row);min-height:40px;cursor:pointer}
+  .tabs button[aria-pressed="true"]{background:var(--paper);color:var(--pine)}
   .tabs button:focus-visible{outline-color:var(--focus-stage)}
-  .panel{position:relative;grid-row:3;inset:auto;width:auto;border-radius:0;border:0;box-shadow:none;background:var(--card);-webkit-backdrop-filter:none;backdrop-filter:none;display:none;padding:12px 14px}
+  .panel{--pad-x:14px;position:relative;grid-row:3;inset:auto;width:auto;border-radius:0;border:0;box-shadow:none;background:var(--card);-webkit-backdrop-filter:none;backdrop-filter:none;display:none;padding:12px 14px}
   .p-build,.p-side,.p-plan{left:auto;right:auto;top:auto;bottom:auto;width:auto;max-height:none}
   body[data-view="build"] .p-build,body[data-view="plan"] .p-plan{display:block}
   body[data-view="hood"] .p-side,body[data-view="choices"] .p-side{display:flex}
@@ -457,8 +576,12 @@ html[data-nokeys] .opt kbd{display:none}
   .els{gap:5px}
   .el{min-height:44px}
   .lane{grid-template-columns:20px 5.25rem 1fr;min-height:32px}
-  .axis{grid-template-columns:calc(5.25rem + 32px) 1fr}
+  .axis{grid-template-columns:calc(5.25rem + 40px) 1fr}
   .hood-row{grid-template-columns:1fr auto minmax(64px,auto)}
+  /* On the phone Neighbors tab the fact comes right under the rows, before the score note and its breakdown, so a
+     pressed row's fact is close by (BTC-UX-06). */
+  .hood-scroll{display:contents}
+  .hood-detail{order:1}.hood-score{order:2}.hood-break{order:3}
   .dlg{padding:20px}
   .dlg-intro{padding-bottom:0}
 }
@@ -468,13 +591,13 @@ html[data-nokeys] .opt kbd{display:none}
 @media (min-width:761px) and (max-width:1100px) and (orientation:portrait){
   html[data-present]{font-size:20px}
   html[data-present] body{font-size:1rem}
-  html[data-present] :is(.kicker,.badge,.kpi-label,.kpi-word,.tools .pill,.hint,.cam .pill,.el-act,.el-why,.lock,.chip,.hood-h,.lane-icon,.axis,.legend,.end-stats dt){font-size:.8rem}
+  html[data-present] :is(.kicker,.badge,.kpi-label,.kpi-word,.tools .pill,.hint,.cam .pill,.el-act,.el-why,.lock,.chip,.hood-h,.lane-icon,.axis,.legend,.end-stats dt){font-size:var(--fs-sm)}
 }
 /* Very narrow phones: the tile dot moves to the bottom corner, beside the rating word it goes with, so the short labels
    fit (at the top corner it covered the end of "Neighbors", BTC-74). */
 @media (max-width:360px){
   .badge-long{display:none}.badge-short{display:inline}
-  .bar{padding:8px 6px}.kpis{gap:4px}
+  .bar{padding:8px max(6px,env(safe-area-inset-right)) 8px max(6px,env(safe-area-inset-left))}.kpis{gap:4px}
   .cb{width:34px;height:34px}.cam .pill{min-height:34px}
   .kpi{padding:4px 5px 5px}
   .kpi::before{left:auto;right:5px;top:auto;bottom:9px;width:6px;height:6px}
@@ -486,15 +609,18 @@ html[data-nokeys] .opt kbd{display:none}
   .stage{grid-template-columns:minmax(0,1fr) var(--pw);grid-template-rows:auto 1fr}
   .scene{grid-column:1;grid-row:1 / span 2;height:100%}
   .tabs{grid-column:2;grid-row:1;grid-template-columns:repeat(4,auto);justify-content:space-between;gap:2px;padding:6px}
-  .tabs button{padding:0 7px;font-size:.8rem}
+  .tabs button{padding:0 7px;font-size:var(--fs-sm)}
   .panel{grid-column:2;grid-row:2}
-  .tools,.caption{right:calc(var(--pw) + 8px)}
-  .cam,.nogl{right:calc(var(--pw) + 8px);bottom:8px}
-  .caption{font-size:.8rem;line-height:1.3;padding:5px 12px}
+  .tools,.caption{right:calc(var(--pw) + 8px);left:max(8px,env(safe-area-inset-left))}
+  .cam,.nogl{right:calc(var(--pw) + 8px);left:max(8px,env(safe-area-inset-left));bottom:8px}
+  .toast{right:calc(var(--pw) + 8px);left:max(8px,env(safe-area-inset-left));bottom:calc(16px + var(--cam-h, 32px))}
+  .tabs{padding-right:max(6px,env(safe-area-inset-right))}
+  .panel{padding-right:max(14px,env(safe-area-inset-right))}
+  .caption{font-size:var(--fs-sm);line-height:1.3;padding:5px 12px}
   /* One row of map buttons, so a narration caption has room above them. */
   .cam{gap:3px}.cam-move{gap:3px}
   .cb{width:32px;height:32px}
-  .cam .pill{min-height:32px;padding:2px 9px;font-size:.75rem}
+  .cam .pill{min-height:32px;padding:2px 9px;font-size:var(--fs-xs)}
 }
 /* Landscape phones from 500 px wide: value and word side by side on each tile, so the header is shorter and the map
    taller. */
@@ -512,31 +638,63 @@ html[data-nokeys] .opt kbd{display:none}
   html{--scene-h:15rem;--scene-row:max(var(--scene-h),var(--scene-min,0px))}
   .app{height:auto;min-height:100dvh}
   .stage{height:calc(var(--scene-row) + 23rem);grid-template-columns:minmax(0,1fr);grid-template-rows:var(--scene-row) auto 1fr}
-  .scene{grid-column:1;grid-row:1;height:auto}
+  /* The map fills its row: at its own 2:1 size it left a blank band and the map buttons below the picture (BTC-UX-63). */
+  .scene{grid-column:1;grid-row:1;height:100%}
   .tabs{grid-column:1;grid-row:2;grid-template-columns:repeat(4,minmax(0,1fr));justify-content:normal;padding:6px 8px}
   .tabs button{padding:0 2px}
   .panel{grid-column:1;grid-row:3}
   .tools,.caption{right:8px}
   .cam,.nogl{right:8px;bottom:calc(100% - var(--scene-row) + 8px)}
+  .toast{right:8px;bottom:calc(100% - var(--scene-row) + var(--cam-h, 40px) + 16px)}
+}
+/* Short phones held upright (an iPhone SE, 360 x 560): the map, the tabs and a Build panel of at least 15 rem, and the
+   page scrolls up and down, as at 400% zoom, instead of leaving the panel a strip of 100 px (BTC-UX-09). */
+@media (max-width:600px) and (orientation:portrait) and (max-height:640px){
+  html{overflow-x:hidden;overflow-y:auto}
+  body{height:auto;overflow:visible}
+  .app{height:auto;min-height:100dvh}
+  /* The map's share is of the window, not of the page: a share of the page grew with the Build panel's own overflow
+     and left a blank band of 221 to 494 px under it (repair). Scrolled past the map, the Build panel fills the window
+     under the tabs. svh, so the page does not change height as the browser's address bar comes and goes. */
+  html{--scene-h:38svh;--scene-row:max(var(--scene-h),var(--scene-min,0px))}
+  .stage{height:calc(var(--scene-row) + 52px + max(15rem, 100svh - 52px))}
+  .foot{padding-top:3px;padding-bottom:max(3px,env(safe-area-inset-bottom))}
 }
 /* Very short windows at any width (400% zoom on a 1280 x 720 or 1280 x 1024 screen is 320 x 180 or 320 x 256): a
    pinned button row would leave a sliver of text above it, so the buttons scroll with the dialog instead (AS-6). */
 @media (max-height:300px){
   .dlg-intro .intro-btns,.dlg-foot{position:static;box-shadow:none}
   .dlg-intro,.dlg[data-end],.dlg[data-about-dlg]{scroll-padding-bottom:0}
+  /* Here the row scrolls with the dialog, so Tab must bring each of its buttons fully into view (WCAG 2.4.11). */
+  .dlg-foot :is(button,a),.dlg-intro .intro-btns button{scroll-margin-bottom:0}
 }
-@media (pointer:coarse){.lane{min-height:32px}}
+/* Touch screens (library iPads, phones): the schedule toggle and lanes, and the Neighbors rows, are finger-sized, and
+   the map buttons sit 8 px apart, so a miss on Zoom in or Turn right does not land on the next button (BTC-UX-37). */
+@media (pointer:coarse){
+  .lane{min-height:40px}
+  .plan-toggle{min-height:40px;margin:0}
+  .hood-row{min-height:44px}
+}
+@media (pointer:coarse) and (min-width:340px){.cam,.cam-move{gap:8px}}
 /* Touch-only devices: the keyboard line on the intro is left out (it stays in About), so Start sits higher, and the
    siting box says how to site with fingers instead of a mouse and keys (UD-8). */
 @media (pointer:coarse) and (hover:none){.dlg-intro .keys-hint,.place-keys{display:none}.place-touch{display:inline}}
-@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}
+  /* The requirements line under the loading note is a step, not motion, so it still appears after ten seconds. */
+  .nojs-req{animation:nojs-req 0s 10s forwards!important}
+}
+/* Keep the map still, in About or ?motion=off (BTC-UX-38), stops the one CSS transition too. */
+html[data-still] *{transition:none!important}
 /* Windows contrast themes (forced colors, critic): the browser drops author backgrounds, gradients and shadows. They
    drew the schedule's bars, its critical path, the meters and every pressed state, and .btn had no border, so here
    those use system colours and borders instead and no meaning rests on a background alone (WCAG 1.4.1, 1.3.1).
    A gradient survives only with forced-color-adjust:none, so the hatching sets it on its own boxes. */
 @media (forced-colors:active){
   .btn{border:2px solid ButtonText}
-  .btn[disabled]{border-color:GrayText}
+  .btn:is([disabled],[aria-disabled="true"]){border-color:GrayText}
+  /* aria-disabled leaves the text in ButtonText, so a locked step and the waiting Finish read as live (repair). */
+  :is(.btn,.el)[aria-disabled="true"],:is(.btn,.el)[aria-disabled="true"] *{color:GrayText}
+  .el:is([disabled],[aria-disabled="true"]) .el-act{color:GrayText}
   .dlg{border:2px solid CanvasText}
   /* A results file's debrief keeps its "read only" label boxed (BTC-01). */
   .from-file{border:1px solid CanvasText}
@@ -545,7 +703,12 @@ html[data-nokeys] .opt kbd{display:none}
      forced text gets a Canvas-coloured backplate, which hid the HighlightText words. */
   :is(.seg button,.side-tabs button,.tabs button,.cb)[aria-pressed="true"]{forced-color-adjust:none;background:Highlight;color:HighlightText;border-color:Highlight}
   [data-new]::after{background:Highlight}
-  .hood-row{border-color:Canvas}
+  /* Unpressed rows show their edge; the toast, the caption and the Built tag get a border, since their pine fill is
+     dropped and they sat borderless over panel text (BTC-UX-64, WCAG 1.4.11). A changed score tile is outlined. */
+  .hood-row{border-color:ButtonBorder}
+  .toast,.caption,.tag{border:2px solid CanvasText}
+  .tag::after{forced-color-adjust:none;background:CanvasText}
+  .kpi[data-changed]{outline:2px solid Highlight;outline-offset:-2px}
   .hood-row[aria-pressed="true"]{border-color:Highlight}
   .lane{position:relative}
   .lane[aria-pressed="true"]::after{content:"";position:absolute;inset:0;border:2px solid Highlight;border-radius:inherit;pointer-events:none}
@@ -554,7 +717,8 @@ html[data-nokeys] .opt kbd{display:none}
   /* The small squares before the Neighbors names are the map's colours, and the map keeps its colours. */
   .hood-name::before{forced-color-adjust:none}
   .track,.sw{forced-color-adjust:none}
-  .track{background:repeating-linear-gradient(90deg,transparent 0 calc(12.5% - 1px),GrayText calc(12.5% - 1px) 12.5%)}
+  .sw-range{border-color:CanvasText;background:linear-gradient(CanvasText,CanvasText) center/100% 2px no-repeat;opacity:1}
+  .track{background:repeating-linear-gradient(90deg,transparent 0 calc(100% / var(--cols, 8) - 1px),GrayText calc(100% / var(--cols, 8) - 1px) calc(100% / var(--cols, 8)))}
   .range-line{background:CanvasText;opacity:1}
   .gbar,.sw-other,.sw-now{background:CanvasText}
   .gbar[data-crit="1"],.sw-crit{background:repeating-linear-gradient(135deg,Highlight 0 2px,Canvas 2px 5px);border:1px solid Highlight}

@@ -27,13 +27,19 @@ const el = (tag, attrs = {}, html) => {
   return node;
 };
 const motionOff = matchMedia("(prefers-reduced-motion: reduce)");
+// Whether the last input was a key press (pickPhase).
+let keyed = false;
+addEventListener("keydown", () => { keyed = true; }, true);
+addEventListener("pointerdown", () => { keyed = false; }, true);
 
 // ---------- modes and device settings ----------
 // No mode: a library kiosk. It clears itself after a pause and saves nothing. ?mode=class and ?mode=home suspend
 // both resets and keep the game in progress for this tab (sessionStorage). ?mode=library is the kiosk, voice off.
 // Values are trimmed and lower-cased, and a second "?" counts as "&", so ?mode=Class and ?view=presenter?mode=class
-// work as meant (FEU-2).
-const QUERY = new URLSearchParams(location.search.replace(/\?/g, "&"));
+// work as meant (FEU-2). About quotes each setting with a word joiner after its "?" so a line never breaks there; a
+// setting copied from it carries the joiner along, so it is dropped here (repair: ?mode=class pasted from About was
+// read as an unknown setting, and the game stayed a kiosk).
+const QUERY = new URLSearchParams(location.search.replace(/%E2%81%A0|\u2060/gi, "").replace(/\?/g, "&"));
 const arg = (key) => (QUERY.get(key) || "").trim().toLowerCase();
 const URL_MODE = arg("mode");
 const MODE = ["class", "home", "library"].includes(URL_MODE) ? URL_MODE : "kiosk";
@@ -72,11 +78,13 @@ const URL_SET = {};
 if (arg("voice") === "off") URL_SET.voice = false;
 if (arg("view") === "presenter") URL_SET.present = true;
 if (arg("keys") === "off") URL_SET.keys = false;
-const device = { library: false, voice: true, keys: true, present: false };
+// ?motion=off keeps the map still, as the system's reduced-motion setting does (BTC-UX-38).
+if (arg("motion") === "off") URL_SET.still = true;
+const device = { library: false, voice: true, keys: true, present: false, still: false };
 function deviceSettings() {
   // Read again for each new game, so a setting changed in another tab is not lost (DE-7).
   const p = STAFFED && store.get("localStorage", "prefs");
-  if (p && typeof p === "object") Object.assign(device, { library: p.library === true, voice: p.voice !== false, keys: p.keys !== false, present: p.present === true });
+  if (p && typeof p === "object") Object.assign(device, { library: p.library === true, voice: p.voice !== false, keys: p.keys !== false, present: p.present === true, still: p.still === true });
   return { ...device, ...URL_SET };
 }
 // This game's settings: each new game starts from the device's (reset), and the switches change them.
@@ -121,7 +129,8 @@ const fresh = () => ({
   t0: 0,
   steps: [],
 });
-const ui = { tab: "build", side: "hood", hot: null, picked: null, hoodSig: null, hoodNew: false, planOpen: false };
+// viewing: the finished campus is shown with its summary set aside (BTC-UX-01).
+const ui = { tab: "build", side: "hood", hot: null, picked: null, hoodSig: null, hoodNew: false, planOpen: false, viewing: false };
 // The piece the player is siting on the map, or null. Not saved: a reload returns to the button.
 let placing = null;
 // Plain copies of the state, for undo and for the class/home autosave.
@@ -195,8 +204,9 @@ function rng() {
   return st.seed / 4294967296;
 }
 let history = [];
-function remember() {
-  history.push(JSON.stringify(snapState()));
+// Each step Undo can take back keeps its own words, so Undo says what it took back (BTC-UX-52).
+function remember(label = "") {
+  history.push(JSON.stringify({ label, state: snapState() }));
   if (history.length > 30) history.shift();
 }
 // One timed step of a class or home game, for its results file (BTC-01): the seconds since the game started, what
@@ -353,7 +363,9 @@ const canvas = $("[data-scene]");
 let scene = null;
 try {
   scene = createScene(canvas, {
-    reduced: () => motionOff.matches,
+    // Reduced motion: the system setting, or Keep the map still in About and ?motion=off (BTC-UX-38).
+    reduced: () => motionOff.matches || prefs.still,
+    wheelPage: () => PAGE_SCROLLS.matches,
     signs: () => [T().signNotice, T().signNotice2, T().signCampus],
     onMode: (zoomed) => onCamMode(zoomed),
   });
@@ -389,6 +401,8 @@ function paintScene(animate = true) {
 const HOT_SPOT = { trucks: [200, 40], noise: [-60, 40], dust: [-40, -60], storm: [-60, 30], water: [55, -47], power: [170, -130], gens: [86, -100], setback: [-60, 92] };
 const OV_OF = { trucks: ["route-a", "route-b"], noise: ["noise"], dust: ["dust", "glow"], storm: ["storm"], water: ["plume"], power: ["power"], gens: ["gens"], setback: ["setback"] };
 
+// The layouts where the page itself scrolls up and down (style.css): very short windows and short phones held upright.
+const PAGE_SCROLLS = matchMedia("(max-width: 1100px) and (max-height: 300px), (max-width: 600px) and (orientation: portrait) and (max-height: 640px)");
 // Keep in step with the tabbed-layout media query in style.css.
 const TABBED = matchMedia("(max-width: 1023px), (max-width: 1100px) and (orientation: portrait), (max-width: 1100px) and (max-height: 600px)");
 // The longest narration line heard during play (issue cards, the intro and the end are read inside their dialogs).
@@ -409,7 +423,8 @@ function captionRoom() {
   const lines = Object.entries(D.CAPTIONS[lang] || D.CAPTIONS.en).filter(([k]) => !/^(intro|end|card:)/.test(k)).map(([, v]) => v);
   const longest = lines.reduce((a, b) => (b.length > a.length ? b : a), "");
   if (capProbe.textContent !== longest) capProbe.textContent = longest;
-  capProbe.hidden = !longest || !voiceBtnShown();
+  // With the voice off no caption can show, so no room is kept for one (BTC-UX-21).
+  capProbe.hidden = !longest || !voiceBtnShown() || !voice.on;
   return capProbe.hidden ? 0 : capProbe.offsetHeight;
 }
 const voiceBtnShown = () => Object.keys(D.VOICE.en || {}).length > 0;
@@ -424,35 +439,54 @@ function measureSafe() {
   const capGap = capH ? capH + 16 : 8;
   // Both depend only on the width; style.css does the height arithmetic, so the layout is right before this runs.
   root.setProperty("--top-room", `${Math.ceil(toolsB + capGap)}px`);
-  root.setProperty("--cam-h", `${cam.offsetHeight}px`);
+  // Where the zoomed-in set of map buttons does not fit on one row, the move buttons take a row of their own above
+  // the others, so Zoom in and the turn buttons never jump under the finger at the zoom step (BTC-UX-08). Where it
+  // fits (1366 x 768, the iPhone landscape split) it stays one row. Measured with the move buttons showing.
+  const move = $("[data-cam-move]");
+  const moveHidden = move.hidden;
+  const html = document.documentElement;
+  move.hidden = false;
+  html.removeAttribute("data-cam-split");
+  const kids = [...cam.children].filter((n) => n.offsetParent);
+  const split = kids.length > 1 && kids.some((n) => Math.abs(n.offsetTop - kids[0].offsetTop) > 4);
+  html.toggleAttribute("data-cam-split", split);
+  const camMax = cam.offsetHeight;
+  move.hidden = moveHidden;
+  // Beside the panels, the schedule's room is kept for the taller set from the start, so it does not shrink, and
+  // move the map buttons, at the first zoom step.
+  root.setProperty("--cam-h", `${split && !TABBED.matches ? camMax : cam.offsetHeight}px`);
   // The map's least height leaves room for the map buttons with the move buttons showing, zoomed in or not. On a
   // phone those buttons take a second row, and the map used to grow by that row as the first zoom step began, so
   // the ground slid from under the pointer during a wheel or pinch zoom (pan-check at 375 x 812).
-  if (TABBED.matches) {
-    const move = $("[data-cam-move]");
-    const moveHidden = move.hidden;
-    move.hidden = false;
-    const camMax = cam.offsetHeight;
-    move.hidden = moveHidden;
-    root.setProperty("--scene-min", `${Math.ceil(toolsB + capGap + camMax + 8)}px`);
-  } else root.removeProperty("--scene-min");
+  if (TABBED.matches) root.setProperty("--scene-min", `${Math.ceil(toolsB + capGap + camMax + 8)}px`);
+  else root.removeProperty("--scene-min");
   const p = $(".p-plan").getBoundingClientRect();
   if (!TABBED.matches) root.setProperty("--plan-h", `${p.height}px`);
   // Measured after --plan-h moves the map buttons: the caption fits between the toolbar and those buttons.
   root.setProperty("--tools-b", `${tools.offsetTop + tools.offsetHeight}px`);
   root.setProperty("--cam-t", `${cam.offsetTop}px`);
   pinPad();
+  fitDetail();
   if (!scene) return;
   const c = canvas.getBoundingClientRect();
-  if (TABBED.matches) return scene.setSafe({ x: 0, y: 0, w: c.width, h: c.height });
-  // The open map area between the panels. Presenter view hides the side panel and the schedule.
+  safeRect = { x: 0, y: 0, w: c.width, h: c.height };
+  if (TABBED.matches) return scene.setSafe(safeRect);
+  // The open map area between the panels. Presenter view hides the side panel and the schedule; its Neighbors panel
+  // takes its usual place on the right when opened, and only under 1280 px wide does it lie over the open map without
+  // moving the campus (BTC-UX-07, repair).
   const b = $(".p-build").getBoundingClientRect();
   const s = $(".p-side").getBoundingClientRect();
+  const drawer = document.body.hasAttribute("data-present") && innerWidth < 1280;
   const x = b.width ? b.right - c.left : 0;
-  const r = s.width ? s.left - c.left : c.width;
+  const r = s.width && !drawer ? s.left - c.left : c.width;
   const bottom = p.height ? p.top - c.top : c.height;
-  scene.setSafe({ x, y: 0, w: Math.max(200, r - x), h: Math.max(200, bottom) });
+  safeRect = { x, y: 0, w: Math.max(200, r - x), h: Math.max(200, bottom) };
+  scene.setSafe(safeRect);
 }
+// The open map area last measured, in the map's own pixels: the floating tag stays inside it (BTC-UX-17).
+let safeRect = null;
+// Presenter view under 1280 px: the opened Neighbors panel lies over the whole open map (style.css).
+const drawerCovers = () => document.body.hasAttribute("data-present") && sideOpen() && !TABBED.matches && innerWidth < 1280;
 // Dialogs with a pinned button row keep focused controls clear of it (scroll-padding-bottom, WCAG 2.4.11).
 function pinPad() {
   for (const [d, sel] of [[$("[data-intro]"), ".intro-btns"], [$("[data-end]"), ".dlg-foot"], [$("[data-about-dlg]"), ".dlg-foot"]]) {
@@ -472,10 +506,13 @@ sizeWatch.observe($(".cam"));
 sizeWatch.observe(canvas);
 // Map buttons (WCAG 2.5.7): every drag, pinch and twist has a button. The move buttons appear when zoomed in.
 let zoomTipShown = false;
+// Touch-only screens (phones, iPads) get finger words in the hint: iPads were told to right-drag and scroll (BTC-UX-41).
+const TOUCH_ONLY = matchMedia("(pointer: coarse) and (hover: none)");
 function onCamMode(zoomed) {
   const t = T();
+  const touch = TOUCH_ONLY.matches;
   // Small phones show the short form, so the hint stays on one line above the map buttons.
-  const long = placing ? t.placeDrag : zoomed ? t.dragHintZoomed : t.dragHint;
+  const long = placing ? t.placeDrag : zoomed ? (touch ? t.dragHintZoomedTouch : t.dragHintZoomed) : touch ? t.dragHintShort : t.dragHint;
   const short = placing ? t.placeDragShort : zoomed ? t.dragHintZoomedShort : t.dragHintShort;
   $("[data-hint]").innerHTML = `<span class="long">${esc(long)}</span><span class="short">${esc(short)}</span>`;
   $("[data-cam-move]").hidden = !zoomed;
@@ -485,6 +522,8 @@ function onCamMode(zoomed) {
     hint.classList.add("hint-new");
     setTimeout(() => hint.classList.remove("hint-new"), 4500);
     $("[data-alert]").textContent = t.zoomTip;
+    // Where the hint has no room (very short landscape windows), the tip shows once as a toast instead.
+    if (getComputedStyle(hint).display === "none" && !$$("dialog").some((d) => d.open)) { toastEl.textContent = t.zoomTip; toastKeep = ""; showToast(); }
   }
 }
 $("[data-cam]").addEventListener("click", (e) => {
@@ -501,11 +540,28 @@ function setPresent(on, remember = false) {
   document.body.toggleAttribute("data-present", on);
   document.documentElement.toggleAttribute("data-present", on);
   for (const b of $$("[data-cam-act=present]")) b.setAttribute("aria-pressed", on);
+  if (!on) setSideOpen(false);
   for (const box of presentBoxes()) box.checked = on;
   prefs.present = on;
   if (remember) savePref("present", on);
   measureSafe();
 }
+// Presenter view keeps its big map, and a Neighbors toggle in the toolbar brings the side panel (Neighbors and
+// Choices) back over it, so the civic part of the game stays in reach on a projector (BTC-UX-07). While presenter
+// view is on, the toolbar also names it, with a button that turns it off (BTC-UX-X01).
+const sideOpen = () => document.documentElement.hasAttribute("data-side-open");
+function setSideOpen(on) {
+  document.documentElement.toggleAttribute("data-side-open", on);
+  $("[data-side-toggle]").setAttribute("aria-pressed", on);
+  if (on) { ui.side = "hood"; renderSide(); }
+  else markHoodTab(hood());
+  measureSafe();
+}
+$("[data-side-toggle]").addEventListener("click", () => setSideOpen(!sideOpen()));
+$("[data-present-off]").addEventListener("click", () => {
+  setPresent(false, true);
+  $("[data-cam-act=present]").focus({ preventScroll: true });
+});
 
 // ---------- panels ----------
 const status = $("[data-status]");
@@ -561,16 +617,17 @@ function cxTrackHtml() {
   if (!show) return "";
   const row = (id, detail, state) => `<li data-cx="${esc(id)}"><span><b>${esc(t.elements[id].name)}</b> — ${esc(detail)}</span><span>${esc(state)}</span></li>`;
   const gear = MEP.map((id) => `<li data-cx="${esc(id)}"><span><b>${esc(t.elements[id].name)}</b></span><span>${esc(st.cx[id] ? fmt(t.cxLv, { n: st.cx[id] }) : t.cxWait)}</span></li>`);
+  // The substation's factory test sits under level 1, beside the line it belongs to (BTC-UX-X02).
   const rows = [
     row("L1", t.cxWhen.L1, cxState(1)),
+    row("substation", t.cxWhen.L1, st.xfmr ? t.cxDone : t.cxWait),
     row("L2", t.cxWhen.L2, cxState(2)),
     row("L3", t.cxWhen.L3, cxState(3)),
     row("L4", t.cxWhen.L4, cxState(4)),
     ...gear,
-    row("substation", t.cxWhen.L1, st.xfmr ? t.cxDone : t.cxWait),
     row("L5", t.cxWhen.L5, st.placed.has("L5") ? t.cxDone : t.cxWait),
   ];
-  return `<p class="log-h">${esc(t.cxTrackTitle)}</p><ul class="cx">${rows.join("")}</ul><p class="muted">${esc(t.cxTrackNote)}</p>`;
+  return `<p class="log-h" role="heading" aria-level="3">${esc(t.cxTrackTitle)}</p><ul class="cx">${rows.join("")}</ul><p class="muted">${esc(t.cxTrackNote)}</p>`;
 }
 // The short form shown on the button itself, so the reason is visible without a tooltip.
 function blockShort(e) {
@@ -616,12 +673,18 @@ function renderBuild() {
   const next = PH.find((q) => ready(q) && !st.done.has(q.id) && !started(q.id)) || PH.find((q) => ready(q) && !st.done.has(q.id));
   let html = "";
   if (!p) {
-    if (next) {
-      html = `<p class="kicker">${fmt(t.phaseOf, { n: PH.indexOf(next) + 1 })}</p><h2>${esc(t.phases[next.id].name)}</h2><p class="muted">${esc(t.phases[next.id].log)}</p><button type="button" class="btn btn-wide" data-go="${next.id}">${esc(fmt(t.nextHint, { name: t.phases[next.id].name }))}</button>`;
+    if (st.done.has("turn")) {
+      // Looking at the finished campus after the summary (BTC-UX-01): the way back to it is the one next step.
+      html = `<p class="kicker">${esc(fmt(t.phaseOf, { n: PH.length }))}</p><h2>${esc(t.phases.turn.name)}</h2><p class="muted">${esc(t.lookNote)}</p><button type="button" class="btn btn-wide" data-back-end>${esc(t.endBack)}</button>`;
+    } else if (next) {
+      html = `<p class="kicker">${esc(fmt(t.phaseOf, { n: PH.indexOf(next) + 1 }))}</p><h2>${esc(t.phases[next.id].name)}</h2><p class="muted">${esc(t.phases[next.id].log)}</p><button type="button" class="btn btn-wide" data-go="${next.id}">${esc(fmt(t.nextHint, { name: t.phases[next.id].name }))}</button>`;
     } else html = `<p class="muted">${esc(t.pickPhase)}</p>`;
   } else {
     const all = p.els.every((e) => st.placed.has(e));
-    html = `${placeBoxHtml()}<p class="kicker">${fmt(t.phaseOf, { n: PH.indexOf(p) + 1 })}</p><h2>${esc(t.phases[p.id].name)}</h2>
+    // Locked steps and the waiting Finish stay in the Tab order and say why when pressed (aria-disabled, BTC-UX-30).
+    // Once Finish can be pressed it is pinned to the bottom of the panel on a card band, as the dialogs pin theirs,
+    // so a long phase never hides its next step below the fold (BTC-UX-05).
+    html = `${placeBoxHtml()}<p class="kicker">${esc(fmt(t.phaseOf, { n: PH.indexOf(p) + 1 }))}</p><h2>${esc(t.phases[p.id].name)}</h2>
       <p class="muted">${esc(t.phases[p.id].log)} <span class="range">${p.months[0]}–${p.months[1]} ${esc(t.schedAxis)} · ${esc(t.typical)}</span></p>
       <ul class="els">${p.els
         .map((e) => {
@@ -629,30 +692,40 @@ function renderBuild() {
           const why = !done ? blockReason(e) : "";
           const title = why || (done ? t.showOnMap : "");
           const short = why ? blockShort(e) : "";
-          return `<li><button type="button" class="el" data-el="${e}"${done ? " data-done" : ""}${why ? " disabled" : ""} title="${esc(title)}"><span class="el-mark">${done ? ICON.done : why ? ICON.lock : ICON.plus}</span><span class="el-name">${esc(t.elements[e].name)}${short ? `<span class="el-why">${esc(short)}</span>` : ""}</span><span class="el-act">${esc(actLabel(e, done))}</span></button></li>`;
+          return `<li><button type="button" class="el" data-el="${e}"${done ? " data-done" : ""}${why ? ' aria-disabled="true"' : ""} title="${esc(title)}"><span class="el-mark">${done ? ICON.done : why ? ICON.lock : ICON.plus}</span><span class="el-name">${esc(t.elements[e].name)}${short ? `<span class="el-why">${esc(short)}</span>` : ""}</span><span class="el-act">${esc(actLabel(e, done))}</span></button></li>`;
         })
         .join("")}</ul>
-      <button type="button" class="btn btn-wide" data-finish${all ? "" : " disabled"}>${esc(all ? fmt(t.finishPhase, { name: t.phases[p.id].short }) : t.finishNeed)}</button>`;
+      <div class="finish-bar"${all ? " data-pin" : ""}><button type="button" class="btn btn-wide" data-finish${all ? "" : ' aria-disabled="true"'}>${esc(all ? fmt(t.finishPhase, { name: t.phases[p.id].short }) : t.finishNeed)}</button></div>`;
   }
-  html += `${cxTrackHtml()}<p class="log-h">${esc(t.logTitle)}</p><ul class="log">${st.log.slice(0, 3).map((l) => `<li>${esc(l)}</li>`).join("")}</ul>`;
+  // The Site log and Undo come right after the next step, and the commissioning track after them, as reference: the
+  // track pushed both below the fold from Utilities on (BTC-UX-X02).
+  html += `<p class="log-h" role="heading" aria-level="3">${esc(t.logTitle)}</p><ul class="log">${st.log.slice(0, 3).map((l) => `<li>${esc(l)}</li>`).join("")}</ul>`;
   const canUndo = history.length > 0 && !st.done.has("turn");
   html += `<div class="game-btns"><button type="button" class="btn btn-ghost btn-small" data-undo${canUndo ? "" : " disabled"}>${esc(t.undo)}</button><button type="button" class="btn btn-ghost btn-small" data-restart>${esc(t.startOver)}</button></div>`;
-  const keep = document.activeElement?.matches?.("[data-undo], [data-restart]") ? (document.activeElement.hasAttribute("data-undo") ? "[data-undo]" : "[data-restart]") : "";
+  html += cxTrackHtml();
+  // Focus stays on the control it was on: a locked step or the waiting Finish says why when pressed and keeps focus,
+  // instead of dropping it to the page with the old copy of the panel (BTC-UX-30, repair).
+  const a = document.activeElement;
+  const keep = !box.contains(a) ? "" : a.matches("[data-undo]") ? "[data-undo]" : a.matches("[data-restart]") ? "[data-restart]" : a.dataset.el ? `[data-el="${a.dataset.el}"]` : a.matches("[data-finish]") ? "[data-finish]" : "";
   box.innerHTML = html;
   fillPlaceWhy();
   if (keep) $(keep, box)?.focus({ preventScroll: true });
 }
+const locked = (b) => b.getAttribute("aria-disabled") === "true";
 $("[data-build]").addEventListener("click", (e) => {
   const b = e.target.closest("button");
   if (!b || b.disabled) return;
   if (cardPending && !b.matches("[data-restart], [data-undo], [data-done]")) { waitForCard(); return; }
   if (b.hasAttribute("data-undo")) undo();
-  else if (b.hasAttribute("data-restart")) askStartOver();
+  // A finished class or home game is the class's record, so clearing it asks as Play again does (FEU-1, repair).
+  else if (b.hasAttribute("data-restart")) askStartOver(STAFFED && st.done.has("turn") ? "end" : "game");
+  else if (b.hasAttribute("data-back-end")) showEnd();
   else if (b.hasAttribute("data-place-set")) confirmPlace();
   else if (b.hasAttribute("data-place-cancel")) { endPlace(); renderBuild(); focusNext(); }
-  else if (b.dataset.el && b.hasAttribute("data-done")) { scene?.focus(b.dataset.el); showTag(b.dataset.el); }
+  else if (b.dataset.el && b.hasAttribute("data-done")) { scene?.focus(b.dataset.el, true); showTag(b.dataset.el); }
+  // A locked step says why (place() toasts its reason), and the waiting Finish says what it waits for.
   else if (b.dataset.el) place(b.dataset.el);
-  else if (b.hasAttribute("data-finish")) finishPhase(st.focus);
+  else if (b.hasAttribute("data-finish")) { if (locked(b)) toast(T().finishNeed); else finishPhase(st.focus); }
   else if (b.dataset.go) pickPhase(b.dataset.go);
 });
 
@@ -677,10 +750,12 @@ function renderPlan() {
   for (let m = 0; m <= maxM; m += 6) ticks.push(`<span style="left:${pct(m)}">${m}</span>`);
   // The legend stays visible on short screens, where the longer note is hidden; the bar patterns carry the
   // meaning without colour (I3, WCAG 1.4.1).
-  const legend = `<p class="legend"><span><i class="sw sw-crit"></i>${esc(t.legendCrit)}</span><span><i class="sw sw-other"></i>${esc(t.legendOther)}</span><span><i class="sw sw-now"></i>${esc(t.legendNow)}</span></p>`;
+  // The thin range line is named too, since the note that explains it is hidden on screens 800 px tall and less
+  // (BTC-UX-14).
+  const legend = `<p class="legend"><span><i class="sw sw-crit"></i>${esc(t.legendCrit)}</span><span><i class="sw sw-other"></i>${esc(t.legendOther)}</span><span><i class="sw sw-now"></i>${esc(t.legendNow)}</span><span><i class="sw sw-range"></i>${esc(t.legendRange)}</span></p>`;
   // The toggle shows only where the schedule starts as a row of phases (style.css, UD-1).
-  $("[data-plan]").innerHTML = `<div class="plan-head"><h2>${esc(t.schedTitle)} <small>(${esc(t.schedAxis)})</small></h2><button type="button" class="plan-toggle" data-plan-toggle aria-expanded="${ui.planOpen}">${esc(ui.planOpen ? t.planLess : t.planMore)}</button><p class="plan-total">${esc(started("site") ? fmt(t.schedTotal, { n: Math.round(sc.total), base: M.BASE_MONTHS }) : t.schedEmpty)}</p></div>
-    <ol class="lanes">${lanes}</ol><div class="axis"><span class="axis-pad"></span><span class="axis-track">${ticks.join("")}</span></div>
+  $("[data-plan]").innerHTML = `<div class="plan-head"><h2>${esc(t.schedTitle)} <small>(${esc(t.schedAxis)})</small></h2><button type="button" class="plan-toggle" data-plan-toggle aria-expanded="${ui.planOpen}">${esc(ui.planOpen ? t.planLess : t.planMore)}</button><p class="plan-total">${esc(st.started ? fmt(t.schedTotal, { n: Math.round(sc.total), base: M.BASE_MONTHS }) : t.schedEmpty)}</p></div>
+    <ol class="lanes" style="--cols:${maxM / 6}">${lanes}</ol><div class="axis"><span class="axis-pad"></span><span class="axis-track">${ticks.join("")}</span></div>
     ${legend}<p class="plan-note">${esc(t.schedNote)}</p>`;
 }
 // Show or hide the schedule's bars where it starts as a row of phases. Not saved: each player starts with the map big.
@@ -754,21 +829,24 @@ function renderSide() {
   };
   const notice = ["trucks", "noise", "dust", "storm", "gens", "setback"];
   const community = ["jobs", "tax", "power", "water"];
-  $("[data-hood]").innerHTML = `<li class="hood-h">${esc(t.hoodNotice)}</li>${notice.map((k) => row(k, "notice")).join("")}<li class="hood-h">${esc(t.hoodCommunity)}</li>${community.map((k) => row(k, "amount")).join("")}`;
+  // Two lists, each under a heading screen readers can jump to (BTC-UX-34).
+  $("[data-hood]").innerHTML = `<p class="hood-h" role="heading" aria-level="3">${esc(t.hoodNotice)}</p><ul class="hood">${notice.map((k) => row(k, "notice")).join("")}</ul><p class="hood-h" role="heading" aria-level="3">${esc(t.hoodCommunity)}</p><ul class="hood">${community.map((k) => row(k, "amount")).join("")}</ul>`;
   renderHoodDetail();
-  $("[data-hood-score]")?.remove();
-  $("[data-hood-detail]").insertAdjacentHTML("afterend", `<div data-hood-score><p class="hood-break">${esc(hoodBreakdown())}</p><p class="hood-score">${esc(t.hoodScoreNote)}</p></div>`);
+  $("[data-hood-break]").textContent = hoodBreakdown();
   markHoodTab(L);
   $("[data-choices]").innerHTML = CHOICES.map((c) => {
     const locked = choiceLocked(c);
     const v = st.choice[c];
-    return `<div class="choice"${locked ? " data-locked" : ""}><div class="choice-head"><span class="choice-name">${esc(t.choices[c].name)}</span>${locked ? `<span class="lock">${ICON.lock}${esc(t.lockedAfter)}</span>` : ""}</div>
-      <div class="seg" role="group" aria-label="${esc(t.choices[c].name)}">${["a", "b"].map((o) => `<button type="button" data-choice="${c}" data-v="${o}" aria-pressed="${v === o}"${locked && v !== o ? " disabled" : ""}>${esc(t.choices[c][o].label)}</button>`).join("")}</div>
-      <p class="choice-note">${esc(v ? t.choices[c][v].note : t.choiceUnset)} ${v ? chipsFor("choice", c, v) : ""}</p></div>`;
+    return `<div class="choice"${locked ? " data-locked" : ""}><div class="choice-head"><span class="choice-name">${esc(t.choices[c].name)}</span>${locked ? `<span class="lock" id="lock-${c}">${ICON.lock}${esc(t.lockedAfter)}</span>` : ""}</div>
+      <div class="seg" role="group" aria-label="${esc(t.choices[c].name)}" aria-describedby="${locked ? `lock-${c} ` : ""}note-${c}">${["a", "b"].map((o) => `<button type="button" data-choice="${c}" data-v="${o}" aria-pressed="${v === o}"${locked && v !== o ? " disabled" : ""}>${esc(t.choices[c][o].label)}</button>`).join("")}</div>
+      <p class="choice-note" id="note-${c}">${esc(v ? t.choices[c][v].note : t.choiceUnset)} ${v ? chipsFor("choice", c, v) : ""}</p></div>`;
   }).join("");
   $("[data-choices]").insertAdjacentHTML("afterbegin", `<p class="choices-note">${esc(t.choicesNote)}</p>`);
   for (const b of $$("[data-side-tab]")) b.setAttribute("aria-pressed", b.dataset.sideTab === ui.side);
   document.body.dataset.side = ui.side;
+  // The side region is named for what it shows (BTC-UX-34).
+  $(".p-side").setAttribute("aria-label", ui.side === "choices" ? t.choicesTitle : t.tabHood);
+  fitDetail();
 }
 // The fact for the row in focus. The box is a polite live region, so it is written only when its words change:
 // writing the same fact again on every render made screen readers repeat it after each action (AS-2).
@@ -783,8 +861,27 @@ function renderHoodDetail() {
     : `<span>${esc(t.hoodDetailHint)}</span>`;
   if (html === hoodDetailHtml) return;
   hoodDetailHtml = html;
-  $("[data-hood-detail]").innerHTML = html;
+  const box = $("[data-hood-detail]");
+  box.innerHTML = html;
+  box.scrollTop = 0;
+  fitDetail();
 }
+// Beside the panels the fact box sits under the rows with a height cap, always in sight (BTC-UX-06, BTC-UX-60). A
+// fact longer than the cap scrolls inside the box, and the box then takes keyboard focus so it can be scrolled
+// without a mouse (WCAG 2.1.1).
+function fitDetail() {
+  const box = $("[data-hood-detail]");
+  if (box.scrollHeight > box.clientHeight + 1) box.tabIndex = 0;
+  else box.removeAttribute("tabindex");
+  markMore();
+}
+// While rows wait below the fold of their area, the fact box under it carries the pinned-footer shadow (style.css).
+function markMore() {
+  const sc = $("[data-hood-scroll]");
+  const more = getComputedStyle(sc).overflowY !== "visible" && sc.scrollHeight - sc.scrollTop - sc.clientHeight > 1;
+  $(".side-hood").toggleAttribute("data-more", more);
+}
+$("[data-hood-scroll]").addEventListener("scroll", markMore, { passive: true });
 // How the neighbor score is made up right now, so the first reading at grading is explained (I4, C9).
 function hoodBreakdown() {
   const t = T();
@@ -799,46 +896,81 @@ function hoodBreakdown() {
 // A dot on the Neighbors tab when that panel changed while another panel was showing (I4).
 function markHoodTab(L) {
   const sig = JSON.stringify([L.trucks, L.noise, L.dust, L.storm, L.gens, L.setback, L.jobs, L.tax, L.power, L.water, started("grade") ? scores().hood : null]);
-  const seen = TABBED.matches ? ui.tab === "hood" : ui.side === "hood" && !document.body.hasAttribute("data-present");
+  // In presenter view the side panel is seen only while its Neighbors toggle has it open (BTC-UX-07).
+  const seen = TABBED.matches ? ui.tab === "hood" : ui.side === "hood" && (!document.body.hasAttribute("data-present") || sideOpen());
   if (seen || !st.started) ui.hoodNew = false;
   else if (ui.hoodSig != null && sig !== ui.hoodSig) ui.hoodNew = true;
   ui.hoodSig = sig;
   const t = T();
-  for (const b of $$('[data-side-tab="hood"], .tabs [data-tab="hood"]')) {
+  for (const b of $$('[data-side-tab="hood"], .tabs [data-tab="hood"], [data-side-toggle]')) {
     b.toggleAttribute("data-new", ui.hoodNew);
     if (ui.hoodNew) b.setAttribute("aria-label", `${b.textContent} · ${t.tabNew}`);
     else b.removeAttribute("aria-label");
   }
 }
-function focusHood(key, toggle) {
+// press: a click, Enter or tap. Only a press moves the map to the effect, at once and past the pause after manual
+// moves; pointing at or tabbing through the rows only highlights it, so a zoomed view no longer swings row by row,
+// or jump-cuts under reduced motion (BTC-UX-17).
+function focusHood(key, toggle, press = false) {
   if (!key) return;
-  if (toggle) ui.hot = ui.hot === key ? null : key;
-  else if (ui.hot === key) return;
-  else ui.hot = key;
+  showHood(toggle ? (ui.hot === key ? null : key) : key, press);
+}
+function showHood(key, press = false) {
+  if (key === ui.hot && !press) return;
+  ui.hot = key;
   // The rows change in place: rebuilding the list moved focus to a new copy of the row, so a screen reader
   // announced each Tab twice (AS-2).
   for (const b of $$("[data-hood] [data-key]")) b.setAttribute("aria-pressed", b.dataset.key === ui.hot);
   renderHoodDetail();
   paintScene(false);
   const spot = HOT_SPOT[ui.hot];
-  if (spot && st.ov) scene?.lookAt(spot[0], spot[1]);
+  if (press && spot && st.ov) scene?.lookAt(spot[0], spot[1], true);
 }
+// The fact box is a polite live region for focus and presses. A mouse sweeping over the rows does not queue a fact per
+// row for screen readers (BTC-UX-33), and a wheel or scroll over the list does not switch rows as they pass under a
+// resting pointer (BTC-UX-06).
+const detailLive = (on) => $("[data-hood-detail]").setAttribute("aria-live", on ? "polite" : "off");
+let hoodScrolledAt = -Infinity;
+$(".p-side").addEventListener("scroll", () => { hoodScrolledAt = performance.now(); }, { capture: true, passive: true });
+$(".p-side").addEventListener("wheel", () => { hoodScrolledAt = performance.now(); }, { passive: true });
 $("[data-hood]").addEventListener("pointerover", (e) => {
   if (e.pointerType && e.pointerType !== "mouse") return;
+  if (performance.now() - hoodScrolledAt < 250) return;
   const b = e.target.closest("[data-key]");
-  if (b) focusHood(b.dataset.key, false);
+  if (!b) return;
+  detailLive(false);
+  focusHood(b.dataset.key, false);
 });
+// A row the pointer only passed over is not left shown (and every other effect faded) once the pointer leaves the
+// list; a row that was pressed stays (BTC-UX-65).
+// The pointer may go from the rows on to the fact box, to scroll a long fact, and the fact stays while it is there.
+function leaveHood(e, into) {
+  if (e.pointerType !== "mouse" || (e.relatedTarget && into.contains(e.relatedTarget))) return;
+  // A row that has keyboard focus counts as shown too.
+  const focused = $("[data-hood]").contains(document.activeElement) ? document.activeElement.closest("[data-key]")?.dataset.key : null;
+  const keep = ui.picked || focused || null;
+  if (keep === ui.hot) return;
+  detailLive(false);
+  showHood(keep);
+}
+$("[data-hood]").addEventListener("pointerleave", (e) => leaveHood(e, $("[data-hood-detail]")));
+$("[data-hood-detail]").addEventListener("pointerleave", (e) => leaveHood(e, $("[data-hood]")));
 $("[data-hood]").addEventListener("focusin", (e) => {
   const b = e.target.closest("[data-key]");
-  if (b) focusHood(b.dataset.key, false);
+  if (!b) return;
+  detailLive(true);
+  focusHood(b.dataset.key, false);
 });
 // Hover and focus already show a row by the time a click, Enter or tap lands, so the press keeps it shown, and a
 // second press on the row it picked clears it (AS-2: rebuilding the list used to undo the toggle by accident).
 $("[data-hood]").addEventListener("click", (e) => {
   const b = e.target.closest("[data-key]");
   if (!b) return;
-  focusHood(b.dataset.key, ui.picked === b.dataset.key);
+  detailLive(true);
+  focusHood(b.dataset.key, ui.picked === b.dataset.key, true);
   ui.picked = ui.hot;
+  // On the phone Neighbors tab the fact sits under the list, out of sight after a press on a lower row (BTC-UX-06).
+  if (TABBED.matches && ui.hot) $("[data-hood-detail]").scrollIntoView({ block: "nearest" });
 });
 $("[data-choices]").addEventListener("click", (e) => {
   const b = e.target.closest("[data-choice]");
@@ -860,15 +992,37 @@ function setTab(tab) {
   renderSide();
 }
 
+// The tiles' last values, unrounded, so a change shows on the tile that changed (BTC-UX-12), half a month included.
+let dashWas = null, dashTimer = 0;
+const dashDelta = {
+  // Rounded by size, so a change of a quarter month or 0.05% reads 0.5 mo or 0.1% either way, never "−0" (repair).
+  schedule: (d) => `${d > 0 ? "+" : "−"}${fmt(T().dashMonthsShort, { n: Math.max(0.5, Math.round(Math.abs(d) * 2) / 2) })}`,
+  budget: (d) => `${d > 0 ? "+" : "−"}${Math.max(0.1, Math.round(Math.abs(d) * 10) / 10)}%`,
+  safety: (d) => signed(d),
+  hood: (d) => signed(d),
+};
 function renderDash() {
   const t = T();
   const s = scores();
-  // Every tile shows its rating word at every width, next to the dot (I3, WCAG 1.4.1).
+  const now = { schedule: s.total, budget: s.budgetRaw, safety: s.safety, hood: started("grade") ? s.hood : null };
+  const changed = {};
+  if (dashWas && st.started) {
+    for (const k of Object.keys(now)) {
+      const d = now[k] != null && dashWas[k] != null ? now[k] - dashWas[k] : 0;
+      if (k === "schedule" ? Math.abs(d) >= 0.25 : k === "budget" ? Math.abs(d) >= 0.05 : d !== 0) changed[k] = d;
+    }
+  }
+  dashWas = st.started ? now : null;
+  // Every tile shows its rating word at every width, next to the dot (I3, WCAG 1.4.1). A tile that just changed gets a
+  // light ring for a few seconds, not a coloured dot that could read as a rating, and from 1366 px wide the size of
+  // the change after its word ("· +1 mo"); screen readers get the summary below instead.
   const tile = (key, value, word, level, short = value, wordShort = word) => {
     const node = $(`[data-dash="${key}"]`);
     $(".kpi-val", node).innerHTML = `<span class="long">${esc(value)}</span><span class="short">${esc(short)}</span>`;
-    $(".kpi-word", node).innerHTML = `<span class="long">${esc(word)}</span><span class="short">${esc(wordShort)}</span>`;
+    const delta = key in changed ? `<span class="kpi-delta" aria-hidden="true"> · ${esc(dashDelta[key](changed[key]))}</span>` : node.querySelector(".kpi-delta")?.outerHTML || "";
+    $(".kpi-word", node).innerHTML = `<span class="long">${esc(word)}</span><span class="short">${esc(wordShort)}</span>${delta}`;
     node.dataset.level = level;
+    if (key in changed) node.setAttribute("data-changed", "");
   };
   const bl = budgetIdx(s.budget);
   const sl = schedIdx(s.months);
@@ -885,7 +1039,15 @@ function renderDash() {
     tile("hood", `${s.hood}/100`, levelWord(s.hood), scoreIdx(s.hood));
     add("hood", t.dashNeighbors, `${s.hood}/100`, levelWord(s.hood));
   }
+  if (Object.keys(changed).length) {
+    clearTimeout(dashTimer);
+    dashTimer = setTimeout(clearDashMarks, 4000);
+  }
   announceScores(said);
+}
+function clearDashMarks() {
+  clearTimeout(dashTimer);
+  for (const n of $$("[data-dash]")) { n.removeAttribute("data-changed"); n.querySelector(".kpi-delta")?.remove(); }
 }
 // A polite summary of the tiles that changed, once things settle (I18).
 let scoresSaid = null, scoreQueue = new Set(), scoreTimer = 0;
@@ -911,16 +1073,19 @@ function renderAll(animate = true) {
 
 // ---------- floating tag over a newly built part ----------
 const tagEl = $("[data-tag]");
-let tagFor = null, tagUntil = 0, tagH = 0, tagRaf = 0;
+// Approvals, plans, studies and the final test are done, not built (BTC-UX-53).
+const DONE_TAG = new Set(["zoning", "capacity", "stormPlan", "meetings", "L5"]);
+let tagFor = null, tagUntil = 0, tagH = 0, tagW = 0, tagRaf = 0;
 function showTag(id) {
   // Without the 3D view, or with its context lost, there is nothing to point at, so no tag (it used to stick in the
   // corner, FE-2).
   if (!scene || document.body.hasAttribute("data-nogl")) return;
   tagFor = id;
   tagUntil = performance.now() + 3200;
-  tagEl.textContent = fmt(T().builtTag, { name: T().elements[id].name });
+  tagEl.textContent = fmt(DONE_TAG.has(id) ? T().doneTag : T().builtTag, { name: T().elements[id].name });
   tagEl.hidden = false;
   tagH = tagEl.offsetHeight;
+  tagW = tagEl.offsetWidth;
   // Placed at once, not on the next frame: on a slow device a frame can take longer than the click, and the tag
   // used to show at the last tag's spot, or under the toolbar, until then. The tag follows its part only while it
   // shows, so no frame loop runs between tags (FE-3).
@@ -931,16 +1096,58 @@ function followTag(now) {
   tagRaf = 0;
   if (!tagFor || now > tagUntil || document.body.hasAttribute("data-nogl")) { tagEl.hidden = true; tagFor = null; return; }
   const p = scene.screenOf(tagFor);
-  // Under the toolbar the tag could not be read, so it stays out of sight while its part is that high (UD-11).
-  const top = parseFloat(document.documentElement.style.getPropertyValue("--tools-b")) || 0;
-  if (!p || p[1] - tagH < top) tagEl.hidden = true;
-  else { tagEl.hidden = false; tagEl.style.transform = `translate(${p[0].toFixed(0)}px, ${p[1].toFixed(0)}px) translate(-50%, -100%)`; }
+  // Under the toolbar the tag could not be read, so it stays out of sight while its part is that high (UD-11); the
+  // same under a narration caption, which shows at the same moment on a phone (BTC-UX-62), and outside the open map
+  // between the panels, where it was drawn over panel text or off the screen (BTC-UX-17).
+  // A part out of the open map gets the tag at the nearest edge of it, pointing its way, so a build off screen still
+  // shows on the map, above all under reduced motion, where the camera does not frame it (checklist 36, repair).
+  let top = parseFloat(document.documentElement.style.getPropertyValue("--tools-b")) || 0;
+  if (!capEl.hidden) top = Math.max(top, capEl.offsetTop + capEl.offsetHeight + 4);
+  const r = safeRect || { x: 0, y: 0, w: canvas.clientWidth, h: canvas.clientHeight };
+  // It stays above the map buttons too.
+  const cam = $(".cam");
+  const floor = cam.offsetParent ? Math.min(r.y + r.h, cam.offsetTop) : r.y + r.h;
+  const x0 = r.x + tagW / 2 + 8, x1 = r.x + r.w - tagW / 2 - 8, y0 = top + tagH + 8, y1 = floor - 8;
+  if (!p || x1 < x0 || y1 < y0 || drawerCovers()) tagEl.hidden = true;
+  else {
+    const x = Math.min(x1, Math.max(x0, p[0])), y = Math.min(y1, Math.max(y0, p[1]));
+    const edge = p[0] < x0 ? "left" : p[0] > x1 ? "right" : p[1] < y0 ? "up" : p[1] > y1 ? "down" : "";
+    if (edge) tagEl.dataset.edge = edge;
+    else delete tagEl.dataset.edge;
+    tagEl.hidden = false;
+    tagEl.style.transform = `translate(${x.toFixed(0)}px, ${y.toFixed(0)}px) translate(-50%, -100%)`;
+  }
   tagRaf = requestAnimationFrame(followTag);
 }
 
 // ---------- actions ----------
+// Focus moves without scrolling (the page and the map never move), then only the panel itself scrolls so the
+// focused control is in sight, clear of the pinned Finish band: in Grading and MEP, Finish sat below the fold at
+// 200% zoom, on phones and in short windows, and the next Enter pressed a button nobody could see (BTC-UX-05,
+// WCAG 2.4.7, 2.4.11). In the layouts where the page itself scrolls (very short windows), the page follows too.
+function reveal(node) {
+  const panel = node?.closest?.(".panel");
+  if (!panel) return;
+  const p = panel.getBoundingClientRect(), r = node.getBoundingClientRect();
+  const band = node.closest(".finish-bar") ? null : $(".finish-bar[data-pin]", panel);
+  const bottom = p.bottom - (band ? band.offsetHeight : 0) - 8;
+  if (r.bottom > bottom) panel.scrollTop += Math.min(r.bottom - bottom, r.top - p.top - 8);
+  else if (r.top < p.top + 8) panel.scrollTop -= p.top + 8 - r.top;
+  const page = document.scrollingElement;
+  if (page && page.scrollHeight > innerHeight + 1) {
+    const s = node.getBoundingClientRect();
+    if (s.bottom > innerHeight) page.scrollTop += s.bottom - innerHeight + 8;
+    else if (s.top < 0) page.scrollTop -= 8 - s.top;
+  }
+}
+const OPEN_EL = '.el:not([data-done]):not([aria-disabled="true"])';
+function focusOn(node) {
+  if (!node) return;
+  node.focus({ preventScroll: true });
+  reveal(node);
+}
 function focusNext() {
-  ($(".el:not([data-done]):not([disabled])") || $("[data-finish]:not([disabled])"))?.focus({ preventScroll: true });
+  focusOn($(OPEN_EL) || $('[data-finish]:not([aria-disabled="true"])'));
 }
 function decisionsDue(e) {
   const due = [];
@@ -969,6 +1176,7 @@ function advanceCx() {
   syncCx();
   return notes;
 }
+let phaseSayTimer = 0;
 function pickPhase(id) {
   const t = T();
   const p = PH.find((q) => q.id === id);
@@ -980,6 +1188,7 @@ function pickPhase(id) {
   }
   if (st.done.has(id)) return;
   const opening = st.focus !== id && !started(id);
+  const moved = st.focus !== id;
   if (placing && phaseOf[placing.id] !== id) endPlace();
   st.focus = id;
   if (opening) logStep("phase", id);
@@ -987,7 +1196,18 @@ function pickPhase(id) {
   renderAll();
   if (opening) speak(`phase:${id}`);
   if (ui.tab !== "build") setTab("build");
-  $(".el:not([data-done]):not([disabled])")?.focus({ preventScroll: true });
+  // Another phase starts at the top of the panel, with its name in sight. Keyboard players get the first step
+  // scrolled into view as well, so their focus is never out of sight; for a click or a tap the focus ring does not
+  // show, and on a landscape phone that scroll pushed the phase's name out of view (repair).
+  if (moved) $(".p-build").scrollTop = 0;
+  if (keyed || !moved) focusOn($(OPEN_EL));
+  else $(OPEN_EL)?.focus({ preventScroll: true });
+  // Screen readers hear which phase opened once the focus move has been read; the visible log is left alone
+  // (BTC-UX-31). The status line is the polite one the Site log uses.
+  if (moved) {
+    clearTimeout(phaseSayTimer);
+    phaseSayTimer = setTimeout(() => { if (st.focus === id && !$$("dialog").some((d) => d.open)) status.textContent = fmt(t.phaseSay, { n: PH.indexOf(p) + 1, name: t.phases[id].name }); }, 600);
+  }
 }
 function placeIssueText(code) {
   const t = T();
@@ -1048,8 +1268,12 @@ function setPreview(dx, dz) {
   if (!placing) return;
   const spec = M.LAYOUT[placing.id];
   if (spec?.axis === "z") dx = 0;
-  placing.dx = snapGrid(dx);
-  placing.dz = snapGrid(dz);
+  const x = snapGrid(dx), z = snapGrid(dz);
+  // The footprints are drawn again only when the snapped spot changes: every pointer move rebuilt about 80 WebGL
+  // buffers inside the same 10 m cell (BTC-UX-45).
+  if (x === placing.dx && z === placing.dz) return;
+  placing.dx = x;
+  placing.dz = z;
   fillPlaceWhy(true);
   paintFootprints();
 }
@@ -1068,22 +1292,77 @@ function onPlacePointer(ev) {
     if (!M.layoutIssue(placing.id, placing.dx, placing.dz, layoutPlaced(placing.id))) confirmPlace();
   }
 }
+// With no map to drag on, a piece goes where it was last set, else at the suggested spot, else at the nearest spot on
+// the siting grid that fits: the suggested spot can break the 70 m rule or overlap a piece the player moved
+// (BTC-UX-56, repair).
+function fallbackSpot(e) {
+  const others = layoutPlaced(e);
+  const fits = (d) => !!d && !M.layoutIssue(e, d.x, d.z, others);
+  if (fits(st.layout[e])) return st.layout[e];
+  if (fits({ x: 0, z: 0 })) return { x: 0, z: 0 };
+  const g = M.LAYOUT_GRID || 10, zOnly = M.LAYOUT[e]?.axis === "z";
+  for (let r = 1; r <= 30; r++) {
+    for (let i = -r; i <= r; i++) {
+      for (let j = -r; j <= r; j++) {
+        if (Math.max(Math.abs(i), Math.abs(j)) !== r || (zOnly && i)) continue;
+        const d = { x: i * g, z: j * g };
+        if (fits(d)) return d;
+      }
+    }
+  }
+  return { x: 0, z: 0 };
+}
+// A spot out of the open map is brought into view as siting starts: the player asked to place the piece, and the
+// camera never frames a piece under reduced motion, so its footprint could be off screen (checklist 36, repair). It
+// cuts under reduced motion and eases otherwise.
+function showSpot(e, d) {
+  const r = M.LAYOUT[e]?.rects?.[0];
+  if (!r || !scene?.screenAt || !safeRect) return;
+  const cx = r.x + r.w / 2 + d.x, cz = r.z + r.h / 2 + d.z;
+  const p = scene.screenAt(cx, cz);
+  const top = (parseFloat(document.documentElement.style.getPropertyValue("--tools-b")) || 0) + 16;
+  const seen = p && p[0] >= safeRect.x + 24 && p[0] <= safeRect.x + safeRect.w - 24 && p[1] >= top && p[1] <= safeRect.y + safeRect.h - 24;
+  if (!seen) scene.show(cx, cz);
+}
+// Where the page itself scrolls (short phones, 400% zoom), the bottom of a node lines up with the bottom of the
+// window, so the map above it keeps as much room in sight as it can (repair: siting at 360 x 640 left the map off
+// screen, with Build it here below it).
+function pageEnd(node) {
+  const page = document.scrollingElement;
+  if (!node || !page || page.scrollHeight <= innerHeight + 1) return;
+  page.scrollTop += node.getBoundingClientRect().bottom - innerHeight + 8;
+}
 function beginPlace(e) {
-  if (!M.LAYOUT[e] || !scene) { commitElement(e, { x: 0, z: 0 }); return; }
+  if (!M.LAYOUT[e] || !scene || document.body.hasAttribute("data-nogl")) {
+    commitElement(e, fallbackSpot(e));
+    return;
+  }
   const prev = st.layout[e] || { x: 0, z: 0 };
   placing = { id: e, dx: prev.x, dz: prev.z };
   scene.setPlaceMode(true, onPlacePointer);
   renderBuild();
   paintFootprints();
   onCamMode(!!scene.zoomed());
-  $("[data-place-box]")?.scrollIntoView({ block: "nearest" });
-  $("[data-place-set]")?.focus({ preventScroll: true });
+  showSpot(e, prev);
+  $(".p-build").scrollTop = 0;
+  focusOn($("[data-place-set]"));
+  pageEnd($("[data-place-box]"));
 }
 function confirmPlace() {
   if (!placing) return;
   const { id, dx, dz } = placing;
   const issue = M.layoutIssue(id, dx, dz, layoutPlaced(id));
-  if (issue) { toast(placeIssueText(issue)); fillPlaceWhy(); return; }
+  // The reason is already written in the siting box, beside Set it here; a toast over the map buttons repeated it
+  // word for word and covered Cancel on phones. It shows only when the box has scrolled out of sight (BTC-UX-15).
+  if (issue) {
+    fillPlaceWhy();
+    const why = $("[data-place-why]"), panel = why?.closest(".panel");
+    const r = why?.getBoundingClientRect(), pr = panel?.getBoundingClientRect();
+    const seen = r && pr && r.height > 0 && r.top >= pr.top - 1 && r.bottom <= pr.bottom + 1 && r.bottom <= innerHeight;
+    if (seen) status.textContent = placeIssueText(issue);
+    else toast(placeIssueText(issue));
+    return;
+  }
   endPlace();
   commitElement(id, { x: dx, z: dz });
 }
@@ -1108,20 +1387,20 @@ function place(e) {
     return;
   }
   if (e === "substation" && !st.xfmr) {
-    remember();
+    remember(`${t.factoryAct} · ${t.elements[e].name}`);
     st.xfmr = 1;
     logStep("factory", e);
-    say(t.logL1);
+    say(fmt(t.logL1, { name: t.elements[e].name }));
     renderAll();
     focusNext();
     return;
   }
   if (MEP.includes(e) && !st.cx[e]) {
-    remember();
+    remember(`${t.factoryAct} · ${t.elements[e].name}`);
     st.cx[e] = 1;
     logStep("factory", e);
     syncCx();
-    say(t.logL1);
+    say(fmt(t.logL1, { name: t.elements[e].name }));
     renderAll();
     focusNext();
     return;
@@ -1144,7 +1423,7 @@ function place(e) {
 }
 function commitElement(e, offset) {
   const t = T();
-  remember();
+  remember(t.elements[e].name);
   if (offset) st.layout[e] = { x: offset.x, z: offset.z };
   st.placed.add(e);
   logStep("place", e);
@@ -1176,7 +1455,7 @@ function phaseSettled(id) {
   if (id === "turn") logStep("end");
   renderAll();
   if (id === "turn") openEnd();
-  else $("[data-go]")?.focus({ preventScroll: true });
+  else focusOn($("[data-go]"));
 }
 // An issue card that was due but not answered (after undo or a resumed game) is offered again.
 // A setback drawn at the end of a phase still finishes that phase once it is answered.
@@ -1190,7 +1469,8 @@ function reofferCards() {
 // Undo takes back the last placement, finished phase or change in the Choices panel (I7, DE-4).
 function undo() {
   if (!history.length || st.done.has("turn") || dlg.open) return;
-  const back = loadState(JSON.parse(history.pop()));
+  const step = JSON.parse(history.pop());
+  const back = loadState(step.state);
   if (!back) return;
   playGen += 1;
   clearCardTimers();
@@ -1206,7 +1486,7 @@ function undo() {
   back.ov = st.ov;
   st = back;
   logStep("undo");
-  say(T().logUndo);
+  say(step.label ? fmt(T().logUndoWhat, { what: step.label }) : T().logUndo);
   renderAll(false);
   reofferCards();
   focusNext();
@@ -1218,7 +1498,7 @@ function finishPhase(id) {
   const missing = (PHASE_REQUIRED[id] || []).filter((c) => !st.choice[c]);
   if (missing.length) { openDecide(missing[0], () => finishPhase(id)); return; }
   if (!st.done.has(id)) {
-    remember();
+    remember(fmt(t.undoFinish, { name: t.phases[id].name }));
     st.done.add(id);
     logStep("done", id);
     say(fmt(t.logPhaseDone, { name: t.phases[id].name }));
@@ -1248,7 +1528,7 @@ function choose(c, v, opts = {}) {
   const t = T();
   if (choiceLocked(c) || st.choice[c] === v || !EFFECT[c]?.[v]) return;
   // A change in the Choices panel is a step of its own, so Undo takes back that change first (DE-4).
-  if (opts.step) remember();
+  if (opts.step) remember(`${t.choices[c].name} → ${t.choices[c][v].label}`);
   st.choice[c] = v;
   logStep("choice", c, v);
   say(fmt(t.logChoice, { name: t.choices[c].name, value: t.choices[c][v].label }));
@@ -1258,6 +1538,7 @@ function choose(c, v, opts = {}) {
 }
 function next() {
   if (dlg.open) return;
+  if (st.done.has("turn") && !endDlg.open) { showEnd(); return; }
   if (cardPending) { waitForCard(); return; }
   if (placing) { confirmPlace(); return; }
   const p = PH.find((q) => q.id === st.focus);
@@ -1419,9 +1700,12 @@ function renderVoiceBtn() {
   }
   // In class and home modes the checkbox is the device setting for the next player; on a kiosk it is this game only,
   // like the Voice button.
-  libBox.checked = libraryOn();
-  libBox.disabled = MODE === "library";
-  $("[data-libmode-note]").textContent = MODE === "library" ? t.libraryModeUrl : STAFFED ? t.libraryModeNote : t.libraryModeKiosk;
+  // With ?mode=library the address sets it, until a player turns the voice on for this game: the box is then theirs
+  // again, as on a kiosk, instead of an unticked box beside "Set by the address" (repair).
+  const byAddress = MODE === "library" && !voice.on;
+  libBox.checked = libraryOn() && !voice.on;
+  libBox.disabled = byAddress;
+  $("[data-libmode-note]").textContent = byAddress ? t.libraryModeUrl : STAFFED ? t.libraryModeNote : t.libraryModeKiosk;
   voiceBtn.hidden = !Object.keys(D.VOICE.en || {}).length;
   $("[data-voice-line]").hidden = voiceBtn.hidden;
   $("[data-listen]").hidden = !voice.on || !(D.VOICE.en || {}).intro;
@@ -1431,9 +1715,18 @@ function setVoice(on, remember = false) {
   if (!on) hush();
   if (remember) savePref("voice", on);
   renderVoiceBtn();
+  // The caption room comes and goes with the voice (BTC-UX-21).
+  measureSafe();
 }
-voiceBtn.addEventListener("click", () => setVoice(!voice.on, true));
-voiceIntro.addEventListener("click", () => setVoice(!voice.on, true));
+// Turning the voice on lifts Library mode, for this game on a kiosk and on the device in class and home modes, so the
+// two switches never disagree ("Library mode · no voice" ticked beside "Voice: on", BTC-UX-27).
+function pressVoice() {
+  const on = !voice.on;
+  if (on && prefs.library) { prefs.library = false; savePref("library", false); }
+  setVoice(on, true);
+}
+voiceBtn.addEventListener("click", pressVoice);
+voiceIntro.addEventListener("click", pressVoice);
 libBox.addEventListener("change", (e) => {
   prefs.library = e.target.checked;
   savePref("library", e.target.checked);
@@ -1445,6 +1738,20 @@ keysBox.checked = prefs.keys;
 const renderKeysPref = () => document.documentElement.toggleAttribute("data-nokeys", !prefs.keys);
 renderKeysPref();
 keysBox.addEventListener("change", (e) => { prefs.keys = e.target.checked; savePref("keys", e.target.checked); renderKeysPref(); });
+// Keep the map still (BTC-UX-38): the intro turn, the fans, trucks and rings stop, and the camera cuts instead of
+// easing, as with the system's reduced-motion setting, for visitors who cannot reach that setting on a kiosk.
+const stillBox = $("[data-still-pref]");
+// With the device's own reduced-motion setting on, the map is already still: the box shows ticked, and says why it
+// cannot be unticked here (repair: it showed off while the map was kept still).
+function renderStill() {
+  stillBox.checked = prefs.still || motionOff.matches;
+  stillBox.disabled = motionOff.matches;
+  $("[data-still-system]").hidden = !motionOff.matches;
+  document.documentElement.toggleAttribute("data-still", prefs.still);
+  scene?.start();
+}
+motionOff.addEventListener?.("change", renderStill);
+stillBox.addEventListener("change", (e) => { prefs.still = e.target.checked; savePref("still", e.target.checked); renderStill(); });
 for (const box of presentBoxes()) box.addEventListener("change", (e) => setPresent(e.target.checked, true));
 $("[data-listen]").addEventListener("click", () => speak("intro"));
 
@@ -1517,7 +1824,9 @@ function openDecide(id, next) {
   $(".card-title", dlg).textContent = choice.name;
   $(".card-body", dlg).textContent = choice.ask;
   // The number keys are named only while the single-key shortcuts are on.
-  $(".card-opts", dlg).previousElementSibling.textContent = prefs.keys ? t.decideChoose : t.cardChoose;
+  // The number keys are named only while the shortcuts are on, and not on touch-only screens, which have none
+  // (BTC-UX-54).
+  $(".card-opts", dlg).previousElementSibling.textContent = prefs.keys && !TOUCH_ONLY.matches ? t.decideChoose : t.cardChoose;
   $(".card-opts", dlg).innerHTML = ["a", "b"]
     .map((o, i) => `<button type="button" class="opt" data-key="${i + 1}" data-o="${o}"><span class="opt-label"><kbd>${i + 1}</kbd>${esc(choice[o].label)}</span><span class="opt-note">${esc(choice[o].note)}</span>${chipsFor("choice", id, o)}</button>`)
     .join("");
@@ -1534,7 +1843,7 @@ function openCard(id, after) {
   $(".kicker", dlg).textContent = t.cardKicker;
   $(".card-title", dlg).textContent = card.title;
   $(".card-body", dlg).textContent = card.body;
-  $(".card-opts", dlg).previousElementSibling.textContent = t.cardChoose;
+  $(".card-opts", dlg).previousElementSibling.textContent = prefs.keys && !TOUCH_ONLY.matches ? t.cardChooseKeys : t.cardChoose;
   // Where the finish moves less than the months the card names, a line under the chips says why (UD-7).
   const why = (o) => {
     const n = Math.max(0, ...Object.values(CARD[id].opts[o].sched || {}));
@@ -1569,11 +1878,12 @@ $(".card-opts", dlg).addEventListener("click", (e) => {
   if (st.cards[id]) { closeDlg(dlg); return; }
   st.cards[id] = b.dataset.o;
   logStep("card", id, b.dataset.o);
-  say(T().cards[id][b.dataset.o].log);
   speak(`opt:${id}:${b.dataset.o}`);
   const fn = cardAfter;
   cardAfter = null;
   closeDlg(dlg);
+  // Written once the dialog has closed: the status line is outside it, and inert while the modal is open (BTC-UX-32).
+  say(T().cards[id][b.dataset.o].log);
   renderAll();
   fn?.();
 });
@@ -1641,7 +1951,8 @@ function stampPrint() {
   const date = new Date().toLocaleDateString(t.lang, { year: "numeric", month: "long", day: "numeric" });
   $("[data-print-date]").textContent = endDlg.open ? fmt(t.printDate, { date }) : "";
 }
-addEventListener("beforeprint", stampPrint);
+// A player looking at the finished campus who prints (the browser's own Print) gets the summary, not the short note.
+addEventListener("beforeprint", () => { if (ui.viewing && !endDlg.open) showEnd(); stampPrint(); });
 // On a kiosk, Enter on the end screen still means Play again. In class and home modes the summary is the class's
 // record, so focus starts on its title and Play again asks first (FEU-1). When the game puts focus on Play again
 // (here, and after Keep this summary), Enter or Space within a second of that was meant for the button before: a
@@ -1690,7 +2001,7 @@ function fillEnd(rec) {
   // Titles that end in a colon are joined to the answer with a dash, never a second colon (TW-6).
   $(".end-costly", endDlg).innerHTML = rec.costliest.length
     ? rec.costliest.map((x) => `<li><b>${esc(x.name)}</b> — ${esc(x.label)}<span class="end-fx">${esc(fmt(t.endVs, { label: x.vsLabel }))} ${esc(x.effect)}</span></li>`).join("")
-    : `<li>${esc(t.endCostlyNone)}</li>`;
+    : `<li data-none>${esc(t.endCostlyNone)}</li>`;
   const made = [...rec.choices, ...rec.cards].map((x) => `<li><b>${esc(x.name)}</b> — ${esc(x.label)}</li>`);
   $(".end-chose", endDlg).innerHTML = made.length ? made.join("") : `<li>${esc(t.noDecisions)}</li>`;
   // Each question gets lines to answer on, on paper only (FEU-3).
@@ -1700,6 +2011,8 @@ function fillEnd(rec) {
 // Close instead of Play again and the save buttons.
 function endButtons(fromFile) {
   for (const b of $$("[data-again], [data-save-file], [data-save-csv]", endDlg)) b.hidden = fromFile;
+  // With no 3D map there is no campus to look at (repair).
+  $(".end-look", endDlg).hidden = $("[data-end-look]", endDlg).hidden = fromFile || document.body.hasAttribute("data-nogl");
   const close = $("[data-end-close]", endDlg);
   if (close) close.hidden = !fromFile;
 }
@@ -1711,14 +2024,36 @@ function clearEnd() {
   const from = $("[data-end-from]", endDlg);
   from.textContent = "";
   from.hidden = true;
+  const saved = $("[data-end-saved]", endDlg);
+  saved.textContent = "";
+  saved.hidden = true;
+  ui.viewing = false;
   endButtons(false);
 }
 function showEnd() {
+  ui.viewing = false;
+  $(".end-look", endDlg).hidden = $("[data-end-look]", endDlg).hidden = $("[data-again]", endDlg).hidden || document.body.hasAttribute("data-nogl");
   openDlg(endDlg);
   stampPrint();
   pinPad();
   endDlg.scrollTop = 0;
   endFocus();
+  holdTop(endDlg);
+}
+// Safari scrolls a dialog to its focused button some 40 ms after it opens, so the title, the opening paragraph and
+// Look at the campus were out of sight on iPhones and iPads (repair). Until the player touches, scrolls or presses a
+// key, or for 600 ms, the dialog stays at its top.
+function holdTop(d) {
+  const until = Date.now() + 600;
+  const kinds = ["pointerdown", "touchstart", "wheel", "keydown"];
+  const onScroll = () => { if (Date.now() < until && d.open) d.scrollTop = 0; else stop(); };
+  const stop = () => {
+    d.removeEventListener("scroll", onScroll);
+    for (const k of kinds) removeEventListener(k, stop, true);
+  };
+  d.addEventListener("scroll", onScroll);
+  for (const k of kinds) addEventListener(k, stop, { capture: true, once: true });
+  setTimeout(stop, 600);
 }
 function openEnd() {
   clearEnd();
@@ -1730,7 +2065,31 @@ $("[data-print]").addEventListener("click", () => {
   keepGoing();
   window.print();
 });
+// The finished campus (BTC-UX-01): the summary steps aside, kept as it is, so the player can see the campus and the
+// operating Neighbors rows the answers promised. The Build panel leads back to it; on a kiosk it comes back by
+// itself after a minute without input, with its countdown, and Print brings it back too.
+// The end narration is about the summary, so it stops as the summary steps aside: on phones its caption covered
+// about half the map for 15 s (repair). In presenter view the Neighbors panel opens with the map, where it leaves the
+// map in sight. Where the page itself scrolls, it goes back to its top, so the map is in view: on a short phone the
+// player had scrolled down to Finish, and the map was out of sight (repair).
+$("[data-end-look]").addEventListener("click", () => {
+  keepGoing();
+  hush();
+  closeDlg(endDlg);
+  ui.viewing = true;
+  if (TABBED.matches) setTab("build");
+  else { ui.side = "hood"; renderSide(); }
+  if (document.body.hasAttribute("data-present") && !TABBED.matches && innerWidth >= 1280) setSideOpen(true);
+  renderBuild();
+  document.scrollingElement.scrollTop = 0;
+  focusOn($("[data-back-end]"));
+});
+// A kiosk with no printer can drop the Print button with ?print=off, so a visitor never leaves the print dialog
+// open over the game (BTC-UX-X06). The print styles stay.
+if (arg("print") === "off") $("[data-print]").remove();
 $("[data-again]").addEventListener("click", () => {
+  // A quick second tap after Keep this summary was meant for Keep, never for Play again (BTC-UX-49, repair).
+  if (performance.now() - keptAt < 700) return;
   if (STAFFED) { askStartOver("end"); return; }
   closeDlg(endDlg);
   reset();
@@ -1750,6 +2109,11 @@ function saveResults(ext, type, text, when) {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 30000);
   alertNow(fmt(T().endSaved, { file: name }));
+  // Seen as well as heard: managed browsers often hide their download bar (BTC-UX-48).
+  const line = $("[data-end-saved]", endDlg);
+  line.textContent = fmt(T().endSaved, { file: name });
+  line.hidden = false;
+  pinPad();
 }
 // One header row and one row of values, for a spreadsheet. Every value comes from the game, never from typing; one a
 // spreadsheet could read as a formula would start with an apostrophe. The byte-order mark makes Excel read UTF-8.
@@ -1831,6 +2195,10 @@ $("[data-end-close]")?.addEventListener("click", () => {
 const introDlg = $("[data-intro]");
 const aboutDlg = $("[data-about-dlg]");
 const confirmDlg = $("[data-confirm]");
+// The map stops redrawing while any dialog but the intro covers it (BTC-UX-20). The intro keeps the slow turn behind
+// it; every other dialog is opened and closed in more than one place, so this follows their open attribute.
+const syncHold = () => scene?.hold($$("dialog").some((d) => d.open && d !== introDlg));
+new MutationObserver(syncHold).observe(document.body, { attributes: true, subtree: true, attributeFilter: ["open"] });
 // About opens at its title, not on the first link halfway down (on a small phone that scrolled the title away).
 $("[data-about]").addEventListener("click", () => {
   aboutDlg.showModal();
@@ -1851,12 +2219,17 @@ function beginGame() {
 // Over a game this tab kept, Start a new game asks first (DE-3).
 $("[data-start]").addEventListener("click", () => (savedGame().back ? askStartOver("save") : beginGame()));
 // The intro offers Resume for a game this tab kept, and says so when this build cannot resume one (DE-5).
+let keptDone = false;
 function offerResume() {
   const t = T();
   const { back, bad } = savedGame();
   if (bad) clearSave();
+  // A finished game this tab kept is a summary, not a game in progress (BTC-UX-47).
+  keptDone = !!back?.done.has("turn");
   $("[data-resume]").hidden = !back;
+  $("[data-resume]").textContent = keptDone ? t.resumeShow : t.resume;
   $("[data-resume-note]").hidden = !back;
+  $("[data-resume-note]").textContent = keptDone ? t.resumeDone : t.resumeNote;
   $("[data-resume-fail]").hidden = !bad;
   const startBtn = $("[data-start]");
   startBtn.textContent = back ? t.startNew : t.start;
@@ -1880,17 +2253,22 @@ $("[data-resume]").addEventListener("click", () => {
   if (st.done.has("turn")) { openEnd(); return; }
   reofferCards();
   if (st.focus) focusNext();
-  else $("[data-go]")?.focus({ preventScroll: true });
+  else focusOn($("[data-go]"));
 });
 guard(introDlg, () => $("[data-start]").focus({ preventScroll: true }));
+// The slow turn behind the intro stops at a visitor's first key press or touch there, so nothing moves beside the
+// text they are reading; it starts again for the next visitor (BTC-UX-38, WCAG 2.2.2).
+for (const type of ["keydown", "pointerdown"]) introDlg.addEventListener(type, () => scene?.setAttract(false));
 // One question for every way to clear a game: Start over, Play again in class and home modes, and Start a new game
 // over a kept game (FEU-1, DE-3). Each says what it clears.
 function askStartOver(about = "game") {
   if (confirmDlg.open) return;
   const t = T();
   confirmDlg.dataset.about = about;
-  $("#confirm-body").textContent = about === "end" ? t.confirmEnd : about === "save" ? t.confirmSave : t.confirmBody;
+  $("#confirm-body").textContent = about === "end" ? t.confirmEnd : about === "save" ? (keptDone ? t.confirmSaveDone : t.confirmSave) : t.confirmBody;
   $("[data-confirm-no]").textContent = about === "end" ? t.endKeep : about === "save" ? t.confirmBack : t.confirmNo;
+  // The yes button names what happens next for each question (BTC-UX-54).
+  $("[data-confirm-yes]").textContent = about === "end" ? t.endAgain : about === "save" ? t.startNew : t.confirmYes;
   confirmDlg.showModal();
   $("[data-confirm-no]").focus();
 }
@@ -1914,6 +2292,7 @@ function applyLang() {
     if (typeof v === "string") { node.setAttribute("aria-label", v); if (node.hasAttribute("title")) node.title = v; }
   }
   canvas.setAttribute("aria-label", t.canvasLabel);
+  canvas.setAttribute("aria-roledescription", t.canvasRole);
   document.title = t.pageTitle;
   // The intro's Start and Listen buttons are named by code, and before the game starts the Site log holds only its
   // opening line, so a switch made on the intro reaches them too.
@@ -1985,7 +2364,7 @@ document.addEventListener("keydown", (ev) => {
     if (step) { ev.preventDefault(); nudgePlace(step[0] * (M.LAYOUT_GRID || 10), step[1] * (M.LAYOUT_GRID || 10)); return; }
   }
   if (!prefs.keys) return;
-  if (k === "v") { ev.preventDefault(); setVoice(!voice.on, true); }
+  if (k === "v") { ev.preventDefault(); pressVoice(); }
   else if (k === "n") { ev.preventDefault(); next(); }
   else if (k === "m") { ev.preventDefault(); toggleFx(); }
 });
@@ -2010,17 +2389,22 @@ function reset({ clear = true } = {}) {
   if (confirmDlg.open) confirmDlg.close();
   stopCountdowns();
   st = fresh();
+  dashWas = null;
+  clearDashMarks();
   say(T().log0);
   // The next player starts on the default panels, scrolled to the top.
-  Object.assign(ui, { hot: null, picked: null, side: "hood", hoodSig: null, hoodNew: false, planOpen: false });
+  Object.assign(ui, { hot: null, picked: null, side: "hood", hoodSig: null, hoodNew: false, planOpen: false, viewing: false });
+  document.documentElement.removeAttribute("data-side-open");
+  $("[data-side-toggle]").setAttribute("aria-pressed", "false");
   document.body.removeAttribute("data-plan-open");
-  for (const p of $$(".panel")) p.scrollTop = 0;
+  for (const p of $$(".panel, [data-hood-scroll]")) p.scrollTop = 0;
   toastEl.hidden = true;
   // Each new player starts from this device's settings, whatever the last player pressed (I8). On a kiosk that is
   // the address, for presenter view, Library mode and the shortcut switch too (PA-1).
   Object.assign(prefs, deviceSettings());
   keysBox.checked = prefs.keys;
   renderKeysPref();
+  renderStill();
   setPresent(prefs.present);
   setVoice(deviceVoice());
   renderEffectsBtn();
@@ -2044,6 +2428,8 @@ const idleDlg = $("[data-idle]");
 const idleBody = $(".idle-body", idleDlg);
 const endClear = $("[data-end-clear]");
 const endKeep = $("[data-end-keep]");
+const endCount = $("[data-end-count]");
+let keptAt = -Infinity;
 const alertEl = $("[data-alert]");
 const endAlert = $("[data-alert-end]");
 const idleAlert = $("[data-alert-idle]");
@@ -2072,9 +2458,11 @@ function stopCountdowns() {
   endShown = false;
   endClear.hidden = true;
   endKeep.hidden = true;
+  endCount.hidden = true;
+  $("[data-again]").classList.remove("btn-ghost");
   if (keepHadFocus && endDlg.open) {
     againAt = performance.now();
-    $("[data-again]").focus();
+    $("[data-again]").focus({ preventScroll: true });
   }
 }
 function keepGoing() {
@@ -2087,8 +2475,13 @@ function startEndCountdown() {
   endClear.textContent = countText("endClear", endLeft);
   endClear.hidden = false;
   endKeep.hidden = false;
-  // Focus moves to Keep, so Enter keeps the summary instead of starting over.
-  endKeep.focus();
+  endCount.hidden = false;
+  // While Keep shows, it is the one primary: Play again turns ghost, and Keep sits on the countdown's line above the
+  // other buttons, so nothing slides under the pointer when it goes (BTC-UX-49). Focus moves to Keep without scrolling
+  // the summary away (BTC-UX-61), so Enter keeps the summary instead of starting over.
+  $("[data-again]").classList.add("btn-ghost");
+  pinPad();
+  endKeep.focus({ preventScroll: true });
   alertNow(endClear.textContent);
   endTimer = setInterval(() => {
     endLeft -= 1;
@@ -2114,6 +2507,12 @@ function deferDismiss() {
   addEventListener("click", onClick, { capture: true, once: true });
   dismissTimer = setTimeout(finish, 1200);
 }
+function onIdlePrompt(ev) {
+  if (ev.type === "keydown") return !ev.repeat && ["Tab", "Enter", " "].includes(ev.key) && idleDlg.contains(document.activeElement);
+  if (ev.type !== "pointermove") return false;
+  const r = idleDlg.getBoundingClientRect();
+  return ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom;
+}
 function activity(ev) {
   if (ev.type === "pointermove") {
     // Mouse movement counts, but not a few pixels of jitter.
@@ -2123,6 +2522,15 @@ function activity(ev) {
   }
   lastInput = performance.now();
   if (!prompting()) return;
+  // On the idle prompt itself a visitor is choosing between its two buttons: Tab, Shift+Tab, Enter and Space work as
+  // usual, and the mouse may move over the prompt to Start a new game; either one restarts the countdown instead of
+  // closing the prompt (repair: both closed it before its second button could be reached). Other keys, and movement
+  // elsewhere, still mean Keep playing.
+  if (idleDlg.open && onIdlePrompt(ev)) {
+    idleLeft = 20;
+    idleBody.textContent = countText("idleBody", idleLeft);
+    return;
+  }
   if (ev.type === "keydown") {
     // The key that dismisses a prompt does nothing else.
     ev.preventDefault();
@@ -2140,7 +2548,15 @@ for (const type of ["pointerdown", "pointermove", "keydown", "wheel", "touchstar
 setInterval(() => {
   if (STAFFED || !st.started || introDlg.open || prompting() || dismissing) return;
   const idle = performance.now() - lastInput;
-  if (endDlg.open) { if (idle >= 60000) startEndCountdown(); return; }
+  // A player looking at the finished campus gets the summary back, with its countdown, as if it had stayed open.
+  if (endDlg.open || ui.viewing) {
+    if (idle >= 60000) {
+      // About or the start-over question, opened while looking, would stay open under the summary (repair).
+      if (!endDlg.open) { for (const d of [aboutDlg, confirmDlg]) if (d.open) d.close(); showEnd(); }
+      startEndCountdown();
+    }
+    return;
+  }
   if (idle < (testHooks.idleMs || 150000)) return;
   // The prompt opens over About or the Start-over question, so Keep playing goes back to them where they were;
   // only the reset closes them.
@@ -2156,7 +2572,9 @@ setInterval(() => {
   }, 1000);
 }, 5000);
 $("[data-idle-keep]").addEventListener("click", keepGoing);
-endKeep.addEventListener("click", keepGoing);
+// The next visitor can start fresh from the prompt itself instead of keeping the last player's game (BTC-UX-X04).
+$("[data-idle-new]").addEventListener("click", () => reset());
+endKeep.addEventListener("click", () => { keptAt = performance.now(); keepGoing(); });
 idleDlg.addEventListener("cancel", (ev) => { ev.preventDefault(); keepGoing(); });
 
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
