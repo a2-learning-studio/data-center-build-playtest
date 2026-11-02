@@ -60,6 +60,11 @@ async function inspect(page, label, { present = false, overview = false } = {}) 
         if (!hit || hit === c || c.contains(hit) || hit.contains(c) || (c.tagName === "INPUT" && hit.closest("label")?.contains(c))) continue;
         // A dialog's pinned button row sits over the text that scrolls under it; that is scrolling, not covering.
         if (hit.closest(".intro-btns, .dlg-foot") && !c.closest(".intro-btns, .dlg-foot")) continue;
+        // Changed on purpose (decision NBR, 2026-11-01): beside the panels, the heading of a Neighbors group below the
+        // fold is pinned to the bottom edge of the rows area, over the rows that scroll under it; that is scrolling
+        // too. Only that heading, only over a row of its own rows area; ux-check section 6 keeps a focused row clear of it.
+        const pinned = hit.closest("[data-hood-scroll] .hood-h");
+        if (pinned && getComputedStyle(pinned).position === "sticky" && c.matches(".hood-row") && pinned.closest("[data-hood-scroll]").contains(c)) continue;
         bad.push(name(hit));
       }
       if (bad.length) res.push(`covered: ${name(c)} by ${[...new Set(bad)].join(" / ")}`);

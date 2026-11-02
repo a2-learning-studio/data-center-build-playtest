@@ -969,6 +969,21 @@ $("[data-hood]").addEventListener("focusin", (e) => {
   if (!b) return;
   detailLive(true);
   focusHood(b.dataset.key, false);
+  // Once the browser has scrolled it into view (a task later, not a frame: frames can lag far behind on software
+  // rendering): a row reached from the keyboard is never left under the group heading pinned to the bottom of the
+  // rows area (decision NBR, 2026-11-01). scroll-padding (style.css) is enough for a one-line heading; where the side
+  // panel is narrow the heading wraps onto two lines, taller than that, so the rows scroll up by what is still covered.
+  // A row pressed with the mouse stays where it is, under the pointer.
+  setTimeout(() => {
+    if (document.activeElement !== b || !b.matches(":focus-visible")) return;
+    const sc = $("[data-hood-scroll]");
+    const r = b.getBoundingClientRect();
+    for (const h of $$(".hood-h", sc)) {
+      if (getComputedStyle(h).position !== "sticky") continue;
+      const hr = h.getBoundingClientRect();
+      if (r.bottom > hr.top + 1 && r.top < hr.bottom) sc.scrollTop += r.bottom - hr.top;
+    }
+  }, 0);
 });
 // Hover and focus already show a row by the time a click, Enter or tap lands, so the press keeps it shown, and a
 // second press on the row it picked clears it (AS-2: rebuilding the list used to undo the toggle by accident).

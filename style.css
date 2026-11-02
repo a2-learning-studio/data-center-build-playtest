@@ -515,9 +515,10 @@ html[data-nokeys] .opt kbd{display:none}
      decided 2026-11-01), so "What the community gets and uses" is never hidden without a word at 1366 x 630, 1024 x 768
      or in presenter view. The heading keeps its natural height (4 + 4 + 2 px, as the old 8 + 2 px margins), so no
      size shows fewer rows, and the fact box keeps its one fixed height. scroll-padding keeps a focused row clear of
-     the pinned heading (WCAG 2.4.11). */
+     the pinned heading (WCAG 2.4.11). bottom is -2px, not 0: a sticky box stops at the rows area's 2 px bottom padding,
+     and a sliver of the row behind it showed under the heading. */
   .p-side .hood-scroll{scroll-padding-bottom:2.25rem}
-  .p-side .hood-scroll .hood-h{position:sticky;bottom:0;z-index:1;background:var(--card);margin:4px -6px 0;padding:4px 6px 2px}
+  .p-side .hood-scroll .hood-h{position:sticky;bottom:-2px;z-index:1;background:var(--card);margin:4px -6px 0;padding:4px 6px 2px}
 }
 /* Laptop windows up to 900 px tall, in the side-panel layout (UD-1): the full schedule needs 440 to 490 px, which left
    the map a strip of 76 to 180 px. Here the schedule starts as its total and a row of phase buttons, critical-path
