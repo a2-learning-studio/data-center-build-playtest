@@ -334,7 +334,7 @@ A forest-green and warm-cream palette with one terracotta action color and one a
 - **Pine soft** (`pine-soft`): the done element rows, a pressed lane or hood row, the siting box, and the ghost-button hover.
 
 ### Tertiary
-- **Gold** (`gold`): the version badge, the drag hint for 4.5 s at the first zoom (`hint-new`), and the accent on the 3D campus sign.
+- **Gold** (`gold`): the version badge, the drag hint for 4.5 s at the first zoom (`hint-new`), the accent on the 3D campus sign, and the favicon's roof line (5.54:1 on the pine tile, BTC-UX-58).
 - **Stage gold** (`focus-stage`): the focus ring on the pine bar, on the phone tabs and on the skip link. The same hex is the "Fair" dot on the score tiles.
 
 ### Neutral
@@ -369,8 +369,6 @@ The small square before each Neighbors row names that effect's color on the map:
 - Grays sit close together: `muted` `#5d6b64`, `locked-ink` `#5f6b65` and `disabled-ghost-ink` `#6b756f`.
 - There are three rating palettes: the dots on the bar, the dots on the end screen, and the unused `good`, `warn` and `bad` tokens. The end-screen "Good" is `#2f9e6a`, the tile "Good" is `#5fd39a`, and the siting "fits" is `#1f8a5b`.
 - The swatches do not all match the map. Four of six Neighbors swatches differ in hex from the overlay they name in `scene.js`: trucks `#e19a00` against `#ffb000`, storm `#1d7fc9` against `#1d8fe0`, power `#c04f9f` against `#d65db1`, dust `#b0743c` against `#b88a5a`. Noise, generators and setback match.
-- The favicon's roof stroke is `#e0763c`, an orange that appears nowhere else.
-- The educator sheet has its own palette: ink `#1d1d1b`, muted `#55534e`, rule `#d8d4cc`, accent `#9a3b1b`, panel `#f6f3ee`. It shares no token with the game.
 
 ## Typography
 
@@ -546,7 +544,7 @@ Soft and friendly. Every action is a full pill (999 px); containers use large ra
 Inline SVG only; no icon font, no images.
 - **Map buttons:** a 24 × 24 viewBox, stroked in `currentColor` at 2.4, round caps and joins. Plus, minus, two curved turn arrows, four chevrons, and a presenter screen on a stand (it was four corners, which read as full screen) presenter corners.
 - **Element and lane marks:** a 16 × 16 viewBox. Check and plus are stroked at 2.2. The lock is a filled body with a 1.6 stroked shackle.
-- **Favicon:** a 64 px pine tile with 14 px radius, an orange roof line and a paper building.
+- **Favicon:** a 64 px pine tile with 14 px radius, a gold roof line and a paper building.
 - *Recorded inconsistency:* stroke weights are 2.4, 2.2 and 1.6.
 
 ### 3D map (signature component)
@@ -603,8 +601,8 @@ In Windows contrast themes:
 
 ### Educator sheet (separate page)
 A static Letter page in `system-ui`:
-- Its own palette (see Colors) and a 3 px accent rule under the header.
-- Uppercase accent `h2`s, two columns, boxed notes with a left accent bar, and ruled tables.
+- The game's five values (BTC-UX-59): ink `#163a30` (`pine`), muted `#5d6b64` (`muted`), rule `#dcd7cc` (`line`), accent `#94401f` (`clay-ink`) and panel `#f7f4ee` (`paper`), and a 3 px accent rule under the header.
+- Uppercase accent `h2`s, two columns, boxed notes with a thin full `line` border at 6 px radius (no side stripe, so a black-and-white printer keeps the box), and ruled tables.
 - It prints on one Letter page in Arial, Arimo or Liberation Sans at 8.5 pt.
 
 ## Changes in the October 2026 UI/UX round

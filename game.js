@@ -2257,8 +2257,9 @@ $("[data-resume]").addEventListener("click", () => {
 });
 guard(introDlg, () => $("[data-start]").focus({ preventScroll: true }));
 // The slow turn behind the intro stops at a visitor's first key press or touch there, so nothing moves beside the
-// text they are reading; it starts again for the next visitor (BTC-UX-38, WCAG 2.2.2).
-for (const type of ["keydown", "pointerdown"]) introDlg.addEventListener(type, () => scene?.setAttract(false));
+// text they are reading; it starts again for the next visitor (BTC-UX-38, WCAG 2.2.2), and a wheel over the intro's
+// text stops it too (decided 2026-11-01).
+for (const type of ["keydown", "pointerdown", "wheel"]) introDlg.addEventListener(type, () => scene?.setAttract(false), { passive: true });
 // One question for every way to clear a game: Start over, Play again in class and home modes, and Start a new game
 // over a kept game (FEU-1, DE-3). Each says what it clears.
 function askStartOver(about = "game") {

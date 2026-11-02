@@ -67,13 +67,13 @@ The game shows facts and trade-offs and does not take a side on data centers (re
 - **Decisions, "Your choice" (7)**: Truck route · Truck & work hours · Buffer & berm · Noise wall by the homes · Cooling type · Night lighting · Generator testing. Each has 2 options. A decision is asked when it becomes due (at a phase start, before an element, or before a phase can finish) and locks once that work is done.
 - **Issue cards (9)**, all in the same dialog:
   - 3 scripted cards: Weather, a week of heavy rain (at clearing, 2 options); Long-lead equipment (at the utility capacity study, or before the substation or switchgear is ordered, 3 options); Labor shortage (when the MEP phase starts, 3 options).
-  - 6 setback cards, drawn by chance (p = 0.8) when a phase finishes: heat wave (grading), heavy-haul truck (utilities), concrete samples (foundations), near miss (shell), server racks (fit-out), run one test again (commissioning). Each has 2 options.
+  - 6 chance issue cards, drawn by luck (p = 0.8) when a phase finishes: heat wave (grading), heavy-haul truck (utilities), concrete samples (foundations), near miss (shell), server racks (fit-out), run one test again (commissioning). Each has 2 options.
 - **Answer chips**: Finish ± months, Budget + %, Safety ±, Neighbor relations ± ("counts from grading"), "unchanged", "no points", more power or water use ("once it opens"), permit violation risk.
 - **Dashboard**: 4 tiles. Each shows a value and a rating word (Concern, Watch, Fair, Good or Strong) and has long and short forms. Neighbor relations shows "—" and "Starts at grading" until grading starts.
 - **Neighbors**: "What neighbors notice" has 6 rows: Truck traffic: routes & hours · Noise · Dust & night lighting · Stormwater · Generator testing · Buffer, berms & landscaping. "What the community gets and uses" has 4 rows: Jobs: construction vs operations · Tax revenue · Power demand & grid upgrades · Cooling water use. Each row has a 4-step meter and a word. Below the rows are a fact box ("Your choice: …") and a score breakdown line.
 - **Commissioning track**: levels L1–L5 for 5 pieces of equipment (Switchgear, Backup batteries (UPS), Backup generators, Cooling equipment, Fire protection), plus the substation.
 - **Site log**: the 3 latest lines in the panel. The full log is announced on the status line.
-- **End screen**: 4 result tiles against the plan; the setbacks-drawn line; "What cost the most" (each answer compared with the best other answer); "Your choices"; "Talk it over" (3 questions).
+- **End screen**: 4 result tiles against the plan; the line of chance issue cards drawn; "What cost the most" (each answer compared with the best other answer); "Your choices"; "Talk it over" (3 questions).
 - **About**: credits; privacy; contact; map, keys and modes help; two preference switches; scoring explanation; kiosk setup; system requirements; quality note; 25 glossary terms; 10 sources; narration credit; licences.
 - **Narration**: 73 recorded lines, shown as captions under the toolbar.
 

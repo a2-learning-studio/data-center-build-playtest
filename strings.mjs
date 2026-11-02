@@ -121,7 +121,7 @@ export const STRINGS = {
     glossTitle: "Words to know",
     glossary: [
       ["Data center", "a building full of computers called servers that run websites, apps and AI. They use a lot of electricity and give off heat."],
-      ["CM (construction manager)", "the person or firm that plans and runs the building work for the owner. In this game, that is you. On real projects the owner and its engineers lead the rezoning and the power agreement. The construction manager joins early to plan the schedule, estimate the cost and help order long-lead equipment."],
+      ["Construction manager (CM)", "the person or firm that plans and runs the building work for the owner. In this game, that is you. On real projects the owner and its engineers lead the rezoning and the power agreement. The construction manager joins early to plan the schedule, estimate the cost and help order long-lead equipment."],
       ["Dashboard", "the four scores at the top of the screen: schedule, budget, safety and neighbor relations, each with a rating word."],
       ["Grading", "shaping the ground with earthmovers so it is flat where buildings go and slopes where rain should run. It is phase 2 of the game, right after the permits."],
       ["Rezoning", "a county decision, made after a public hearing, that changes what a piece of land may be used for. A county can approve it, approve it with conditions or deny it."],
@@ -312,7 +312,7 @@ export const STRINGS = {
     endPlanBudget: "Plan: 100%, with {n}% held for surprises",
     endStart: "Started at {n}",
     endStartHood: "Started at {n} when grading began",
-    endLuck: "Setbacks drawn: {n} of {of}. Setback cards are drawn by chance, so compare choices, not only ratings.",
+    endLuck: "Chance issue cards drawn: {n} of {of}. Luck decides which come up, so compare choices, not only ratings.",
     endCostly: "What cost the most",
     endCostlyNote: "Each answer is compared with the best other answer to the same question. One month weighs about the same as 1% of budget, or 5 points of safety or neighbor relations. Answers that were the best on balance are left out.",
     // On screen only, so the printed debrief still fits one page (BTC-UX-X03).
@@ -363,7 +363,7 @@ export const STRINGS = {
       safety: "Safety (of 100)",
       neighbors: "Neighbor relations (of 100)",
       rating: "{name}: rating",
-      setbacks: "Setbacks drawn",
+      setbacks: "Chance issue cards drawn",
       steps: "Steps",
     },
 
