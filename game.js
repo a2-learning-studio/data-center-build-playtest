@@ -1719,6 +1719,15 @@ function renderVoiceBtn() {
   voiceBtn.hidden = !Object.keys(D.VOICE.en || {}).length;
   $("[data-voice-line]").hidden = voiceBtn.hidden;
   $("[data-listen]").hidden = !voice.on || !(D.VOICE.en || {}).intro;
+  // On a plain kiosk the Library mode box did the same as the Voice switch beside it, for one game: only the switch
+  // stays, and its line names both reasons to use it (BTC-UX-27, decided 2026-11-01). ?mode=library, class and home
+  // keep the box: there the address sets it, or the device remembers it.
+  if (MODE === "kiosk") {
+    libBox.closest(".libmode").hidden = true;
+    const sr = $("#intro-sr");
+    sr.dataset.t = "srVoiceKiosk";
+    sr.textContent = t.srVoiceKiosk;
+  }
 }
 function setVoice(on, remember = false) {
   voice.on = on;

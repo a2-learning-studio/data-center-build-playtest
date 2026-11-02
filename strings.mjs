@@ -82,6 +82,7 @@ export const STRINGS = {
     libraryModeKiosk: "Turns the voice off for this game. Every word it says is also written on screen.",
     libraryModeUrl: "Set by the address (?⁠mode=library).",
     srVoice: "Using a screen reader? Turn the recorded voice off, so it does not talk over your reader.",
+    srVoiceKiosk: "Using a screen reader, or want it quiet? Turn the recorded voice off. Every word it says is also written on screen.",
     // BTC-UX-38: a motion switch kiosk visitors can reach.
     stillPref: "Keep the map still",
     stillNote: "Stops the slow turn behind the first screen and the moving fans, trucks and rings, and the view jumps instead of gliding. In class and home modes this device remembers the setting; on a library kiosk it lasts one game. ?⁠motion=off in the address turns it on for every game.",

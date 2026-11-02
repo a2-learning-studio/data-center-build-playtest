@@ -191,6 +191,8 @@ body[data-nogl] .cam,body[data-nogl] .hint,body[data-nogl] [data-fx]{display:non
 .caption{position:absolute;left:calc(var(--pl) + 32px);right:calc(var(--pr) + 32px);top:calc(var(--tools-b, 64px) + 8px);margin:0 auto;max-width:40rem;width:fit-content;background:#163a30e6;color:#fff;font-size:1rem;line-height:1.35;padding:8px 16px;border-radius:14px;z-index:3;text-align:center;box-shadow:var(--shadow);pointer-events:none;max-height:max(calc(1.35em + 16px),calc(var(--cam-t, 999px) - var(--tools-b, 64px) - 16px));overflow:hidden}
 .libmode{display:flex;gap:12px;align-items:flex-start;background:var(--sunken);border-radius:14px;padding:10px 14px;margin:4px 0 8px;cursor:pointer}
 .libmode input{width:22px;height:22px;margin-top:2px;accent-color:var(--pine);flex:none}
+/* The plain kiosk intro leaves the Library mode box out: its Voice switch does the same for one game (BTC-UX-27). */
+.libmode[hidden]{display:none}
 /* For screen-reader users: the voice can be turned off before the narration starts (AS-11). */
 .intro-voice{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;margin:0 0 8px}
 .intro-voice[hidden]{display:none}

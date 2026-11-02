@@ -362,11 +362,24 @@ for (const phase of ["found", "mep"]) {
   await ctx.close();
 }
 
-// 10. Kiosk (PA-1): what one visitor switches (Library mode, presenter view, the shortcut switch) lasts their game.
+// 10. Kiosk (PA-1): what one visitor switches (the voice, presenter view, the shortcut switch) lasts their game.
 // The idle reset, Play again and a reload give the next visitor the device's settings, and nothing is stored.
 {
   const { ctx, p } = await page();
-  await p.click("[data-libmode]");
+  // Added (BTC-UX-27, 2026-11-01): the plain kiosk intro has one voice control, the Voice switch, and its line names
+  // both reasons to use it; ?mode=library and class mode keep the Library mode box.
+  const intro = (pg) => ev(pg, () => ({ box: document.querySelector("[data-libmode]").closest(".libmode").getClientRects().length > 0, voice: document.querySelector("[data-voice-intro]").getClientRects().length > 0, sr: document.getElementById("intro-sr").textContent }));
+  const kiosk = await intro(p);
+  const others = {};
+  for (const q of ["?mode=library", "?mode=class"]) {
+    const { ctx: c, p: pg } = await page({}, q);
+    others[q] = await intro(pg);
+    await c.close();
+  }
+  check("kiosk intro: one voice control, whose line names both reasons; ?mode=library and class mode keep the Library mode box", !kiosk.box && kiosk.voice && /screen reader/.test(kiosk.sr) && /quiet/.test(kiosk.sr) && others["?mode=library"].box && others["?mode=class"].box, JSON.stringify({ kiosk, others }));
+  // Changed on purpose (BTC-UX-27, 2026-11-01): the plain kiosk shows one voice control; the Library mode box is for
+  // ?mode=library, class and home.
+  await p.click("[data-voice-intro]");
   await p.click("[data-start]");
   await p.waitForTimeout(200);
   await p.click('[data-cam-act="present"]');
@@ -374,7 +387,7 @@ for (const phase of ["found", "mep"]) {
   await p.click("[data-keys-pref]");
   await p.click("[data-about-close]");
   const s1 = await settings(p);
-  check("kiosk: a visitor's switches change their game", s1.present && !s1.side && !s1.plan && s1.lib && s1.voice === "false" && !s1.keys && !s1.stored, JSON.stringify(s1));
+  check("kiosk: a visitor's switches change their game", s1.present && !s1.side && !s1.plan && !s1.lib && s1.voice === "false" && !s1.keys && !s1.stored, JSON.stringify(s1));
   await idleReset(p);
   const s2 = await settings(p);
   check("kiosk: the idle reset gives the next visitor the defaults", !s2.present && s2.side > 0 && s2.plan > 0 && !s2.lib && s2.voice === "true" && s2.keys && !s2.stored, JSON.stringify(s2));

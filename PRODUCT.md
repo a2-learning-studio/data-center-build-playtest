@@ -84,7 +84,7 @@ The game shows facts and trade-offs and does not take a side on data centers (re
 - **Low 3D quality**: picked for software rendering, older Intel HD/UHD graphics, entry-level ARM graphics and small machines. `?quality=low|high` overrides the choice.
 - **Attract**: behind the intro, the map turns slowly. It stands still with reduced motion.
 - **Intro variants**:
-  - kiosk;
+  - kiosk: one Voice switch, whose line names both reasons to turn the recorded voice off (a screen reader, or wanting it quiet); no Library mode box, which did the same for one game (BTC-UX-27);
   - `library` (the Library mode box is ticked, locked, and shows "Set by the address");
   - class or home: a mode line, plus Open results file and its error line;
   - a game this tab kept: Resume your game, a ghost Start a new game button, and "This tab kept your game in progress.";
