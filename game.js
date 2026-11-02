@@ -2520,9 +2520,9 @@ function deferDismiss() {
 }
 function onIdlePrompt(ev) {
   if (ev.type === "keydown") return !ev.repeat && ["Tab", "Enter", " "].includes(ev.key) && idleDlg.contains(document.activeElement);
-  if (ev.type !== "pointermove") return false;
-  const r = idleDlg.getBoundingClientRect();
-  return ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom;
+  // Movement anywhere (a mouse arriving from elsewhere, or a wheel) only restarts the count; the prompt stays until a
+  // click, tap or key, so a mouse can reach Start a new game too (BTC-UX-X04, decided 2026-11-01).
+  return ev.type === "pointermove" || ev.type === "wheel";
 }
 function activity(ev) {
   if (ev.type === "pointermove") {
@@ -2534,9 +2534,10 @@ function activity(ev) {
   lastInput = performance.now();
   if (!prompting()) return;
   // On the idle prompt itself a visitor is choosing between its two buttons: Tab, Shift+Tab, Enter and Space work as
-  // usual, and the mouse may move over the prompt to Start a new game; either one restarts the countdown instead of
-  // closing the prompt (repair: both closed it before its second button could be reached). Other keys, and movement
-  // elsewhere, still mean Keep playing.
+  // usual, and the mouse or a wheel may move anywhere, so a mouse from the edge of the screen reaches Start a new game;
+  // each restarts the countdown instead of closing the prompt (repair, and decision IDLE 2026-11-01: movement outside
+  // the prompt closed it, so a mouse never reached its second button). Other keys, and a click or tap anywhere but
+  // the prompt's buttons, still mean Keep playing.
   if (idleDlg.open && onIdlePrompt(ev)) {
     idleLeft = 20;
     idleBody.textContent = countText("idleBody", idleLeft);

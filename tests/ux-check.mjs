@@ -1,7 +1,8 @@
 // UI/UX round checks (October 2026 repair): (BTC-UX-06) a mouse resting on a Neighbors row leaves the fact, its box
 // and the rows still, at a laptop and a projector size; (BTC-UX-49) on a phone, Keep this summary sits on the
 // countdown's line, nothing moves when it goes, and a second tap where it was keeps the summary; (BTC-UX-X04) the
-// idle prompt's Start a new game can be reached by keyboard, and by a mouse already over the prompt; (BTC-UX-09) a
+// idle prompt's Start a new game can be reached by keyboard, by a mouse already over the prompt, and (decision IDLE,
+// 2026-11-01) by a mouse arriving from elsewhere on the screen, since movement only restarts the count; (BTC-UX-09) a
 // short phone has no blank band under the Build panel, and Look at the campus shows the map; (BTC-UX-30) Enter on a
 // locked step says why and keeps focus there; (BTC-UX-06 follow-up, decided 2026-11-01) a Neighbors group below the
 // fold is named at the bottom of the rows area, and a row tabbed to is never left under that heading.
@@ -101,7 +102,8 @@ for (const [w, h] of [[1366, 768], [1920, 1080]]) {
 }
 
 // 3. The idle prompt: Tab reaches Start a new game without closing the prompt, and Enter starts one; a mouse over the
-// prompt does not close it, and a click on Start a new game starts one.
+// prompt does not close it, and a click on Start a new game starts one; a mouse brought in from the edge of the screen
+// does not close it either (decision IDLE, 2026-11-01), so it reaches Start a new game too.
 {
   const { ctx, p, errors } = await page(1366, 768);
   const prompt = async () => {
@@ -129,6 +131,19 @@ for (const [w, h] of [[1366, 768], [1920, 1080]]) {
   await p.waitForTimeout(400);
   const clicked = await state();
   check("idle prompt: a mouse over the prompt keeps it, and Start a new game starts one", over.idle && !clicked.idle && clicked.intro && clicked.placed === 0, JSON.stringify({ over, clicked }));
+  // Added (decision IDLE, 2026-11-01): movement anywhere only restarts the count, so a mouse from the screen's edge
+  // reaches Start a new game.
+  await prompt();
+  await p.mouse.move(5, 5);
+  // Null once the prompt has closed (as it did before this decision): nothing left to reach.
+  const n2 = await rect(p, "[data-idle-new]");
+  if (n2) await p.mouse.move((n2.x + n2.r) / 2, (n2.y + n2.b) / 2, { steps: 8 });
+  await p.waitForTimeout(150);
+  const arrived = await state();
+  if (n2) { await p.mouse.down(); await p.mouse.up(); }
+  await p.waitForTimeout(400);
+  const fresh = await state();
+  check("idle prompt: a mouse arriving from elsewhere reaches Start a new game", !!n2 && arrived.idle && !fresh.idle && fresh.intro && fresh.placed === 0, JSON.stringify({ arrived, fresh }));
   check("idle prompt: no errors", !errors.length, errors.join(" | "));
   await ctx.close();
 }

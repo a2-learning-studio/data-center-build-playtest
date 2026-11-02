@@ -135,16 +135,31 @@ for (const [w, h] of [[390, 844], [820, 1180], [1366, 900]]) {
   await ctx.close();
 }
 
-// 3. Mouse movement counts as activity and dismisses the idle prompt.
+// 3. Mouse movement counts as activity; on the idle prompt it restarts the count.
 {
   const { ctx, p } = await page();
   await ev(p, () => { document.querySelector("[data-start]").click(); window.__dc.upTo("shell"); window.__idleMs = 2000; });
   await p.waitForFunction(() => document.querySelector("[data-idle]").open, null, { timeout: 12000 });
+  // Changed on purpose (decision IDLE, 2026-11-01): a mouse move used to close the prompt, so a mouse could never reach
+  // Start a new game. A move now restarts the count; a click outside its buttons means Keep playing.
+  // The count is let run below 20 first, and every text it shows is recorded, so the check sees the restart itself
+  // whatever the moment of the next one-second tick.
+  await p.waitForFunction(() => !/ 20 seconds/.test(document.querySelector(".idle-body").textContent), null, { timeout: 5000 });
+  await ev(p, () => {
+    const body = document.querySelector(".idle-body");
+    window.__idleTexts = [];
+    new MutationObserver(() => window.__idleTexts.push(body.textContent)).observe(body, { childList: true, characterData: true, subtree: true });
+  });
   await p.mouse.move(400, 300);
   await p.mouse.move(460, 340);
   await p.waitForTimeout(200);
   const placedBefore = await ev(p, () => window.__dc.state().placed.size);
-  check("mouse move dismisses idle", !(await ev(p, () => document.querySelector("[data-idle]").open)));
+  const moved = await ev(p, () => ({ idle: document.querySelector("[data-idle]").open, texts: window.__idleTexts.slice() }));
+  check("mouse move keeps the idle prompt open and restarts its count", moved.idle && moved.texts.some((x) => / 20 seconds/.test(x)), JSON.stringify(moved));
+  await p.mouse.click(200, 150);
+  await p.waitForTimeout(300);
+  const clicked = await ev(p, () => ({ idle: document.querySelector("[data-idle]").open, intro: document.querySelector("[data-intro]").open, placed: window.__dc.state().placed.size }));
+  check("a click outside the prompt's buttons keeps playing", !clicked.idle && !clicked.intro && clicked.placed === placedBefore, JSON.stringify(clicked));
   // hovering keeps the game alive
   await ev(p, () => { window.__idleMs = 6000; });
   for (let i = 0; i < 16; i++) { await p.mouse.move(500 + (i % 2) * 40, 300); await p.waitForTimeout(600); }

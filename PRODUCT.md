@@ -107,7 +107,7 @@ The game shows facts and trade-offs and does not take a side on data centers (re
 - **Toasts**: a locked phase or element, a card about to open, a spot that does not fit, and the lasting "This browser is not saving the game…" (class and home modes, when storage fails). Toasts never take clicks, and a dialog that opens hides them.
 - **Live regions**: the status line (log lines and siting messages); a summary of the scores that changed, 900 ms after they settle; alerts for the zoom tip and the countdowns at their start and at 10 s.
 - **Paused**: the game has no pause control and no running clock. A hidden tab stops the render loop. The kiosk countdowns are the only timers, and a tap or key press stops either of them.
-- **Idle (kiosk)**: after 150 s, "Still building?" counts down from 20 s; Keep playing, or any input, dismisses it. After 60 s on the end screen, "This summary clears in n seconds…" appears with Keep this summary.
+- **Idle (kiosk)**: after 150 s, "Still building?" counts down from 20 s; Keep playing, a click or tap anywhere, or a key dismisses it; mouse movement only restarts its count, so a mouse can reach Start a new game. After 60 s on the end screen, "This summary clears in n seconds…" appears with Keep this summary.
 - **Resumed (class and home)**: the game comes back with "Your game is back where you left it." An unanswered card opens again. A finished game reopens its end screen.
 - **End screen variants**:
   - kiosk: focus starts on Play again, which starts over at once;
