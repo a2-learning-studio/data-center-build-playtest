@@ -211,7 +211,7 @@ export const STRINGS = {
     placeDrag: "Drag or tap to place it · let go where it is green to build it",
     placeDragShort: "Drag or tap to place",
     // After the piece's own hint: placeKeys with a mouse or keyboard, placeTouch on touch screens.
-    placeKeys: "Right-drag or Shift-drag turns the view. Arrow keys nudge the piece: right toward the county road, up toward the homes. The construction exit slides only along the road, with the up and down keys.",
+    placeKeys: "Right-drag or Shift-drag turns the view. Arrow keys nudge the piece the way they point on screen. The construction exit slides only along its road.",
     placeTouch: "One finger moves the piece; two fingers turn the view.",
     placeOk: "This spot fits.",
     placeBadSetback: "That reaches past the setback, too close to the homes on Pecan Street.",

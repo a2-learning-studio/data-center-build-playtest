@@ -1380,6 +1380,18 @@ function nudgePlace(dx, dz) {
   if (!placing) return;
   setPreview(placing.dx + dx, placing.dz + dz);
 }
+// An arrow key nudges the piece the way it points on screen (BTC-UX-40, decided 2026-11-01). The screen direction is
+// turned into ground metres with the camera's turn (screen right is (cos az, -sin az), screen up (-sin az, -cos az);
+// scene.js pan), then snapped to the nearest of the eight 10 m grid steps, never more than 22.5° off. Siting never
+// starts without the 3D map (beginPlace), so the scene is there. The construction exit slides only along its road:
+// it takes the along-road part of the arrow, and an arrow straight across the road does nothing.
+function screenStep(sx, sy) {
+  const az = scene.cam().az;
+  const vx = sx * Math.cos(az) - sy * Math.sin(az), vz = -sx * Math.sin(az) - sy * Math.cos(az);
+  if (M.LAYOUT[placing.id]?.axis === "z") return [0, Math.abs(vz) < 0.2 ? 0 : Math.sign(vz)];
+  const a = Math.round(Math.atan2(vz, vx) / (Math.PI / 4)) * (Math.PI / 4);
+  return [Math.round(Math.cos(a)), Math.round(Math.sin(a))];
+}
 function place(e) {
   const t = T();
   if (st.placed.has(e) || dlg.open) return;
@@ -2380,8 +2392,8 @@ document.addEventListener("keydown", (ev) => {
   // too (EA-1, AS-4, WCAG 2.1.1).
   if (placing && k === "escape") { ev.preventDefault(); endPlace(); renderBuild(); focusNext(); return; }
   if (placing && !ev.shiftKey) {
-    const step = { arrowleft: [-1, 0], arrowright: [1, 0], arrowup: [0, 1], arrowdown: [0, -1] }[k];
-    if (step) { ev.preventDefault(); nudgePlace(step[0] * (M.LAYOUT_GRID || 10), step[1] * (M.LAYOUT_GRID || 10)); return; }
+    const dir = { arrowleft: [-1, 0], arrowright: [1, 0], arrowup: [0, 1], arrowdown: [0, -1] }[k]; // screen x, screen y (up)
+    if (dir) { ev.preventDefault(); const [gx, gz] = screenStep(dir[0], dir[1]); const g = M.LAYOUT_GRID || 10; nudgePlace(gx * g, gz * g); return; }
   }
   if (!prefs.keys) return;
   if (k === "v") { ev.preventDefault(); pressVoice(); }
@@ -2673,6 +2685,8 @@ window.__dc = {
     renderAll(false);
   },
   hot(key) { ui.hot = key; renderSide(); paintScene(false); },
+  // The piece being sited and its offset from the suggested spot (BTC-UX-40 checks).
+  placing: () => placing && { id: placing.id, dx: placing.dx, dz: placing.dz },
   tab: setTab,
   card: openCard,
   view(o) { if (o) scene?.setView(o); else scene?.resetView(); },
