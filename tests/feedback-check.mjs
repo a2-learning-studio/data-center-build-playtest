@@ -194,7 +194,7 @@ const chipTexts = (p) => p.evaluate(() => [...document.querySelectorAll("[data-c
   await p.evaluate(() => { document.querySelector("[data-start]").click(); });
   await p.keyboard.press("n");
   await p.waitForTimeout(200);
-  // Since I11 the first step asks the cooling question (a design decision) before zoning is placed.
+  // If a question opens (cooling comes before Zoning, the third step since BTC-UX-29), answer it.
   if (await p.evaluate(() => document.querySelector("[data-card]").open)) { await p.keyboard.press("1"); await p.waitForTimeout(200); }
   const s = await p.evaluate(() => ({
     nogl: "nogl" in document.body.dataset,

@@ -206,7 +206,8 @@ for (const [w, h] of [[390, 844], [820, 1180], [1366, 900]]) {
   check("N does not start from intro", await ev(p, () => document.querySelector("[data-intro]").open));
   await p.keyboard.press("Enter");
   await p.waitForTimeout(200);
-  // Since I11 the first step asks the cooling question; answer it here so N places an element.
+  // Cooling is set here so N places a step whatever the Site & permits order (Zoning, which asks it, is the third step
+  // since BTC-UX-29).
   await ev(p, () => { window.__dc.state().choice.cool = "a"; window.__dc.render(); });
   const placed0 = await ev(p, () => window.__dc.state().placed.size);
   await p.click("[data-about]");
@@ -550,7 +551,8 @@ for (const [q, want] of [["?mode=Class", "class"], ["?mode=%20HOME%20", "home"],
   const s = () => ev(p, () => ({ cool: window.__dc.state().choice.cool, zoning: window.__dc.state().placed.has("zoning") }));
   await p.keyboard.press("Enter");
   await p.waitForTimeout(200);
-  await p.keyboard.press("n");
+  // Changed on purpose (BTC-UX-29): Zoning is now the third step, so it is clicked rather than reached with N.
+  await p.locator('[data-el="zoning"]').click();
   await p.waitForTimeout(200);
   await p.keyboard.press("1");
   await p.waitForTimeout(300);
@@ -573,19 +575,23 @@ for (const [q, want] of [["?mode=Class", "class"], ["?mode=%20HOME%20", "home"],
   await p.waitForTimeout(200);
   await p.keyboard.press("n");
   await p.waitForTimeout(200);
+  // Changed on purpose (BTC-UX-29): N now places the Stormwater plan, the first Site & permits step, with no question,
+  // so "1" answers nothing. Added: that first N places the Stormwater plan and opens no question.
+  const first = await ev(p, () => ({ stormPlan: window.__dc.state().placed.has("stormPlan"), placed: window.__dc.state().placed.size, card: document.querySelector("[data-card]").open }));
+  check("Site & permits starts with the Stormwater plan: N places it and asks nothing (BTC-UX-29)", first.stormPlan && first.placed === 1 && !first.card, JSON.stringify(first));
   await p.keyboard.press("1");
   await p.waitForTimeout(300);
   await p.click("[data-fx]");
   await ev(p, () => document.querySelector("[data-undo]").click());
   await p.waitForTimeout(150);
-  const fx = await ev(p, () => ({ zoning: window.__dc.state().placed.has("zoning"), ov: window.__dc.state().ov, pressed: document.querySelector("[data-fx]").getAttribute("aria-pressed"), text: document.querySelector("[data-fx]").textContent }));
-  check("undo leaves the map-effects switch and its button as the player set them", !fx.zoning && fx.ov === false && fx.pressed === "false" && /off/.test(fx.text), JSON.stringify(fx));
+  const fx = await ev(p, () => ({ stormPlan: window.__dc.state().placed.has("stormPlan"), ov: window.__dc.state().ov, pressed: document.querySelector("[data-fx]").getAttribute("aria-pressed"), text: document.querySelector("[data-fx]").textContent }));
+  check("undo leaves the map-effects switch and its button as the player set them", !fx.stormPlan && fx.ov === false && fx.pressed === "false" && /off/.test(fx.text), JSON.stringify(fx));
   await ctx.close();
 }
 
 // 17. Class mode with storage that will not save (QL-5): the game says so once. The note is not about a click, so a
-// question that opens over it (the cooling question comes at once) only puts it off: it shows again, for its full
-// time, once no dialog covers it.
+// question that opens over it (the cooling question comes at the third step) only puts it off: it shows again, for
+// its full time, once no dialog covers it.
 {
   const ctx = await b.newContext({ viewport: { width: 1366, height: 768 } });
   await ctx.addInitScript(() => {

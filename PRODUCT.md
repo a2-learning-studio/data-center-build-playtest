@@ -62,7 +62,7 @@ The game shows facts and trade-offs and does not take a side on data centers (re
 
 ### Content inventory
 
-- **Phases (9)**: Site & permits · Erosion control & grading · Utilities · Foundations & pads · Building shell · Mechanical, electrical & plumbing (MEP) · Data hall fit-out · Commissioning · Level 5 · Turnover. The phases have 4, 4, 4, 2, 3, 5, 3, 1 and 2 elements: 28 placeable elements, plus commissioning levels L1–L4, which are flags.
+- **Phases (9)**: Site & permits · Erosion control & grading · Utilities · Foundations & pads · Building shell · Mechanical, electrical & plumbing (MEP) · Data hall fit-out · Commissioning · Level 5 · Turnover. The phases have 4, 4, 4, 2, 3, 5, 3, 1 and 2 elements: 28 placeable elements, plus commissioning levels L1–L4, which are flags. Site & permits runs Stormwater plan, Community meetings, Zoning & site plan approval, Utility capacity study (BTC-UX-29, November 2026): the first step puts stakes on the map with no question, the cooling question comes before Zoning, and the long-lead card after the capacity study.
 - **Elements sited on the map (5)**: Construction exit & access road, Sediment basins, Substation, Building slab, Equipment pads. The player drags or taps the footprint, or nudges it with the arrow keys. A spot that does not fit gives one of 7 reasons.
 - **Decisions, "Your choice" (7)**: Truck route · Truck & work hours · Buffer & berm · Noise wall by the homes · Cooling type · Night lighting · Generator testing. Each has 2 options. A decision is asked when it becomes due (at a phase start, before an element, or before a phase can finish) and locks once that work is done.
 - **Issue cards (9)**, all in the same dialog:
