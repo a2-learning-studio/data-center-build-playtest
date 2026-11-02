@@ -764,8 +764,14 @@ for (const q of ["", "?keys=off"]) {
   const held = await ev(p, () => ({ started: window.__dc.state().started, placed: window.__dc.state().placed.size, intro: document.querySelector("[data-intro]").open }));
   const none = await answers();
   check(`held Enter${q} presses Start once and nothing else`, held.started && !held.intro && held.placed === 0 && none === 0, JSON.stringify({ ...held, answers: none }));
-  await p.keyboard.press("Enter");
-  await p.waitForFunction(() => document.querySelector("[data-card]").open, null, { timeout: 5000 }).catch(() => {});
+  // Changed on purpose (BTC-UX-29, 2026-11-01): the first two Site & permits steps (the Stormwater plan and Community
+  // meetings) ask nothing, so Enter places each of them, focus moves on, and the press on Zoning opens the cooling
+  // question. Each press waits for its own step, as the single press waited for the question before.
+  for (let i = 0; i < 3 && !(await ev(p, () => document.querySelector("[data-card]").open)); i++) {
+    const n = await ev(p, () => window.__dc.state().placed.size);
+    await p.keyboard.press("Enter");
+    await p.waitForFunction((n) => document.querySelector("[data-card]").open || window.__dc.state().placed.size > n, n, { timeout: 5000 }).catch(() => {});
+  }
   const asked = await ev(p, () => document.querySelector("[data-card]").open && document.querySelector(".card-title").textContent);
   await pinned(p, "shownAt", 80, () => p.keyboard.press("Enter"));
   await pinned(p, "shownAt", 80, () => p.keyboard.press(" "));
