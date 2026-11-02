@@ -5,7 +5,8 @@
 // 2026-11-01) by a mouse arriving from elsewhere on the screen, since movement only restarts the count; (BTC-UX-09) a
 // short phone has no blank band under the Build panel, and Look at the campus shows the map; (BTC-UX-30) Enter on a
 // locked step says why and keeps focus there; (BTC-UX-06 follow-up, decided 2026-11-01) a Neighbors group below the
-// fold is named at the bottom of the rows area, and a row tabbed to is never left under that heading.
+// fold is named at the bottom of the rows area, a row tabbed to is never left under that heading, and at rest it hides
+// the name of no row in full view (one open size reported, see section 6).
 // Run: node tests/ux-check.mjs (see drive.mjs for the browser and paths).
 import { launch, watch, openGame } from "./drive.mjs";
 
@@ -191,8 +192,13 @@ for (const [w, h] of [[360, 640], [360, 560]]) {
 // pinned to the bottom edge of the rows area, Tab never leaves a focused row under it, and the fact box keeps its one
 // height. At 1366 x 768 the rows fully in view stay seven, so the pinned heading costs no row. At 1093 x 614 (a laptop
 // window at 125% zoom, a layout-check size) the narrower panel wraps the heading onto two lines, taller than the
-// scroll-padding, so Tab must still leave each row clear of it (NBR follow-up).
-for (const [w, h, present] of [[1366, 630, false], [1024, 768, false], [1366, 768, true], [1366, 768, false], [1093, 614, false]]) {
+// scroll-padding, so Tab must still leave each row clear of it (NBR follow-up). Added after review (2026-11-02): at
+// rest the pinned heading may lie over a row the rows area cuts off, or over the lower edge of a row in full view
+// (1093 x 614: 9 px of Stormwater), but never over the name of a row in full view; and the presenter overlay at
+// 1024 x 768, which no check opened, is measured too. There the heading hides most of the name "Buffer, berms &
+// landscaping" at rest, which is open for the owner: that one size reports it as a NOTE line instead of failing, until
+// the owner either accepts it (then this stays a NOTE) or asks for a fix (then it becomes a check like the others).
+for (const [w, h, present] of [[1366, 630, false], [1024, 768, false], [1366, 768, true], [1366, 768, false], [1093, 614, false], [1024, 768, true]]) {
   const label = `${w}x${h}${present ? " presenter" : ""}`;
   const { ctx, p, errors } = await page(w, h, { query: present ? "?view=presenter" : "" });
   await p.evaluate(() => { document.querySelector("[data-start]").click(); window.__dc.upTo("mep"); });
@@ -207,16 +213,20 @@ for (const [w, h, present] of [[1366, 630, false], [1024, 768, false], [1366, 76
     const rows = [...document.querySelectorAll("[data-hood] .hood-row")].filter((r) => { const b = r.getBoundingClientRect(); return b.top >= area.top - 1 && b.bottom <= area.bottom + 1; });
     const inView = rows.length;
     const under = rows.filter((r) => { const b = r.getBoundingClientRect(); return b.bottom > head.top + 1 && b.top < head.bottom - 1; }).map((r) => r.dataset.key);
+    // A row in full view whose name lies under the heading, and by how many pixels of the name's height.
+    const nameUnder = rows.map((r) => { const n = r.querySelector(".hood-name").getBoundingClientRect(); return [r.dataset.key, Math.min(n.bottom, head.bottom) - Math.max(n.top, head.top), n.height]; }).filter(([, px]) => px > 1).map(([k, px, nh]) => `${k} ${px.toFixed(1)}/${nh.toFixed(1)}px`);
     const f = document.activeElement?.closest?.("[data-hood] .hood-row");
     return {
       area: [Math.round(area.top), Math.round(area.bottom)], head: [Math.round(head.top), Math.round(head.bottom)],
-      inside: head.top >= area.top - 0.5 && head.bottom <= area.bottom + 0.5, seen: !!at?.closest(".hood-h"), inView, under,
+      inside: head.top >= area.top - 0.5 && head.bottom <= area.bottom + 0.5, seen: !!at?.closest(".hood-h"), inView, under, nameUnder,
       box: document.querySelector("[data-hood-detail]").offsetHeight,
       focused: f ? { key: f.dataset.key, bottom: +f.getBoundingClientRect().bottom.toFixed(1), headTop: +head.top.toFixed(1) } : null,
     };
   });
   const s0 = await look();
   check(`${label}: the second Neighbors group's heading is in sight inside the rows area`, s0.inside && s0.seen, JSON.stringify(s0));
+  if (present && w === 1024) console.log(`NOTE ${label}: at rest the pinned heading hides the name of ${s0.nameUnder.join(", ") || "no row in full view"} (open for the owner: review of decision NBR, 2026-11-02)`);
+  else check(`${label}: at rest the pinned heading hides the name of no row in full view`, !s0.nameUnder.length, JSON.stringify(s0));
   await p.locator('[data-hood] [data-key="trucks"]').focus();
   const walk = [];
   for (let i = 0; i < 6; i++) {

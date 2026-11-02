@@ -63,8 +63,15 @@ async function inspect(page, label, { present = false, overview = false } = {}) 
         // Changed on purpose (decision NBR, 2026-11-01): beside the panels, the heading of a Neighbors group below the
         // fold is pinned to the bottom edge of the rows area, over the rows that scroll under it; that is scrolling
         // too. Only that heading, only over a row of its own rows area; ux-check section 6 keeps a focused row clear of it.
+        // Narrowed after review (decision NBR, 2026-11-02): only over a row the rows area already cuts off, or over the
+        // lower edge of a row in full view whose name stays clear of it (1093 x 614: 9 px of Stormwater, measured).
+        // A heading that hides the name of a row in full view is covering.
         const pinned = hit.closest("[data-hood-scroll] .hood-h");
-        if (pinned && getComputedStyle(pinned).position === "sticky" && c.matches(".hood-row") && pinned.closest("[data-hood-scroll]").contains(c)) continue;
+        if (pinned && getComputedStyle(pinned).position === "sticky" && c.matches(".hood-row") && pinned.closest("[data-hood-scroll]").contains(c)) {
+          const area = pinned.closest("[data-hood-scroll]").getBoundingClientRect();
+          if (c.getBoundingClientRect().bottom > area.bottom + 1) continue;
+          if (c.querySelector(".hood-name").getBoundingClientRect().bottom <= pinned.getBoundingClientRect().top + 1) continue;
+        }
         bad.push(name(hit));
       }
       if (bad.length) res.push(`covered: ${name(c)} by ${[...new Set(bad)].join(" / ")}`);

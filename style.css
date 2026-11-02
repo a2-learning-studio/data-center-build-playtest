@@ -513,10 +513,14 @@ html[data-nokeys] .opt kbd{display:none}
   .p-side .side-hood[data-more] .hood-detail{box-shadow:0 -10px 12px -10px #163a3033}
   /* A group of Neighbors rows below the fold is named at the bottom edge of the rows area (BTC-UX-06 follow-up,
      decided 2026-11-01), so "What the community gets and uses" is never hidden without a word at 1366 x 630, 1024 x 768
-     or in presenter view. The heading keeps its natural height (4 + 4 + 2 px, as the old 8 + 2 px margins), so no
-     size shows fewer rows, and the fact box keeps its one fixed height. scroll-padding keeps a focused row clear of
-     the pinned heading (WCAG 2.4.11). bottom is -2px, not 0: a sticky box stops at the rows area's 2 px bottom padding,
-     and a sliver of the row behind it showed under the heading. */
+     or in presenter view. The heading keeps its natural height (4 + 4 + 2 px, as the old 8 + 2 px margins), so the
+     rows do not move and the fact box keeps its one fixed height. Pinned, it covers its own height at the bottom of
+     the rows area. At most sizes that is part of a row the area already cuts off. Where the last whole row ends
+     closer to the edge than that, the heading lies over that row's lower part until the rows are scrolled or tabbed:
+     at 1093 x 614 over 9 px of Stormwater (its name stays clear), and in the presenter overlay at 1024 x 768 over most
+     of "Buffer, berms & landscaping" (open for the owner after review, 2026-11-02; ux-check section 6 measures both).
+     scroll-padding keeps a focused row clear of the pinned heading (WCAG 2.4.11). bottom is -2px, not 0: a sticky box
+     stops at the rows area's 2 px bottom padding, and a sliver of the row behind it showed under the heading. */
   .p-side .hood-scroll{scroll-padding-bottom:2.25rem}
   .p-side .hood-scroll .hood-h{position:sticky;bottom:-2px;z-index:1;background:var(--card);margin:4px -6px 0;padding:4px 6px 2px}
 }
