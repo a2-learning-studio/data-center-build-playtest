@@ -483,7 +483,7 @@ Soft and friendly. Every action is a full pill (999 px); containers use large ra
 
 ### Map buttons
 - **Style** (`.cb`): a 40 px square at 12 px radius, `card-veil` with a 6 px blur, 2 px ink border, and a 20 px stroked icon. 36 px tabbed, 34 px at 360 px, 32 px on landscape phones.
-- **Set:** Zoom in · Zoom out · Turn left · Turn right · Presenter view (a pressed toggle: pine fill, white icon) · Reset view (a map pill). Move left, forward, back and right appear only while zoomed in.
+- **Set:** Zoom in · Zoom out · Turn left · Turn right · Tilt the view (one button that cycles the usual angle, from above and low, BTC-UX-39; its icon is a ground plane with an arrow up out of it) · Presenter view (a pressed toggle: pine fill, white icon) · Reset view (a map pill). Move left, forward, back and right appear only while zoomed in. The row wraps where it must; touch buttons keep their sizes.
 - **Group:** `role="group"` "Map view", with a nested group "Move the view". Every button has an `aria-label` and a `title`. The row wraps, right-aligned, above the schedule.
 
 ### Tabs and segmented controls

@@ -242,6 +242,40 @@ for (const [w, h] of [[375, 812], [834, 1194], [1366, 768], [1920, 1080]]) {
   await ctx.close();
 }
 
+// BTC-UX-39 (decided 2026-11-01, WCAG 2.5.7): one Tilt the view button, right after Turn right, cycles the view from
+// the usual angle to from above, then low, then back; from an angle the player dragged to it goes to the usual angle
+// first. Under reduced motion the view takes the new angle at once.
+for (const reducedMotion of ["no-preference", "reduce"]) {
+  const ctx = await browser.newContext({ viewport: { width: 1366, height: 768 }, reducedMotion });
+  const page = await ctx.newPage();
+  const errors = [];
+  watch(page, errors);
+  await openGame(page);
+  await startGame(page);
+  await settle(page);
+  const tag = `tilt (${reducedMotion})`;
+  const tilt = page.locator('[data-cam-act="tilt"]');
+  const order = await page.evaluate(() => [...document.querySelectorAll("[data-cam] > button")].map((b) => b.dataset.camAct));
+  const named = (await tilt.count()) === 1 && (await tilt.getAttribute("aria-label")) === "Tilt the view" && (await tilt.getAttribute("title")) === "Tilt the view";
+  check(named && order.indexOf("tilt") === order.indexOf("right") + 1, `${tag}: no Tilt the view button right after Turn right ${JSON.stringify(order)}`);
+  // Two animation frames after a press: the scene's frame has run.
+  const frames = () => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  const press = async () => { await tilt.click(); await frames(); return page.evaluate(() => window.__dc.cam()); };
+  if (named) {
+    const home = await page.evaluate(() => window.__dc.cam());
+    const c = [await press(), await press(), await press()];
+    check(Math.abs(home.el - 0.6) <= 0.01 && c[0].el >= 1.15 && c[1].el <= 0.35 && Math.abs(c[2].el - 0.6) <= 0.01 && c.every((x) => x.az === home.az), `${tag}: Tilt the view does not cycle from above, low and back ${JSON.stringify(c.map((x) => +x.el.toFixed(3)))}`);
+    if (reducedMotion === "reduce") check(c.every((x) => Math.abs(x.vel - x.el) < 1e-9), `${tag}: under reduced motion the view does not take the new angle at once ${JSON.stringify(c.map((x) => [x.el, x.vel]))}`);
+    await page.evaluate(() => window.__dc.act("up"));
+    const dragged = await page.evaluate(() => window.__dc.cam().el);
+    const back = await press();
+    check(Math.abs(dragged - 0.6) > 0.05 && Math.abs(back.el - 0.6) <= 0.01, `${tag}: from another angle Tilt the view does not go to the usual angle first (${dragged.toFixed(3)} -> ${back.el.toFixed(3)})`);
+  }
+  check(errors.length === 0, `${tag}: console ${errors.join(" | ")}`);
+  console.log(tag, "checked");
+  await ctx.close();
+}
+
 await browser.close();
 if (fails.length) {
   console.log("FAILS\n" + fails.map((f) => "- " + f).join("\n"));

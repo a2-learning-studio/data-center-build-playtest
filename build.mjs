@@ -220,6 +220,8 @@ const ICONS = {
   out: svg("M5 12h14"),
   left: svg("M5.5 12a6.5 6.5 0 1 0 2-4.7M5 3.5v4.5h4.5"),
   right: svg("M18.5 12a6.5 6.5 0 1 1-2-4.7M19 3.5v4.5h-4.5"),
+  // Tilt the view (BTC-UX-39): a ground plane seen at an angle, with an arrow up out of it.
+  tilt: svg("M4 19l3-6h10l3 6zM12 3v7M9 6l3-3 3 3"),
   panL: svg("M15 5l-7 7 7 7"),
   panR: svg("M9 5l7 7-7 7"),
   panU: svg("M5 15l7-7 7 7"),
@@ -286,7 +288,7 @@ const bodyFor = (offline) => `
   <section class="panel p-plan" data-plan aria-label="${t.schedTitle}" data-t-label="schedTitle"></section>
   <div class="cam" role="group" aria-label="${t.camGroup}" data-t-label="camGroup" data-cam>
     <div class="cam-move" role="group" aria-label="${t.camMove}" data-t-label="camMove" data-cam-move hidden>${camBtn("panL", "camPanL")}${camBtn("panU", "camPanU")}${camBtn("panD", "camPanD")}${camBtn("panR", "camPanR")}</div>
-    ${camBtn("in", "camIn")}${camBtn("out", "camOut")}${camBtn("left", "camLeft")}${camBtn("right", "camRight")}${camBtn("present", "camPresent", ' aria-pressed="false"')}<button type="button" class="pill pill-dark" data-cam-act="reset" data-reset data-t="resetView">${t.resetView}</button>
+    ${camBtn("in", "camIn")}${camBtn("out", "camOut")}${camBtn("left", "camLeft")}${camBtn("right", "camRight")}${camBtn("tilt", "camTilt")}${camBtn("present", "camPresent", ' aria-pressed="false"')}<button type="button" class="pill pill-dark" data-cam-act="reset" data-reset data-t="resetView">${t.resetView}</button>
   </div>
 </main>
 <footer class="foot"><span data-t="credits">${t.credits}</span></footer>

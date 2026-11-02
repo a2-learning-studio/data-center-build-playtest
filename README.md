@@ -29,7 +29,7 @@ Narration recorded in advance with ElevenLabs (Impact Program); the game contact
 
 **Presenter view.** For a projector or a large screen: the four-corner button on the map (or the switch in About, or `?view=presenter` in the address) hides the side panel and the schedule so the map fills the screen, and makes every label at least 16 px. On a tablet held upright it makes the map taller and every label at least 16 px; on a phone it makes the map taller. The Build panel and the scores stay. In class and home modes the device remembers the setting; on a kiosk the button lasts one game, and `?view=presenter` starts every game in it.
 
-**Map controls.** Drag to turn; scroll, pinch or + and − to zoom toward the pointer. Zoomed in, a drag (or Shift + arrow keys) moves the view, and right-drag, Shift-drag or two fingers turn it. The buttons on the map do the same, and Reset view brings the whole site back.
+**Map controls.** Drag to turn; scroll, pinch or + and − to zoom toward the pointer. Zoomed in, a drag (or Shift + arrow keys) moves the view, and right-drag, Shift-drag or two fingers turn it. The buttons on the map do the same; Tilt the view cycles from above, low and back; and Reset view brings the whole site back.
 
 ## Files
 

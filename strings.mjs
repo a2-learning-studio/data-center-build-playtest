@@ -34,6 +34,7 @@ export const STRINGS = {
     camOut: "Zoom out",
     camLeft: "Turn left",
     camRight: "Turn right",
+    camTilt: "Tilt the view",
     camPanL: "Move the view left",
     camPanR: "Move the view right",
     camPanU: "Move the view forward",
