@@ -204,8 +204,9 @@ const axeOk = async (p, label) => {
   await p.evaluate(() => { window.__writes = 0; window.__focus = 0; window.__next = document.querySelector('[data-key="dust"]'); });
   await p.keyboard.press("Tab");
   await p.waitForTimeout(100);
-  const tab = await p.evaluate(() => ({ writes: window.__writes, focus: window.__focus, same: document.activeElement === window.__next, pressed: window.__next.getAttribute("aria-pressed"), text: document.querySelector("[data-hood-detail]").innerText }));
-  check("Tab to the next row: one focus event on that same row, and the fact is written once", tab.writes === 1 && tab.focus === 1 && tab.same && tab.pressed === "true" && /Dust/.test(tab.text), JSON.stringify(tab));
+  const tab = await p.evaluate(() => ({ writes: window.__writes, focus: window.__focus, same: document.activeElement === window.__next, pressed: window.__next.getAttribute("aria-pressed"), shown: window.__next.hasAttribute("data-shown"), text: document.querySelector("[data-hood-detail]").innerText }));
+  // Changed on purpose (BTC-UX-33, 2026-11-01): Tab arrival shows the row's fact but does not press it; Enter, a click or a tap pins it.
+  check("Tab to the next row: one focus event on that same row, and the fact is written once", tab.writes === 1 && tab.focus === 1 && tab.same && tab.pressed === "false" && tab.shown && /Dust/.test(tab.text), JSON.stringify(tab));
   // A press keeps the row that hover or focus showed, and a second press on it clears it (it used to clear at once).
   const shown = () => p.evaluate(() => document.querySelector('[data-hood] [aria-pressed="true"]')?.dataset.key || null);
   await p.keyboard.press("Enter");

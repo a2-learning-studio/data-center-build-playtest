@@ -264,7 +264,8 @@ body[data-side="hood"] .side-hood,body[data-side="choices"] .side-choices{displa
 .hood-score{margin:8px 0 0;font-size:var(--fs-sm);color:var(--muted)}
 .hood-row{width:100%;display:grid;grid-template-columns:1fr auto minmax(4.6rem,auto);gap:8px;align-items:center;text-align:left;background:transparent;border:2px solid transparent;border-radius:12px;padding:5px 8px;min-height:38px;cursor:pointer}
 @media (hover:hover){.hood-row:hover{background:var(--sunken)}}
-.hood-row[aria-pressed="true"]{background:var(--pine-soft);border-color:var(--pine)}
+/* Shown (pointed at, focused or pinned) carries the look; aria-pressed marks only the pinned row (BTC-UX-33). */
+.hood-row[data-shown]{background:var(--pine-soft);border-color:var(--pine)}
 .hood-name{font-weight:600;font-size:.88rem;line-height:1.2;display:flex;gap:6px;align-items:baseline}
 /* A long word wraps onto two lines at most, so the name beside it keeps its room (BTC-UX-V03). */
 .hood-word{font-size:var(--fs-sm);color:var(--muted);text-align:right;line-height:1.15;max-width:6rem}
@@ -508,6 +509,13 @@ html[data-nokeys] .opt kbd{display:none}
   .p-side .hood-scroll{flex:1 1 auto;min-height:7rem;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;margin:0 -6px;padding:0 6px 2px}
   .p-side .hood-detail{flex:none;height:clamp(6.5rem,20dvh,12rem);min-height:0;overflow:auto;align-content:start}
   .p-side .side-hood[data-more] .hood-detail{box-shadow:0 -10px 12px -10px #163a3033}
+  /* A group of Neighbors rows below the fold is named at the bottom edge of the rows area (BTC-UX-06 follow-up,
+     decided 2026-11-01), so "What the community gets and uses" is never hidden without a word at 1366 x 630, 1024 x 768
+     or in presenter view. The heading keeps its natural height (4 + 4 + 2 px, as the old 8 + 2 px margins), so no
+     size shows fewer rows, and the fact box keeps its one fixed height. scroll-padding keeps a focused row clear of
+     the pinned heading (WCAG 2.4.11). */
+  .p-side .hood-scroll{scroll-padding-bottom:2.25rem}
+  .p-side .hood-scroll .hood-h{position:sticky;bottom:0;z-index:1;background:var(--card);margin:4px -6px 0;padding:4px 6px 2px}
 }
 /* Laptop windows up to 900 px tall, in the side-panel layout (UD-1): the full schedule needs 440 to 490 px, which left
    the map a strip of 76 to 180 px. Here the schedule starts as its total and a row of phase buttons, critical-path
@@ -709,7 +717,7 @@ html[data-still] *{transition:none!important}
   .toast,.caption,.tag{border:2px solid CanvasText}
   .tag::after{forced-color-adjust:none;background:CanvasText}
   .kpi[data-changed]{outline:2px solid Highlight;outline-offset:-2px}
-  .hood-row[aria-pressed="true"]{border-color:Highlight}
+  .hood-row[data-shown]{border-color:Highlight}
   .lane{position:relative}
   .lane[aria-pressed="true"]::after{content:"";position:absolute;inset:0;border:2px solid Highlight;border-radius:inherit;pointer-events:none}
   .meter i{background:Canvas;border:1px solid CanvasText}

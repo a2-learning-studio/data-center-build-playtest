@@ -825,7 +825,7 @@ function renderSide() {
     const level = L[key] ?? 0;
     const planned = (key === "water" || key === "power") && started("util") && !ops;
     const word = key === "jobs" ? t.hood.jobsNow[jobsKey()] : planned ? t.hood.planned : kind === "amount" ? t.hood.amounts[level] : t.hood.levels[level];
-    return `<li><button type="button" class="hood-row" data-key="${key}" data-kind="${kind}" aria-pressed="${ui.hot === key}"><span class="hood-name">${esc(t.hood[key].name)}</span><span class="meter" aria-hidden="true">${[1, 2, 3, 4].map((n) => `<i${n <= level ? " data-on" : ""}></i>`).join("")}</span><span class="hood-word">${esc(word)}</span></button></li>`;
+    return `<li><button type="button" class="hood-row" data-key="${key}" data-kind="${kind}" aria-pressed="${ui.picked === key}"${ui.hot === key ? " data-shown" : ""}><span class="hood-name">${esc(t.hood[key].name)}</span><span class="meter" aria-hidden="true">${[1, 2, 3, 4].map((n) => `<i${n <= level ? " data-on" : ""}></i>`).join("")}</span><span class="hood-word">${esc(word)}</span></button></li>`;
   };
   const notice = ["trucks", "noise", "dust", "storm", "gens", "setback"];
   const community = ["jobs", "tax", "power", "water"];
@@ -915,12 +915,21 @@ function focusHood(key, toggle, press = false) {
   if (!key) return;
   showHood(toggle ? (ui.hot === key ? null : key) : key, press);
 }
+// A row is shown (its fact in the box, its effect on the map) while pointed at, focused or pinned; it is pressed only
+// once the player pinned it with a click, Enter or a tap, so a screen reader no longer hears "pressed" on Tab arrival
+// (BTC-UX-33, decided 2026-11-01).
+function markRows() {
+  for (const b of $$("[data-hood] [data-key]")) {
+    b.toggleAttribute("data-shown", b.dataset.key === ui.hot);
+    b.setAttribute("aria-pressed", b.dataset.key === ui.picked);
+  }
+}
 function showHood(key, press = false) {
   if (key === ui.hot && !press) return;
   ui.hot = key;
   // The rows change in place: rebuilding the list moved focus to a new copy of the row, so a screen reader
   // announced each Tab twice (AS-2).
-  for (const b of $$("[data-hood] [data-key]")) b.setAttribute("aria-pressed", b.dataset.key === ui.hot);
+  markRows();
   renderHoodDetail();
   paintScene(false);
   const spot = HOT_SPOT[ui.hot];
@@ -969,6 +978,7 @@ $("[data-hood]").addEventListener("click", (e) => {
   detailLive(true);
   focusHood(b.dataset.key, ui.picked === b.dataset.key, true);
   ui.picked = ui.hot;
+  markRows();
   // On the phone Neighbors tab the fact sits under the list, out of sight after a press on a lower row (BTC-UX-06).
   if (TABBED.matches && ui.hot) $("[data-hood-detail]").scrollIntoView({ block: "nearest" });
 });

@@ -3,7 +3,8 @@
 // countdown's line, nothing moves when it goes, and a second tap where it was keeps the summary; (BTC-UX-X04) the
 // idle prompt's Start a new game can be reached by keyboard, and by a mouse already over the prompt; (BTC-UX-09) a
 // short phone has no blank band under the Build panel, and Look at the campus shows the map; (BTC-UX-30) Enter on a
-// locked step says why and keeps focus there.
+// locked step says why and keeps focus there; (BTC-UX-06 follow-up, decided 2026-11-01) a Neighbors group below the
+// fold is named at the bottom of the rows area, and a row tabbed to is never left under that heading.
 // Run: node tests/ux-check.mjs (see drive.mjs for the browser and paths).
 import { launch, watch, openGame } from "./drive.mjs";
 
@@ -61,7 +62,8 @@ for (const [w, h] of [[1366, 768], [1920, 1080]]) {
       window.__heights = new Set([document.querySelector("[data-hood-detail]").offsetHeight]);
       window.__obs = new MutationObserver(() => { window.__writes++; window.__heights.add(document.querySelector("[data-hood-detail]").offsetHeight); });
       window.__obs.observe(document.querySelector("[data-hood-detail]"), { childList: true, subtree: true, characterData: true });
-      return document.querySelector('[data-hood] [aria-pressed="true"]')?.dataset.key || null;
+      // A hovered row is shown, not pressed (BTC-UX-33, 2026-11-01).
+      return document.querySelector('[data-hood] [aria-pressed="true"]') ? "pressed" : document.querySelector("[data-hood] [data-shown]")?.dataset.key || null;
     });
     await p.waitForTimeout(2500);
     const s = await p.evaluate((at) => {
@@ -167,6 +169,47 @@ for (const [w, h] of [[360, 640], [360, 560]]) {
   const s = await p.evaluate(() => ({ focus: document.activeElement?.dataset?.el || document.activeElement?.tagName, toast: !document.querySelector("[data-toast]").hidden }));
   check("Enter on a locked step says why and keeps focus on it", !!key && s.focus === key && s.toast, JSON.stringify({ key, ...s }));
   check("locked step: no errors", !errors.length, errors.join(" | "));
+  await ctx.close();
+}
+
+// 6. A Neighbors group below the fold is named (BTC-UX-06 follow-up, decided 2026-11-01): the second group's heading is
+// pinned to the bottom edge of the rows area, Tab never leaves a focused row under it, and the fact box keeps its one
+// height. At 1366 x 768 the rows fully in view stay seven, so the pinned heading costs no row.
+for (const [w, h, present] of [[1366, 630, false], [1024, 768, false], [1366, 768, true], [1366, 768, false]]) {
+  const label = `${w}x${h}${present ? " presenter" : ""}`;
+  const { ctx, p, errors } = await page(w, h, { query: present ? "?view=presenter" : "" });
+  await p.evaluate(() => { document.querySelector("[data-start]").click(); window.__dc.upTo("mep"); });
+  if (present) await p.locator("[data-side-toggle]").click();
+  await p.waitForTimeout(400);
+  await p.evaluate(() => { document.querySelector("[data-hood-scroll]").scrollTop = 0; });
+  await p.waitForTimeout(150);
+  const look = () => p.evaluate(() => {
+    const area = document.querySelector("[data-hood-scroll]").getBoundingClientRect();
+    const head = document.querySelectorAll("[data-hood] .hood-h")[1].getBoundingClientRect();
+    const at = document.elementFromPoint((head.left + head.right) / 2, (head.top + head.bottom) / 2);
+    const inView = [...document.querySelectorAll("[data-hood] .hood-row")].filter((r) => { const b = r.getBoundingClientRect(); return b.top >= area.top - 1 && b.bottom <= area.bottom + 1; }).length;
+    const f = document.activeElement?.closest?.("[data-hood] .hood-row");
+    return {
+      area: [Math.round(area.top), Math.round(area.bottom)], head: [Math.round(head.top), Math.round(head.bottom)],
+      inside: head.top >= area.top - 0.5 && head.bottom <= area.bottom + 0.5, seen: !!at?.closest(".hood-h"), inView,
+      box: document.querySelector("[data-hood-detail]").offsetHeight,
+      focused: f ? { key: f.dataset.key, bottom: +f.getBoundingClientRect().bottom.toFixed(1), headTop: +head.top.toFixed(1) } : null,
+    };
+  });
+  const s0 = await look();
+  check(`${label}: the second Neighbors group's heading is in sight inside the rows area`, s0.inside && s0.seen, JSON.stringify(s0));
+  await p.locator('[data-hood] [data-key="trucks"]').focus();
+  const walk = [];
+  for (let i = 0; i < 6; i++) {
+    if (i) await p.keyboard.press("Tab");
+    await p.waitForTimeout(150);
+    walk.push((await look()).focused);
+  }
+  check(`${label}: Tab through the six notice rows leaves each focused row clear of that heading`, walk.map((f) => f?.key).join() === "trucks,noise,dust,storm,gens,setback" && walk.every((f) => f.bottom <= f.headTop + 1), JSON.stringify(walk));
+  const s1 = await look();
+  check(`${label}: the fact box keeps its one height`, s0.box > 0 && s1.box === s0.box, JSON.stringify([s0.box, s1.box]));
+  if (!present && w === 1366 && h === 768) check(`${label}: seven rows are still fully in view`, s0.inView === 7, String(s0.inView));
+  check(`${label} pinned heading: no errors`, !errors.length, errors.join(" | "));
   await ctx.close();
 }
 
