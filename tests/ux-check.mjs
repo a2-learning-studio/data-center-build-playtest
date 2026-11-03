@@ -6,7 +6,8 @@
 // short phone has no blank band under the Build panel, and Look at the campus shows the map; (BTC-UX-30) Enter on a
 // locked step says why and keeps focus there; (BTC-UX-06 follow-up, decided 2026-11-01) a Neighbors group below the
 // fold is named at the bottom of the rows area, a row tabbed to is never left under that heading, and at rest it hides
-// the name of no row in full view (one open size reported, see section 6).
+// the name of no row in full view; in the presenter overlay under 1280 px it stays in the flow instead (decision
+// NBR-P, 2026-11-02, see section 6).
 // Run: node tests/ux-check.mjs (see drive.mjs for the browser and paths).
 import { launch, watch, openGame } from "./drive.mjs";
 
@@ -195,11 +196,16 @@ for (const [w, h] of [[360, 640], [360, 560]]) {
 // scroll-padding, so Tab must still leave each row clear of it (NBR follow-up). Added after review (2026-11-02): at
 // rest the pinned heading may lie over a row the rows area cuts off, or over the lower edge of a row in full view
 // (1093 x 614: 9 px of Stormwater), but never over the name of a row in full view; and the presenter overlay at
-// 1024 x 768, which no check opened, is measured too. There the heading hides most of the name "Buffer, berms &
-// landscaping" at rest, which is open for the owner: that one size reports it as a NOTE line instead of failing, until
-// the owner either accepts it (then this stays a NOTE) or asks for a fix (then it becomes a check like the others).
+// 1024 x 768, which no check opened, is measured too. There the pinned heading hid most of the name "Buffer, berms &
+// landscaping" at rest. Decision NBR-P (2026-11-02): in presenter view, where the opened panel lies over the map (under
+// 1280 px), the heading is not pinned. It stays in the flow as before NBR, so it can never cover a row's name on a
+// projector, and the shadow over the fact box still says more rows wait below. So for that overlay case the
+// pinned-heading-in-sight check is dropped, the heading must be in the flow with the shadow on, and the NOTE line it
+// printed became a check: at rest, nothing hides any part of the name of a row in full view. Everywhere else NBR stays
+// as built; at 1093 x 614 the 9 px over Stormwater, its name readable, is accepted.
 for (const [w, h, present] of [[1366, 630, false], [1024, 768, false], [1366, 768, true], [1366, 768, false], [1093, 614, false], [1024, 768, true]]) {
   const label = `${w}x${h}${present ? " presenter" : ""}`;
+  const overlay = present && w < 1280; // NBR-P: the presenter overlay, where the heading stays in the flow
   const { ctx, p, errors } = await page(w, h, { query: present ? "?view=presenter" : "" });
   await p.evaluate(() => { document.querySelector("[data-start]").click(); window.__dc.upTo("mep"); });
   if (present) await p.locator("[data-side-toggle]").click();
@@ -215,18 +221,34 @@ for (const [w, h, present] of [[1366, 630, false], [1024, 768, false], [1366, 76
     const under = rows.filter((r) => { const b = r.getBoundingClientRect(); return b.bottom > head.top + 1 && b.top < head.bottom - 1; }).map((r) => r.dataset.key);
     // A row in full view whose name lies under the heading, and by how many pixels of the name's height.
     const nameUnder = rows.map((r) => { const n = r.querySelector(".hood-name").getBoundingClientRect(); return [r.dataset.key, Math.min(n.bottom, head.bottom) - Math.max(n.top, head.top), n.height]; }).filter(([, px]) => px > 1).map(([k, px, nh]) => `${k} ${px.toFixed(1)}/${nh.toFixed(1)}px`);
+    // NBR-P: a row in full view whose name is covered by anything at all, by hit-testing nine points over the name's
+    // own text (the heading, or anything else that takes the pointer there, counts).
+    const nameHidden = rows.filter((r) => {
+      const rg = document.createRange();
+      rg.selectNodeContents(r.querySelector(".hood-name"));
+      const t = rg.getBoundingClientRect();
+      return [0.2, 0.5, 0.8].some((fx) => [0.25, 0.5, 0.75].some((fy) => !r.contains(document.elementFromPoint(t.left + fx * t.width, t.top + fy * t.height))));
+    }).map((r) => r.dataset.key);
     const f = document.activeElement?.closest?.("[data-hood] .hood-row");
+    const h2 = document.querySelectorAll("[data-hood] .hood-h")[1];
     return {
       area: [Math.round(area.top), Math.round(area.bottom)], head: [Math.round(head.top), Math.round(head.bottom)],
-      inside: head.top >= area.top - 0.5 && head.bottom <= area.bottom + 0.5, seen: !!at?.closest(".hood-h"), inView, under, nameUnder,
+      inside: head.top >= area.top - 0.5 && head.bottom <= area.bottom + 0.5, seen: !!at?.closest(".hood-h"), inView, under, nameUnder, nameHidden,
+      pos: getComputedStyle(h2).position,
+      more: document.querySelector(".side-hood").hasAttribute("data-more") && getComputedStyle(document.querySelector("[data-hood-detail]")).boxShadow !== "none",
       box: document.querySelector("[data-hood-detail]").offsetHeight,
       focused: f ? { key: f.dataset.key, bottom: +f.getBoundingClientRect().bottom.toFixed(1), headTop: +head.top.toFixed(1) } : null,
     };
   });
   const s0 = await look();
-  check(`${label}: the second Neighbors group's heading is in sight inside the rows area`, s0.inside && s0.seen, JSON.stringify(s0));
-  if (present && w === 1024) console.log(`NOTE ${label}: at rest the pinned heading hides the name of ${s0.nameUnder.join(", ") || "no row in full view"} (open for the owner: review of decision NBR, 2026-11-02)`);
-  else check(`${label}: at rest the pinned heading hides the name of no row in full view`, !s0.nameUnder.length, JSON.stringify(s0));
+  if (overlay) {
+    // NBR-P: no pinned heading in the presenter overlay, so no in-sight check for it here; the NOTE line is now a check.
+    check(`${label}: the second group's heading stays in the flow, not pinned, and the shadow says more rows wait below (NBR-P)`, s0.pos === "static" && s0.more, JSON.stringify(s0));
+    check(`${label}: at rest no part of the name of a row in full view is hidden (NBR-P)`, s0.inView > 0 && !s0.nameUnder.length && !s0.nameHidden.length, JSON.stringify(s0));
+  } else {
+    check(`${label}: the second Neighbors group's heading is in sight inside the rows area`, s0.inside && s0.seen, JSON.stringify(s0));
+    check(`${label}: at rest the pinned heading hides the name of no row in full view`, !s0.nameUnder.length, JSON.stringify(s0));
+  }
   await p.locator('[data-hood] [data-key="trucks"]').focus();
   const walk = [];
   for (let i = 0; i < 6; i++) {

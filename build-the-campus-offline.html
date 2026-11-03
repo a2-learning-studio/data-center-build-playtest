@@ -517,12 +517,20 @@ html[data-nokeys] .opt kbd{display:none}
      rows do not move and the fact box keeps its one fixed height. Pinned, it covers its own height at the bottom of
      the rows area. At most sizes that is part of a row the area already cuts off. Where the last whole row ends
      closer to the edge than that, the heading lies over that row's lower part until the rows are scrolled or tabbed:
-     at 1093 x 614 over 9 px of Stormwater (its name stays clear), and in the presenter overlay at 1024 x 768 over most
-     of "Buffer, berms & landscaping" (open for the owner after review, 2026-11-02; ux-check section 6 measures both).
+     at 1093 x 614 over 9 px of Stormwater (its name stays clear, accepted 2026-11-02). The presenter overlay is the
+     exception below (NBR-P). ux-check section 6 measures both.
      scroll-padding keeps a focused row clear of the pinned heading (WCAG 2.4.11). bottom is -2px, not 0: a sticky box
      stops at the rows area's 2 px bottom padding, and a sliver of the row behind it showed under the heading. */
   .p-side .hood-scroll{scroll-padding-bottom:2.25rem}
   .p-side .hood-scroll .hood-h{position:sticky;bottom:-2px;z-index:1;background:var(--card);margin:4px -6px 0;padding:4px 6px 2px}
+}
+/* Decision NBR-P (2026-11-02): in presenter view, where the opened panel lies over the map (under 1280 px, the media
+   query of the overlay above), the group heading is not pinned. It stays in the flow as before NBR, so on a projector
+   it can never cover a row's name (pinned at 1024 x 768 it hid most of "Buffer, berms & landscaping"); the fact box's
+   pinned-footer shadow still says more rows wait below. game.js leaves a heading that is not sticky alone. */
+@media (min-width:1101px) and (max-width:1279px), (min-width:1024px) and (max-width:1279px) and (orientation:landscape) and (min-height:601px){
+  html[data-present][data-side-open] .p-side .hood-scroll{scroll-padding-bottom:0}
+  html[data-present][data-side-open] .p-side .hood-scroll .hood-h{position:static;z-index:auto;background:none;margin:8px 0 2px;padding:0}
 }
 /* Laptop windows up to 900 px tall, in the side-panel layout (UD-1): the full schedule needs 440 to 490 px, which left
    the map a strip of 76 to 180 px. Here the schedule starts as its total and a row of phase buttons, critical-path
