@@ -62,18 +62,18 @@ The game shows facts and trade-offs and does not take a side on data centers (re
 
 ### Content inventory
 
-- **Phases (9)**: Site & permits · Erosion control & grading · Utilities · Foundations & pads · Building shell · Mechanical, electrical & plumbing (MEP) · Data hall fit-out · Commissioning · Level 5 · Turnover. The phases have 4, 4, 4, 2, 3, 5, 3, 1 and 2 elements: 28 placeable elements, plus commissioning levels L1–L4, which are flags.
-- **Elements sited on the map (5)**: Construction exit & access road, Sediment basins, Substation, Building slab, Equipment pads. The player drags or taps the footprint, or nudges it with the arrow keys. A spot that does not fit gives one of 7 reasons.
+- **Phases (9)**: Site & permits · Erosion control & grading · Utilities · Foundations & pads · Building shell · Mechanical, electrical & plumbing (MEP) · Data hall fit-out · Commissioning · Level 5 · Turnover. The phases have 4, 4, 4, 2, 3, 5, 3, 1 and 2 elements: 28 placeable elements, plus commissioning levels L1–L4, which are flags. Site & permits runs Stormwater plan, Community meetings, Zoning & site plan approval, Utility capacity study (BTC-UX-29, November 2026): the first step puts stakes on the map with no question, the cooling question comes before Zoning, and the long-lead card after the capacity study.
+- **Elements sited on the map (5)**: Construction exit & access road, Sediment basins, Substation, Building slab, Equipment pads. The player drags or taps the footprint, or nudges it with the arrow keys, which move it the way they point on screen at any turn of the view (the nearest of the eight 10 m grid steps; the construction exit slides only along its road, BTC-UX-40). A spot that does not fit gives one of 7 reasons.
 - **Decisions, "Your choice" (7)**: Truck route · Truck & work hours · Buffer & berm · Noise wall by the homes · Cooling type · Night lighting · Generator testing. Each has 2 options. A decision is asked when it becomes due (at a phase start, before an element, or before a phase can finish) and locks once that work is done.
 - **Issue cards (9)**, all in the same dialog:
   - 3 scripted cards: Weather, a week of heavy rain (at clearing, 2 options); Long-lead equipment (at the utility capacity study, or before the substation or switchgear is ordered, 3 options); Labor shortage (when the MEP phase starts, 3 options).
-  - 6 setback cards, drawn by chance (p = 0.8) when a phase finishes: heat wave (grading), heavy-haul truck (utilities), concrete samples (foundations), near miss (shell), server racks (fit-out), run one test again (commissioning). Each has 2 options.
+  - 6 chance issue cards, drawn by luck (p = 0.8) when a phase finishes: heat wave (grading), heavy-haul truck (utilities), concrete samples (foundations), near miss (shell), server racks (fit-out), run one test again (commissioning). Each has 2 options.
 - **Answer chips**: Finish ± months, Budget + %, Safety ±, Neighbor relations ± ("counts from grading"), "unchanged", "no points", more power or water use ("once it opens"), permit violation risk.
 - **Dashboard**: 4 tiles. Each shows a value and a rating word (Concern, Watch, Fair, Good or Strong) and has long and short forms. Neighbor relations shows "—" and "Starts at grading" until grading starts.
 - **Neighbors**: "What neighbors notice" has 6 rows: Truck traffic: routes & hours · Noise · Dust & night lighting · Stormwater · Generator testing · Buffer, berms & landscaping. "What the community gets and uses" has 4 rows: Jobs: construction vs operations · Tax revenue · Power demand & grid upgrades · Cooling water use. Each row has a 4-step meter and a word. Below the rows are a fact box ("Your choice: …") and a score breakdown line.
 - **Commissioning track**: levels L1–L5 for 5 pieces of equipment (Switchgear, Backup batteries (UPS), Backup generators, Cooling equipment, Fire protection), plus the substation.
 - **Site log**: the 3 latest lines in the panel. The full log is announced on the status line.
-- **End screen**: 4 result tiles against the plan; the setbacks-drawn line; "What cost the most" (each answer compared with the best other answer); "Your choices"; "Talk it over" (3 questions).
+- **End screen**: 4 result tiles against the plan; the line of chance issue cards drawn; "What cost the most" (each answer compared with the best other answer); "Your choices"; "Talk it over" (3 questions).
 - **About**: credits; privacy; contact; map, keys and modes help; two preference switches; scoring explanation; kiosk setup; system requirements; quality note; 25 glossary terms; 10 sources; narration credit; licences.
 - **Narration**: 73 recorded lines, shown as captions under the toolbar.
 
@@ -84,7 +84,7 @@ The game shows facts and trade-offs and does not take a side on data centers (re
 - **Low 3D quality**: picked for software rendering, older Intel HD/UHD graphics, entry-level ARM graphics and small machines. `?quality=low|high` overrides the choice.
 - **Attract**: behind the intro, the map turns slowly. It stands still with reduced motion.
 - **Intro variants**:
-  - kiosk;
+  - kiosk: one Voice switch, whose line names both reasons to turn the recorded voice off (a screen reader, or wanting it quiet); no Library mode box, which did the same for one game (BTC-UX-27);
   - `library` (the Library mode box is ticked, locked, and shows "Set by the address");
   - class or home: a mode line, plus Open results file and its error line;
   - a game this tab kept: Resume your game, a ghost Start a new game button, and "This tab kept your game in progress.";
@@ -107,7 +107,7 @@ The game shows facts and trade-offs and does not take a side on data centers (re
 - **Toasts**: a locked phase or element, a card about to open, a spot that does not fit, and the lasting "This browser is not saving the game…" (class and home modes, when storage fails). Toasts never take clicks, and a dialog that opens hides them.
 - **Live regions**: the status line (log lines and siting messages); a summary of the scores that changed, 900 ms after they settle; alerts for the zoom tip and the countdowns at their start and at 10 s.
 - **Paused**: the game has no pause control and no running clock. A hidden tab stops the render loop. The kiosk countdowns are the only timers, and a tap or key press stops either of them.
-- **Idle (kiosk)**: after 150 s, "Still building?" counts down from 20 s; Keep playing, or any input, dismisses it. After 60 s on the end screen, "This summary clears in n seconds…" appears with Keep this summary.
+- **Idle (kiosk)**: after 150 s, "Still building?" counts down from 20 s; Keep playing, a click or tap anywhere, or a key dismisses it; mouse movement only restarts its count, so a mouse can reach Start a new game. After 60 s on the end screen, "This summary clears in n seconds…" appears with Keep this summary.
 - **Resumed (class and home)**: the game comes back with "Your game is back where you left it." An unanswered card opens again. A finished game reopens its end screen.
 - **End screen variants**:
   - kiosk: focus starts on Play again, which starts over at once;

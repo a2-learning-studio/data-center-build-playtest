@@ -1279,6 +1279,9 @@ function createScene(canvas, { reduced = () => false, signs = null, onMode = nul
       case "right": turn(-0.2, 0); break;
       case "up": turn(0, 0.08); break;
       case "down": turn(0, -0.08); break;
+      // One button for the view angle (BTC-UX-39, WCAG 2.5.7): the usual angle, from above, low, then back. From an angle
+      // the player dragged to, it goes to the usual angle first.
+      case "tilt": { const P = [HOME.el, 1.2, 0.32]; const i = P.findIndex((v) => Math.abs(v - want.el) < 0.05); turn(0, P[(i + 1) % P.length] - want.el); break; }
       case "panL": if (isZoomed()) pan(stepX(), 0); break;
       case "panR": if (isZoomed()) pan(-stepX(), 0); break;
       case "panU": if (isZoomed()) pan(0, stepY()); break;

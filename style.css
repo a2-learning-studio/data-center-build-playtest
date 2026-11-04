@@ -191,6 +191,8 @@ body[data-nogl] .cam,body[data-nogl] .hint,body[data-nogl] [data-fx]{display:non
 .caption{position:absolute;left:calc(var(--pl) + 32px);right:calc(var(--pr) + 32px);top:calc(var(--tools-b, 64px) + 8px);margin:0 auto;max-width:40rem;width:fit-content;background:#163a30e6;color:#fff;font-size:1rem;line-height:1.35;padding:8px 16px;border-radius:14px;z-index:3;text-align:center;box-shadow:var(--shadow);pointer-events:none;max-height:max(calc(1.35em + 16px),calc(var(--cam-t, 999px) - var(--tools-b, 64px) - 16px));overflow:hidden}
 .libmode{display:flex;gap:12px;align-items:flex-start;background:var(--sunken);border-radius:14px;padding:10px 14px;margin:4px 0 8px;cursor:pointer}
 .libmode input{width:22px;height:22px;margin-top:2px;accent-color:var(--pine);flex:none}
+/* The plain kiosk intro leaves the Library mode box out: its Voice switch does the same for one game (BTC-UX-27). */
+.libmode[hidden]{display:none}
 /* For screen-reader users: the voice can be turned off before the narration starts (AS-11). */
 .intro-voice{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;margin:0 0 8px}
 .intro-voice[hidden]{display:none}
@@ -264,7 +266,8 @@ body[data-side="hood"] .side-hood,body[data-side="choices"] .side-choices{displa
 .hood-score{margin:8px 0 0;font-size:var(--fs-sm);color:var(--muted)}
 .hood-row{width:100%;display:grid;grid-template-columns:1fr auto minmax(4.6rem,auto);gap:8px;align-items:center;text-align:left;background:transparent;border:2px solid transparent;border-radius:12px;padding:5px 8px;min-height:38px;cursor:pointer}
 @media (hover:hover){.hood-row:hover{background:var(--sunken)}}
-.hood-row[aria-pressed="true"]{background:var(--pine-soft);border-color:var(--pine)}
+/* Shown (pointed at, focused or pinned) carries the look; aria-pressed marks only the pinned row (BTC-UX-33). */
+.hood-row[data-shown]{background:var(--pine-soft);border-color:var(--pine)}
 .hood-name{font-weight:600;font-size:.88rem;line-height:1.2;display:flex;gap:6px;align-items:baseline}
 /* A long word wraps onto two lines at most, so the name beside it keeps its room (BTC-UX-V03). */
 .hood-word{font-size:var(--fs-sm);color:var(--muted);text-align:right;line-height:1.15;max-width:6rem}
@@ -508,6 +511,26 @@ html[data-nokeys] .opt kbd{display:none}
   .p-side .hood-scroll{flex:1 1 auto;min-height:7rem;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;margin:0 -6px;padding:0 6px 2px}
   .p-side .hood-detail{flex:none;height:clamp(6.5rem,20dvh,12rem);min-height:0;overflow:auto;align-content:start}
   .p-side .side-hood[data-more] .hood-detail{box-shadow:0 -10px 12px -10px #163a3033}
+  /* A group of Neighbors rows below the fold is named at the bottom edge of the rows area (BTC-UX-06 follow-up,
+     decided 2026-11-01), so "What the community gets and uses" is never hidden without a word at 1366 x 630, 1024 x 768
+     or in presenter view. The heading keeps its natural height (4 + 4 + 2 px, as the old 8 + 2 px margins), so the
+     rows do not move and the fact box keeps its one fixed height. Pinned, it covers its own height at the bottom of
+     the rows area. At most sizes that is part of a row the area already cuts off. Where the last whole row ends
+     closer to the edge than that, the heading lies over that row's lower part until the rows are scrolled or tabbed:
+     at 1093 x 614 over 9 px of Stormwater (its name stays clear, accepted 2026-11-02). The presenter overlay is the
+     exception below (NBR-P). ux-check section 6 measures both.
+     scroll-padding keeps a focused row clear of the pinned heading (WCAG 2.4.11). bottom is -2px, not 0: a sticky box
+     stops at the rows area's 2 px bottom padding, and a sliver of the row behind it showed under the heading. */
+  .p-side .hood-scroll{scroll-padding-bottom:2.25rem}
+  .p-side .hood-scroll .hood-h{position:sticky;bottom:-2px;z-index:1;background:var(--card);margin:4px -6px 0;padding:4px 6px 2px}
+}
+/* Decision NBR-P (2026-11-02): in presenter view, where the opened panel lies over the map (under 1280 px, the media
+   query of the overlay above), the group heading is not pinned. It stays in the flow as before NBR, so on a projector
+   it can never cover a row's name (pinned at 1024 x 768 it hid most of "Buffer, berms & landscaping"); the fact box's
+   pinned-footer shadow still says more rows wait below. game.js leaves a heading that is not sticky alone. */
+@media (min-width:1101px) and (max-width:1279px), (min-width:1024px) and (max-width:1279px) and (orientation:landscape) and (min-height:601px){
+  html[data-present][data-side-open] .p-side .hood-scroll{scroll-padding-bottom:0}
+  html[data-present][data-side-open] .p-side .hood-scroll .hood-h{position:static;z-index:auto;background:none;margin:8px 0 2px;padding:0}
 }
 /* Laptop windows up to 900 px tall, in the side-panel layout (UD-1): the full schedule needs 440 to 490 px, which left
    the map a strip of 76 to 180 px. Here the schedule starts as its total and a row of phase buttons, critical-path
@@ -709,7 +732,7 @@ html[data-still] *{transition:none!important}
   .toast,.caption,.tag{border:2px solid CanvasText}
   .tag::after{forced-color-adjust:none;background:CanvasText}
   .kpi[data-changed]{outline:2px solid Highlight;outline-offset:-2px}
-  .hood-row[aria-pressed="true"]{border-color:Highlight}
+  .hood-row[data-shown]{border-color:Highlight}
   .lane{position:relative}
   .lane[aria-pressed="true"]::after{content:"";position:absolute;inset:0;border:2px solid Highlight;border-radius:inherit;pointer-events:none}
   .meter i{background:Canvas;border:1px solid CanvasText}

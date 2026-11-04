@@ -34,6 +34,7 @@ export const STRINGS = {
     camOut: "Zoom out",
     camLeft: "Turn left",
     camRight: "Turn right",
+    camTilt: "Tilt the view",
     camPanL: "Move the view left",
     camPanR: "Move the view right",
     camPanU: "Move the view forward",
@@ -82,6 +83,7 @@ export const STRINGS = {
     libraryModeKiosk: "Turns the voice off for this game. Every word it says is also written on screen.",
     libraryModeUrl: "Set by the address (?⁠mode=library).",
     srVoice: "Using a screen reader? Turn the recorded voice off, so it does not talk over your reader.",
+    srVoiceKiosk: "Using a screen reader, or want it quiet? Turn the recorded voice off. Every word it says is also written on screen.",
     // BTC-UX-38: a motion switch kiosk visitors can reach.
     stillPref: "Keep the map still",
     stillNote: "Stops the slow turn behind the first screen and the moving fans, trucks and rings, and the view jumps instead of gliding. In class and home modes this device remembers the setting; on a library kiosk it lasts one game. ?⁠motion=off in the address turns it on for every game.",
@@ -121,7 +123,7 @@ export const STRINGS = {
     glossTitle: "Words to know",
     glossary: [
       ["Data center", "a building full of computers called servers that run websites, apps and AI. They use a lot of electricity and give off heat."],
-      ["CM (construction manager)", "the person or firm that plans and runs the building work for the owner. In this game, that is you. On real projects the owner and its engineers lead the rezoning and the power agreement. The construction manager joins early to plan the schedule, estimate the cost and help order long-lead equipment."],
+      ["Construction manager (CM)", "the person or firm that plans and runs the building work for the owner. In this game, that is you. On real projects the owner and its engineers lead the rezoning and the power agreement. The construction manager joins early to plan the schedule, estimate the cost and help order long-lead equipment."],
       ["Dashboard", "the four scores at the top of the screen: schedule, budget, safety and neighbor relations, each with a rating word."],
       ["Grading", "shaping the ground with earthmovers so it is flat where buildings go and slopes where rain should run. It is phase 2 of the game, right after the permits."],
       ["Rezoning", "a county decision, made after a public hearing, that changes what a piece of land may be used for. A county can approve it, approve it with conditions or deny it."],
@@ -210,7 +212,7 @@ export const STRINGS = {
     placeDrag: "Drag or tap to place it · let go where it is green to build it",
     placeDragShort: "Drag or tap to place",
     // After the piece's own hint: placeKeys with a mouse or keyboard, placeTouch on touch screens.
-    placeKeys: "Right-drag or Shift-drag turns the view. Arrow keys nudge the piece: right toward the county road, up toward the homes. The construction exit slides only along the road, with the up and down keys.",
+    placeKeys: "Right-drag or Shift-drag turns the view. Arrow keys nudge the piece the way they point on screen. The construction exit slides only along its road.",
     placeTouch: "One finger moves the piece; two fingers turn the view.",
     placeOk: "This spot fits.",
     placeBadSetback: "That reaches past the setback, too close to the homes on Pecan Street.",
@@ -312,7 +314,7 @@ export const STRINGS = {
     endPlanBudget: "Plan: 100%, with {n}% held for surprises",
     endStart: "Started at {n}",
     endStartHood: "Started at {n} when grading began",
-    endLuck: "Setbacks drawn: {n} of {of}. Setback cards are drawn by chance, so compare choices, not only ratings.",
+    endLuck: "Chance issue cards drawn: {n} of {of}. Luck decides which come up, so compare choices, not only ratings.",
     endCostly: "What cost the most",
     endCostlyNote: "Each answer is compared with the best other answer to the same question. One month weighs about the same as 1% of budget, or 5 points of safety or neighbor relations. Answers that were the best on balance are left out.",
     // On screen only, so the printed debrief still fits one page (BTC-UX-X03).
@@ -363,7 +365,7 @@ export const STRINGS = {
       safety: "Safety (of 100)",
       neighbors: "Neighbor relations (of 100)",
       rating: "{name}: rating",
-      setbacks: "Setbacks drawn",
+      setbacks: "Chance issue cards drawn",
       steps: "Steps",
     },
 

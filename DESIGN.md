@@ -331,10 +331,10 @@ A forest-green and warm-cream palette with one terracotta action color and one a
 
 ### Secondary
 - **Pine** (`pine`, the same value as `ink`): the top bar and the phone tab bar, every pressed or selected state (side tabs, map buttons, the inset ring on segments, the hood-row border), done marks, the meter fill, toasts, the floating tag, the caption backing (at 90%), the favicon tile and the 3D campus sign.
-- **Pine soft** (`pine-soft`): the done element rows, a pressed lane or hood row, the siting box, and the ghost-button hover.
+- **Pine soft** (`pine-soft`): the done element rows, a pressed lane, a shown hood row, the siting box, and the ghost-button hover.
 
 ### Tertiary
-- **Gold** (`gold`): the version badge, the drag hint for 4.5 s at the first zoom (`hint-new`), and the accent on the 3D campus sign.
+- **Gold** (`gold`): the version badge, the drag hint for 4.5 s at the first zoom (`hint-new`), the accent on the 3D campus sign, and the favicon's roof line (5.54:1 on the pine tile, BTC-UX-58).
 - **Stage gold** (`focus-stage`): the focus ring on the pine bar, on the phone tabs and on the skip link. The same hex is the "Fair" dot on the score tiles.
 
 ### Neutral
@@ -369,8 +369,6 @@ The small square before each Neighbors row names that effect's color on the map:
 - Grays sit close together: `muted` `#5d6b64`, `locked-ink` `#5f6b65` and `disabled-ghost-ink` `#6b756f`.
 - There are three rating palettes: the dots on the bar, the dots on the end screen, and the unused `good`, `warn` and `bad` tokens. The end-screen "Good" is `#2f9e6a`, the tile "Good" is `#5fd39a`, and the siting "fits" is `#1f8a5b`.
 - The swatches do not all match the map. Four of six Neighbors swatches differ in hex from the overlay they name in `scene.js`: trucks `#e19a00` against `#ffb000`, storm `#1d7fc9` against `#1d8fe0`, power `#c04f9f` against `#d65db1`, dust `#b0743c` against `#b88a5a`. Noise, generators and setback match.
-- The favicon's roof stroke is `#e0763c`, an orange that appears nowhere else.
-- The educator sheet has its own palette: ink `#1d1d1b`, muted `#55534e`, rule `#d8d4cc`, accent `#9a3b1b`, panel `#f6f3ee`. It shares no token with the game.
 
 ## Typography
 
@@ -485,7 +483,7 @@ Soft and friendly. Every action is a full pill (999 px); containers use large ra
 
 ### Map buttons
 - **Style** (`.cb`): a 40 px square at 12 px radius, `card-veil` with a 6 px blur, 2 px ink border, and a 20 px stroked icon. 36 px tabbed, 34 px at 360 px, 32 px on landscape phones.
-- **Set:** Zoom in · Zoom out · Turn left · Turn right · Presenter view (a pressed toggle: pine fill, white icon) · Reset view (a map pill). Move left, forward, back and right appear only while zoomed in.
+- **Set:** Zoom in · Zoom out · Turn left · Turn right · Tilt the view (one button that cycles the usual angle, from above and low, BTC-UX-39; its icon is a ground plane with an arrow up out of it) · Presenter view (a pressed toggle: pine fill, white icon) · Reset view (a map pill). Move left, forward, back and right appear only while zoomed in. The row wraps where it must; touch buttons keep their sizes.
 - **Group:** `role="group"` "Map view", with a nested group "Move the view". Every button has an `aria-label` and a `title`. The row wraps, right-aligned, above the schedule.
 
 ### Tabs and segmented controls
@@ -517,7 +515,7 @@ Soft and friendly. Every action is a full pill (999 px); containers use large ra
 - **Before grading:** the Neighbors tile shows "—" and "Starts at grading", with the gray dot.
 
 ### Neighbors rows
-- **Row** (`.hood-row`): a three-column button: name with its swatch, a 4-cell meter, and a word. 38 px, 12 px radius. Hover: sunken. Pressed (shown on the map): pine-soft with a pine border.
+- **Row** (`.hood-row`): a three-column button: name with its swatch, a 4-cell meter, and a word. 38 px, 12 px radius. Hover: sunken. Shown (pointed at, focused or pinned; `data-shown`): pine-soft with a pine border. `aria-pressed` marks only the pinned row (BTC-UX-33).
 - **Meter:** 13 × 10 px cells at 3 px radius. Off cells are white with a 1.5 px line ring; on cells are pine.
 - **Around the rows:** group heads in uppercase 0.78rem muted. The detail box is sunken at 14 px radius and at least 84 px tall (70 px at 800 px tall or less). Below it, the breakdown line and the score note.
 
@@ -546,7 +544,7 @@ Soft and friendly. Every action is a full pill (999 px); containers use large ra
 Inline SVG only; no icon font, no images.
 - **Map buttons:** a 24 × 24 viewBox, stroked in `currentColor` at 2.4, round caps and joins. Plus, minus, two curved turn arrows, four chevrons, and a presenter screen on a stand (it was four corners, which read as full screen) presenter corners.
 - **Element and lane marks:** a 16 × 16 viewBox. Check and plus are stroked at 2.2. The lock is a filled body with a 1.6 stroked shackle.
-- **Favicon:** a 64 px pine tile with 14 px radius, an orange roof line and a paper building.
+- **Favicon:** a 64 px pine tile with 14 px radius, a gold roof line and a paper building.
 - *Recorded inconsistency:* stroke weights are 2.4, 2.2 and 1.6.
 
 ### 3D map (signature component)
@@ -603,15 +601,15 @@ In Windows contrast themes:
 
 ### Educator sheet (separate page)
 A static Letter page in `system-ui`:
-- Its own palette (see Colors) and a 3 px accent rule under the header.
-- Uppercase accent `h2`s, two columns, boxed notes with a left accent bar, and ruled tables.
+- The game's five values (BTC-UX-59): ink `#163a30` (`pine`), muted `#5d6b64` (`muted`), rule `#dcd7cc` (`line`), accent `#94401f` (`clay-ink`) and panel `#f7f4ee` (`paper`), and a 3 px accent rule under the header.
+- Uppercase accent `h2`s, two columns, boxed notes with a thin full `line` border at 6 px radius (no side stripe, so a black-and-white printer keeps the box), and ruled tables.
 - It prints on one Letter page in Arial, Arimo or Liberation Sans at 8.5 pt.
 
 ## Changes in the October 2026 UI/UX round
 
 Within the same look:
 - **Build panel:** once Finish can be pressed it is pinned to the panel's bottom on a card band with the pinned-footer shadow. A locked step is a sunken well with a `#cfc8bc` mark and a muted word, at full opacity, and stays in the Tab order (`aria-disabled`). The waiting Finish is a sunken pill. The Site log and Undo come before the commissioning track. After turnover the panel offers "Back to the summary".
-- **Neighbors beside the panels:** the rows, the score note and the breakdown scroll in their own area. Under them the fact box has one fixed height, `clamp(6.5rem, 20dvh, 12rem)`, whatever it holds, so pointing at a row never moves anything; a longer fact scrolls inside it. While rows wait below the fold the box carries the pinned-footer shadow. On short laptop screens (up to 800 px tall) the rows are 34 px. On the phone tab the fact comes right under the rows.
+- **Neighbors beside the panels:** the rows, the score note and the breakdown scroll in their own area. Under them the fact box has one fixed height, `clamp(6.5rem, 20dvh, 12rem)`, whatever it holds, so pointing at a row never moves anything; a longer fact scrolls inside it. While rows wait below the fold the box carries the pinned-footer shadow, and the heading of a group still below the fold is pinned to the bottom edge of the rows area on a card band, at its usual height, so "What the community gets and uses" is never hidden without a word (decided 2026-11-01). It lies over the rows that scroll under it, as the dialogs' pinned rows do; where the panel is narrow (1093 x 614) it takes two lines, and a row reached by Tab scrolls clear of it. At rest it usually covers only a row the area already cuts off. Where the last whole row ends less than the heading's height above the edge, it covers that row's lower part: 9 px of Stormwater at 1093 x 614, where the name stays clear (accepted). In presenter view, where the opened panel lies over the map (under 1280 px), the heading is not pinned: it stays in the flow, as it did before, so on a projector it never covers a row's name, and the shadow still says more rows wait below (decision NBR-P, 2026-11-02). On short laptop screens (up to 800 px tall) the rows are 34 px. On the phone tab the fact comes right under the rows.
 - **Presenter view:** the toolbar adds a "Neighbors" pill and a "Presenter view: on" pill. From 1280 px the opened panel takes its usual place on the right and the map tools move clear of it; under 1280 px it lies over the open map below the toolbar, the map buttons wait under it, and a caption still shows over it. The Build panel width is `clamp(16.5rem, 28vw, 22rem)`.
 - **Score tiles:** a tile that changed gets a 2 px `#f7f4eecc` inset ring for 4 s and, from 1366 px, the change after its word. The label spans `auto 1fr`.
 - **End screen:** "Look at the campus" under the opening paragraph (left out when there is no 3D map); Print and the save buttons are `.btn-small`. During the kiosk countdown Keep is the one clay button, on the countdown's own line above the other buttons (full width on phones), so nothing moves when it goes.

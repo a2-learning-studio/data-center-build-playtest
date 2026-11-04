@@ -4,7 +4,10 @@
 
 // Phases in build order, with typical duration ranges in months (typical, varies by project).
 export const PHASES = [
-  { id: "site", months: [6, 18], after: [], els: ["zoning", "capacity", "stormPlan", "meetings"] },
+  // Easier steps first (BTC-UX-29, decided 2026-11-01): the Stormwater plan puts stakes on the map with no question, then
+  // the meetings; the cooling decision (before zoning) and the long-lead card (after the capacity study) stay in Site &
+  // permits (I11).
+  { id: "site", months: [6, 18], after: [], els: ["stormPlan", "meetings", "zoning", "capacity"] },
   // Erosion controls and sediment storage before clearing (Georgia GAR100001, 2023, Part III.D.2).
   { id: "grade", months: [2, 6], after: ["site"], els: ["erosion", "roads", "ponds", "clear"] },
   { id: "util", months: [12, 36], after: ["site"], els: ["substation", "transmission", "water", "fiber"] },

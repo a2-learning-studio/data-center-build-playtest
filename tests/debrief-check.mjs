@@ -146,7 +146,8 @@ const offlineFiles = await op.evaluate(() => document.querySelectorAll("[data-st
 await op.close();
 check("offline kiosk: no results-file buttons", offlineFiles === 0, String(offlineFiles));
 check("offline kiosk About: no links; contact and sources printed", offline.links.length === 0 && ["akeyvanf@kennesaw.edu", ...urls].every((u) => offline.text.includes(u)), JSON.stringify(offline.links));
-check("About: Words to know, starting with what a data center is", about.gloss >= 15 && /^Data center\|CM/.test(about.terms) && /CM \(construction manager\)/.test(about.terms) && /MEP/.test(about.terms) && /UPS/.test(about.terms), `${about.gloss} terms`);
+// Term changed on purpose (BTC-UX-03 follow-up, 2026-11-01): the words the intro uses come first.
+check("About: Words to know, starting with what a data center is", about.gloss >= 15 && /^Data center\|Construction manager \(CM\)/.test(about.terms) && /Construction manager \(CM\)/.test(about.terms) && /MEP/.test(about.terms) && /UPS/.test(about.terms), `${about.gloss} terms`);
 check("About: educator sheet link", linked((l) => l.href === "educator.html" && l.target === "_blank" && /educator sheet/.test(l.text)));
 check("About: one licence line", /MIT License/.test(about.licence) && /BY-NC 4\.0/.test(about.licence) && /ElevenLabs Impact Program/.test(about.licence));
 check("About and footer credit", about.credit === "A project by A2 Learning Studio" && about.footer === "A project by A2 Learning Studio" && /© 2026 A2 Learning Studio/.test(about.licence) && !/Ali Keyvanfar/.test(about.licence));
@@ -197,7 +198,8 @@ check("three costliest answers, in order, each against the best other answer", e
 check("effects in words, no plus or minus signs, no double colons", end.costly.every((x) => !/[+−]\d/.test(x)) && [...end.costly, ...end.chose].every((x) => / — /.test(x) && (x.split(" — ")[0].match(/:/g) || []).length <= 1), JSON.stringify(end.chose));
 check("good-neighbor choices that cost a little are not listed as costly", !end.costly.some((x) => /^(Buffer|Truck & work hours|Night lighting)/.test(x)));
 // FEU-4: setback cards are drawn by chance, and the debrief says how many were.
-check("the debrief says how many setbacks were drawn, and that they are chance", end.luck === "Setbacks drawn: 0 of 6. Setback cards are drawn by chance, so compare choices, not only ratings.", end.luck);
+// Wording changed on purpose (BTC-UX-25, 2026-11-01): "setback" is the distance from the homes in play; the cards are issue cards.
+check("the debrief says how many setbacks were drawn, and that they are chance", end.luck === "Chance issue cards drawn: 0 of 6. Luck decides which come up, so compare choices, not only ratings.", end.luck);
 check("nothing on the debrief is typed or stored", end.typed === 0);
 check("three questions to talk over", end.talk === 3);
 await p.evaluate(() => document.querySelector("[data-print]").click());
@@ -286,7 +288,8 @@ const debrief = async (cards, choices) => {
 {
   const q = await debrief({ weather: "a", longlead: "a", labor: "c", heat: "a", haul: "b" }, { route: "a", hours: "a", buffer: "a", wall: "a", cool: "a", light: "a", test: "a" });
   const best = await q.evaluate(() => ({ costly: [...document.querySelectorAll("[data-end] .end-costly li")].map((n) => n.innerText), luck: document.querySelector("[data-end-luck]").textContent }));
-  check("the best answer to every question is never listed as costly", best.costly.length === 1 && best.costly[0] === "Each of your answers was the best on balance for its question." && /^Setbacks drawn: 2 of 6\./.test(best.luck), JSON.stringify(best));
+  // Wording changed on purpose (BTC-UX-25, 2026-11-01): "setback" is the distance from the homes in play; the cards are issue cards.
+  check("the best answer to every question is never listed as costly", best.costly.length === 1 && best.costly[0] === "Each of your answers was the best on balance for its question." && /^Chance issue cards drawn: 2 of 6\./.test(best.luck), JSON.stringify(best));
   await q.close();
 }
 // The longest debrief (every setback drawn, three answers whose effects take two lines) still prints on one US Letter

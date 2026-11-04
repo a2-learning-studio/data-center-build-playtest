@@ -112,6 +112,9 @@ const axeOk = async (p, label) => {
 {
   const { ctx, p } = await page();
   await siteBasins(p);
+  // Direction changed on purpose (BTC-UX-40, 2026-11-01): arrows move the piece the way they point on screen. At turn 0
+  // the homes are at the bottom of the screen, so ArrowDown walks the basins toward the setback, as ArrowUp did before.
+  await p.evaluate(() => window.__dc.view({ az: 0 }));
   const set = await p.evaluate(() => ({ described: document.querySelector("[data-place-set]").getAttribute("aria-describedby"), why: document.getElementById("place-why")?.textContent, keys: getComputedStyle(document.querySelector(".place-keys")).display !== "none", touch: getComputedStyle(document.querySelector(".place-touch")).display !== "none" }));
   check("Set it here is described by the fit message", set.described === "place-why" && set.why === "This spot fits.", JSON.stringify(set));
   check("with a mouse and keyboard the siting box shows the arrow-key line, not the touch line", set.keys && !set.touch);
@@ -124,22 +127,22 @@ const axeOk = async (p, label) => {
     new MutationObserver(() => window.__said.push(s.textContent)).observe(s, { childList: true, characterData: true, subtree: true });
   });
   await p.locator("[data-place-set]").focus();
-  await nudge(p, "ArrowUp", 8);
+  await nudge(p, "ArrowDown", 8);
   await p.waitForTimeout(1200);
   const bad = await p.evaluate(() => ({ said: window.__said.slice(), why: document.querySelector("[data-place-why]").textContent }));
   check("the setback message is read out once, after the nudges stop", bad.said.length === 1 && bad.said[0] === bad.why && /setback/.test(bad.why), JSON.stringify(bad));
   const reason = await contrast(p, "[data-place-why]");
   check("the setback message has at least 4.5:1 contrast", reason >= 4.5, reason.toFixed(2));
   await axeOk(p, "siting, spot does not fit, 1366x768");
-  await p.keyboard.press("ArrowUp");
+  await p.keyboard.press("ArrowDown");
   await p.waitForTimeout(1200);
   check("a nudge that keeps the same message is not read again", (await p.evaluate(() => window.__said.length)) === 1);
-  await nudge(p, "ArrowDown", 9);
+  await nudge(p, "ArrowUp", 9);
   await p.waitForTimeout(1200);
   const back = await p.evaluate(() => window.__said.slice());
   check("back on a spot that fits, 'This spot fits.' is read out", back.length === 2 && back[1] === "This spot fits.", JSON.stringify(back));
   // Setting the piece ends the siting: no message from it is left to be read out afterwards.
-  await p.keyboard.press("ArrowUp");
+  await p.keyboard.press("ArrowDown");
   await p.evaluate(() => document.querySelector("[data-place-set]").click());
   await p.waitForTimeout(1200);
   const after = await p.evaluate(() => ({ said: window.__said.slice(2), placed: window.__dc.state().placed.has("ponds") }));
@@ -152,8 +155,11 @@ const axeOk = async (p, label) => {
 {
   const { ctx, p } = await page({ query: "?keys=off" });
   await siteBasins(p);
+  // Direction changed on purpose (BTC-UX-40, 2026-11-01): arrows move the piece the way they point on screen. At turn 0
+  // the homes are at the bottom of the screen, so ArrowDown walks the basins toward the setback, as ArrowUp did before.
+  await p.evaluate(() => window.__dc.view({ az: 0 }));
   await p.locator("[data-place-set]").focus();
-  await nudge(p, "ArrowUp", 8);
+  await nudge(p, "ArrowDown", 8);
   await p.waitForTimeout(300);
   const moved = await p.evaluate(() => document.querySelector("[data-place-why]").textContent);
   await p.keyboard.press("Escape");
@@ -163,6 +169,36 @@ const axeOk = async (p, label) => {
   await p.waitForTimeout(200);
   const s = await p.evaluate(() => ({ off: document.documentElement.hasAttribute("data-nokeys"), box: !!document.querySelector("[data-place-box]"), ponds: window.__dc.state().placed.has("ponds"), placed: window.__dc.state().placed.size }));
   check("with the shortcuts off, the arrow keys still nudge a piece and Escape cancels siting; N stays off", s.off && /setback/.test(moved) && !s.box && !s.ponds && s.placed === placed, JSON.stringify({ moved, ...s }));
+  await ctx.close();
+}
+
+// BTC-UX-40 (decided 2026-11-01): the arrow keys move a piece the way they point on screen, to the nearest of the eight
+// 10 m grid steps, at the home view's turn too; the construction exit takes the along-road part of the arrow.
+{
+  const { ctx, p } = await page();
+  await siteBasins(p);
+  await p.evaluate(() => window.__dc.view());
+  await p.locator("[data-place-set]").focus();
+  const at = () => p.evaluate(() => window.__dc.placing?.() || null);
+  const p0 = await at();
+  await p.keyboard.press("ArrowUp");
+  const p1 = await at();
+  await p.keyboard.press("ArrowRight");
+  const p2 = await at();
+  const step = (a, b) => (a && b ? [b.dx - a.dx, b.dz - a.dz] : null);
+  check("arrows follow the screen: at the home view ArrowUp moves the basins up the screen, ArrowRight to the right", p0?.id === "ponds" && JSON.stringify(step(p0, p1)) === "[-10,-10]" && JSON.stringify(step(p1, p2)) === "[10,-10]", JSON.stringify({ p0, p1, p2 }));
+  // The construction exit: grading already placed it, so it is taken back and sited again (the wall is chosen).
+  await p.keyboard.press("Escape");
+  await p.evaluate(() => { window.__dc.state().placed.delete("roads"); window.__dc.render(); });
+  await p.locator('[data-el="roads"]').click();
+  await p.waitForTimeout(250);
+  await p.locator("[data-place-set]").focus();
+  const r0 = await at();
+  await p.keyboard.press("ArrowRight");
+  const r1 = await at();
+  await p.keyboard.press("ArrowLeft");
+  const r2 = await at();
+  check("arrows follow the screen: the construction exit slides along its road, ArrowRight one way and ArrowLeft back", r0?.id === "roads" && JSON.stringify(step(r0, r1)) === "[0,-10]" && JSON.stringify(step(r1, r2)) === "[0,10]", JSON.stringify({ r0, r1, r2 }));
   await ctx.close();
 }
 
@@ -204,8 +240,9 @@ const axeOk = async (p, label) => {
   await p.evaluate(() => { window.__writes = 0; window.__focus = 0; window.__next = document.querySelector('[data-key="dust"]'); });
   await p.keyboard.press("Tab");
   await p.waitForTimeout(100);
-  const tab = await p.evaluate(() => ({ writes: window.__writes, focus: window.__focus, same: document.activeElement === window.__next, pressed: window.__next.getAttribute("aria-pressed"), text: document.querySelector("[data-hood-detail]").innerText }));
-  check("Tab to the next row: one focus event on that same row, and the fact is written once", tab.writes === 1 && tab.focus === 1 && tab.same && tab.pressed === "true" && /Dust/.test(tab.text), JSON.stringify(tab));
+  const tab = await p.evaluate(() => ({ writes: window.__writes, focus: window.__focus, same: document.activeElement === window.__next, pressed: window.__next.getAttribute("aria-pressed"), shown: window.__next.hasAttribute("data-shown"), text: document.querySelector("[data-hood-detail]").innerText }));
+  // Changed on purpose (BTC-UX-33, 2026-11-01): Tab arrival shows the row's fact but does not press it; Enter, a click or a tap pins it.
+  check("Tab to the next row: one focus event on that same row, and the fact is written once", tab.writes === 1 && tab.focus === 1 && tab.same && tab.pressed === "false" && tab.shown && /Dust/.test(tab.text), JSON.stringify(tab));
   // A press keeps the row that hover or focus showed, and a second press on it clears it (it used to clear at once).
   const shown = () => p.evaluate(() => document.querySelector('[data-hood] [aria-pressed="true"]')?.dataset.key || null);
   await p.keyboard.press("Enter");

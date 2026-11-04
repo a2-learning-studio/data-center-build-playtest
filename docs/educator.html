@@ -26,11 +26,13 @@
 <meta name="twitter:image:alt" content="The Red Clay Ridge data center campus in Build the Campus: a white data hall, cooling yard, ponds and a neighboring street of homes.">
 <style>
   :root {
-    --ink: #1d1d1b;
-    --muted: #55534e;
-    --rule: #d8d4cc;
-    --accent: #9a3b1b;
-    --panel: #f6f3ee;
+    /* The game's own values (BTC-UX-59, decided 2026-11-01): pine ink 12.49:1 and muted 5.60:1 on white, the line,
+       clay ink 6.97:1 and paper. */
+    --ink: #163a30;
+    --muted: #5d6b64;
+    --rule: #dcd7cc;
+    --accent: #94401f;
+    --panel: #f7f4ee;
     --bg: #ffffff;
   }
   * { box-sizing: border-box; }
@@ -69,7 +71,8 @@
     padding: 1px 4px; background: var(--panel);
   }
   code { font: .9em ui-monospace, Consolas, "Courier New", monospace; background: var(--panel); padding: 0 3px; border-radius: 3px; word-break: break-all; }
-  .box { background: var(--panel); border-left: 3px solid var(--accent); padding: 8px 10px; }
+  /* A thin full border, not a side stripe, so the box survives black-and-white printers too (BTC-UX-59). */
+  .box { background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 8px 10px; }
   table { width: 100%; border-collapse: collapse; font-size: .94em; margin: 0 0 6px; }
   th, td { text-align: left; vertical-align: top; padding: 3px 4px; border-bottom: 1px solid var(--rule); }
   th { font-weight: 700; }
@@ -158,9 +161,9 @@
       <p>With no mode, an idle game starts over after about three minutes, and the end screen clears after about a minute and a half.</p>
       <ul>
         <li>Download the offline kiosk file (its address is in About) and open it in the browser&rsquo;s kiosk or full-screen mode. It needs no network.</li>
-        <li>Add <code>?mode=library</code> to its address for no narration. On a kiosk, the <i>Library mode</i> tick on the first screen lasts only that game.</li>
+        <li>Add <code>?mode=library</code> to its address for no narration. On a kiosk, the <i>Voice</i> button on the first screen turns it off for that game only.</li>
         <li>Turn off sleep and the screen saver.</li>
-        <li><i>Print this summary</i> needs a printer; <code>?print=off</code> hides it.</li>
+        <li><i>Print this summary</i> needs a printer; <code>?print=off</code> hides it. <code>?motion=off</code> keeps the map still.</li>
         <li>Each morning, check the <i>Play-test v1.5</i> badge; close other tabs.</li>
       </ul>
     </section>

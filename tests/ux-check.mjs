@@ -1,9 +1,13 @@
 // UI/UX round checks (October 2026 repair): (BTC-UX-06) a mouse resting on a Neighbors row leaves the fact, its box
 // and the rows still, at a laptop and a projector size; (BTC-UX-49) on a phone, Keep this summary sits on the
 // countdown's line, nothing moves when it goes, and a second tap where it was keeps the summary; (BTC-UX-X04) the
-// idle prompt's Start a new game can be reached by keyboard, and by a mouse already over the prompt; (BTC-UX-09) a
+// idle prompt's Start a new game can be reached by keyboard, by a mouse already over the prompt, and (decision IDLE,
+// 2026-11-01) by a mouse arriving from elsewhere on the screen, since movement only restarts the count; (BTC-UX-09) a
 // short phone has no blank band under the Build panel, and Look at the campus shows the map; (BTC-UX-30) Enter on a
-// locked step says why and keeps focus there.
+// locked step says why and keeps focus there; (BTC-UX-06 follow-up, decided 2026-11-01) a Neighbors group below the
+// fold is named at the bottom of the rows area, a row tabbed to is never left under that heading, and at rest it hides
+// the name of no row in full view; in the presenter overlay under 1280 px it stays in the flow instead (decision
+// NBR-P, 2026-11-02, see section 6).
 // Run: node tests/ux-check.mjs (see drive.mjs for the browser and paths).
 import { launch, watch, openGame } from "./drive.mjs";
 
@@ -61,7 +65,8 @@ for (const [w, h] of [[1366, 768], [1920, 1080]]) {
       window.__heights = new Set([document.querySelector("[data-hood-detail]").offsetHeight]);
       window.__obs = new MutationObserver(() => { window.__writes++; window.__heights.add(document.querySelector("[data-hood-detail]").offsetHeight); });
       window.__obs.observe(document.querySelector("[data-hood-detail]"), { childList: true, subtree: true, characterData: true });
-      return document.querySelector('[data-hood] [aria-pressed="true"]')?.dataset.key || null;
+      // A hovered row is shown, not pressed (BTC-UX-33, 2026-11-01).
+      return document.querySelector('[data-hood] [aria-pressed="true"]') ? "pressed" : document.querySelector("[data-hood] [data-shown]")?.dataset.key || null;
     });
     await p.waitForTimeout(2500);
     const s = await p.evaluate((at) => {
@@ -99,7 +104,8 @@ for (const [w, h] of [[1366, 768], [1920, 1080]]) {
 }
 
 // 3. The idle prompt: Tab reaches Start a new game without closing the prompt, and Enter starts one; a mouse over the
-// prompt does not close it, and a click on Start a new game starts one.
+// prompt does not close it, and a click on Start a new game starts one; a mouse brought in from the edge of the screen
+// does not close it either (decision IDLE, 2026-11-01), so it reaches Start a new game too.
 {
   const { ctx, p, errors } = await page(1366, 768);
   const prompt = async () => {
@@ -127,6 +133,19 @@ for (const [w, h] of [[1366, 768], [1920, 1080]]) {
   await p.waitForTimeout(400);
   const clicked = await state();
   check("idle prompt: a mouse over the prompt keeps it, and Start a new game starts one", over.idle && !clicked.idle && clicked.intro && clicked.placed === 0, JSON.stringify({ over, clicked }));
+  // Added (decision IDLE, 2026-11-01): movement anywhere only restarts the count, so a mouse from the screen's edge
+  // reaches Start a new game.
+  await prompt();
+  await p.mouse.move(5, 5);
+  // Null once the prompt has closed (as it did before this decision): nothing left to reach.
+  const n2 = await rect(p, "[data-idle-new]");
+  if (n2) await p.mouse.move((n2.x + n2.r) / 2, (n2.y + n2.b) / 2, { steps: 8 });
+  await p.waitForTimeout(150);
+  const arrived = await state();
+  if (n2) { await p.mouse.down(); await p.mouse.up(); }
+  await p.waitForTimeout(400);
+  const fresh = await state();
+  check("idle prompt: a mouse arriving from elsewhere reaches Start a new game", !!n2 && arrived.idle && !fresh.idle && fresh.intro && fresh.placed === 0, JSON.stringify({ arrived, fresh }));
   check("idle prompt: no errors", !errors.length, errors.join(" | "));
   await ctx.close();
 }
@@ -167,6 +186,81 @@ for (const [w, h] of [[360, 640], [360, 560]]) {
   const s = await p.evaluate(() => ({ focus: document.activeElement?.dataset?.el || document.activeElement?.tagName, toast: !document.querySelector("[data-toast]").hidden }));
   check("Enter on a locked step says why and keeps focus on it", !!key && s.focus === key && s.toast, JSON.stringify({ key, ...s }));
   check("locked step: no errors", !errors.length, errors.join(" | "));
+  await ctx.close();
+}
+
+// 6. A Neighbors group below the fold is named (BTC-UX-06 follow-up, decided 2026-11-01): the second group's heading is
+// pinned to the bottom edge of the rows area, Tab never leaves a focused row under it, and the fact box keeps its one
+// height. At 1366 x 768 the rows fully in view stay seven, so the pinned heading costs no row. At 1093 x 614 (a laptop
+// window at 125% zoom, a layout-check size) the narrower panel wraps the heading onto two lines, taller than the
+// scroll-padding, so Tab must still leave each row clear of it (NBR follow-up). Added after review (2026-11-02): at
+// rest the pinned heading may lie over a row the rows area cuts off, or over the lower edge of a row in full view
+// (1093 x 614: 9 px of Stormwater), but never over the name of a row in full view; and the presenter overlay at
+// 1024 x 768, which no check opened, is measured too. There the pinned heading hid most of the name "Buffer, berms &
+// landscaping" at rest. Decision NBR-P (2026-11-02): in presenter view, where the opened panel lies over the map (under
+// 1280 px), the heading is not pinned. It stays in the flow as before NBR, so it can never cover a row's name on a
+// projector, and the shadow over the fact box still says more rows wait below. So for that overlay case the
+// pinned-heading-in-sight check is dropped, the heading must be in the flow with the shadow on, and the NOTE line it
+// printed became a check: at rest, nothing hides any part of the name of a row in full view. Everywhere else NBR stays
+// as built; at 1093 x 614 the 9 px over Stormwater, its name readable, is accepted.
+for (const [w, h, present] of [[1366, 630, false], [1024, 768, false], [1366, 768, true], [1366, 768, false], [1093, 614, false], [1024, 768, true]]) {
+  const label = `${w}x${h}${present ? " presenter" : ""}`;
+  const overlay = present && w < 1280; // NBR-P: the presenter overlay, where the heading stays in the flow
+  const { ctx, p, errors } = await page(w, h, { query: present ? "?view=presenter" : "" });
+  await p.evaluate(() => { document.querySelector("[data-start]").click(); window.__dc.upTo("mep"); });
+  if (present) await p.locator("[data-side-toggle]").click();
+  await p.waitForTimeout(400);
+  await p.evaluate(() => { document.querySelector("[data-hood-scroll]").scrollTop = 0; });
+  await p.waitForTimeout(150);
+  const look = () => p.evaluate(() => {
+    const area = document.querySelector("[data-hood-scroll]").getBoundingClientRect();
+    const head = document.querySelectorAll("[data-hood] .hood-h")[1].getBoundingClientRect();
+    const at = document.elementFromPoint((head.left + head.right) / 2, (head.top + head.bottom) / 2);
+    const rows = [...document.querySelectorAll("[data-hood] .hood-row")].filter((r) => { const b = r.getBoundingClientRect(); return b.top >= area.top - 1 && b.bottom <= area.bottom + 1; });
+    const inView = rows.length;
+    const under = rows.filter((r) => { const b = r.getBoundingClientRect(); return b.bottom > head.top + 1 && b.top < head.bottom - 1; }).map((r) => r.dataset.key);
+    // A row in full view whose name lies under the heading, and by how many pixels of the name's height.
+    const nameUnder = rows.map((r) => { const n = r.querySelector(".hood-name").getBoundingClientRect(); return [r.dataset.key, Math.min(n.bottom, head.bottom) - Math.max(n.top, head.top), n.height]; }).filter(([, px]) => px > 1).map(([k, px, nh]) => `${k} ${px.toFixed(1)}/${nh.toFixed(1)}px`);
+    // NBR-P: a row in full view whose name is covered by anything at all, by hit-testing nine points over the name's
+    // own text (the heading, or anything else that takes the pointer there, counts).
+    const nameHidden = rows.filter((r) => {
+      const rg = document.createRange();
+      rg.selectNodeContents(r.querySelector(".hood-name"));
+      const t = rg.getBoundingClientRect();
+      return [0.2, 0.5, 0.8].some((fx) => [0.25, 0.5, 0.75].some((fy) => !r.contains(document.elementFromPoint(t.left + fx * t.width, t.top + fy * t.height))));
+    }).map((r) => r.dataset.key);
+    const f = document.activeElement?.closest?.("[data-hood] .hood-row");
+    const h2 = document.querySelectorAll("[data-hood] .hood-h")[1];
+    return {
+      area: [Math.round(area.top), Math.round(area.bottom)], head: [Math.round(head.top), Math.round(head.bottom)],
+      inside: head.top >= area.top - 0.5 && head.bottom <= area.bottom + 0.5, seen: !!at?.closest(".hood-h"), inView, under, nameUnder, nameHidden,
+      pos: getComputedStyle(h2).position,
+      more: document.querySelector(".side-hood").hasAttribute("data-more") && getComputedStyle(document.querySelector("[data-hood-detail]")).boxShadow !== "none",
+      box: document.querySelector("[data-hood-detail]").offsetHeight,
+      focused: f ? { key: f.dataset.key, bottom: +f.getBoundingClientRect().bottom.toFixed(1), headTop: +head.top.toFixed(1) } : null,
+    };
+  });
+  const s0 = await look();
+  if (overlay) {
+    // NBR-P: no pinned heading in the presenter overlay, so no in-sight check for it here; the NOTE line is now a check.
+    check(`${label}: the second group's heading stays in the flow, not pinned, and the shadow says more rows wait below (NBR-P)`, s0.pos === "static" && s0.more, JSON.stringify(s0));
+    check(`${label}: at rest no part of the name of a row in full view is hidden (NBR-P)`, s0.inView > 0 && !s0.nameUnder.length && !s0.nameHidden.length, JSON.stringify(s0));
+  } else {
+    check(`${label}: the second Neighbors group's heading is in sight inside the rows area`, s0.inside && s0.seen, JSON.stringify(s0));
+    check(`${label}: at rest the pinned heading hides the name of no row in full view`, !s0.nameUnder.length, JSON.stringify(s0));
+  }
+  await p.locator('[data-hood] [data-key="trucks"]').focus();
+  const walk = [];
+  for (let i = 0; i < 6; i++) {
+    if (i) await p.keyboard.press("Tab");
+    await p.waitForTimeout(150);
+    walk.push((await look()).focused);
+  }
+  check(`${label}: Tab through the six notice rows leaves each focused row clear of that heading`, walk.map((f) => f?.key).join() === "trucks,noise,dust,storm,gens,setback" && walk.every((f) => f.bottom <= f.headTop + 1), JSON.stringify(walk));
+  const s1 = await look();
+  check(`${label}: the fact box keeps its one height`, s0.box > 0 && s1.box === s0.box, JSON.stringify([s0.box, s1.box]));
+  if (!present && w === 1366 && h === 768) check(`${label}: seven rows are still fully in view, none under the heading`, s0.inView === 7 && !s0.under.length, JSON.stringify(s0));
+  check(`${label} pinned heading: no errors`, !errors.length, errors.join(" | "));
   await ctx.close();
 }
 

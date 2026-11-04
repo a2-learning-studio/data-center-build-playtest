@@ -825,7 +825,7 @@ function renderSide() {
     const level = L[key] ?? 0;
     const planned = (key === "water" || key === "power") && started("util") && !ops;
     const word = key === "jobs" ? t.hood.jobsNow[jobsKey()] : planned ? t.hood.planned : kind === "amount" ? t.hood.amounts[level] : t.hood.levels[level];
-    return `<li><button type="button" class="hood-row" data-key="${key}" data-kind="${kind}" aria-pressed="${ui.hot === key}"><span class="hood-name">${esc(t.hood[key].name)}</span><span class="meter" aria-hidden="true">${[1, 2, 3, 4].map((n) => `<i${n <= level ? " data-on" : ""}></i>`).join("")}</span><span class="hood-word">${esc(word)}</span></button></li>`;
+    return `<li><button type="button" class="hood-row" data-key="${key}" data-kind="${kind}" aria-pressed="${ui.picked === key}"${ui.hot === key ? " data-shown" : ""}><span class="hood-name">${esc(t.hood[key].name)}</span><span class="meter" aria-hidden="true">${[1, 2, 3, 4].map((n) => `<i${n <= level ? " data-on" : ""}></i>`).join("")}</span><span class="hood-word">${esc(word)}</span></button></li>`;
   };
   const notice = ["trucks", "noise", "dust", "storm", "gens", "setback"];
   const community = ["jobs", "tax", "power", "water"];
@@ -915,12 +915,21 @@ function focusHood(key, toggle, press = false) {
   if (!key) return;
   showHood(toggle ? (ui.hot === key ? null : key) : key, press);
 }
+// A row is shown (its fact in the box, its effect on the map) while pointed at, focused or pinned; it is pressed only
+// once the player pinned it with a click, Enter or a tap, so a screen reader no longer hears "pressed" on Tab arrival
+// (BTC-UX-33, decided 2026-11-01).
+function markRows() {
+  for (const b of $$("[data-hood] [data-key]")) {
+    b.toggleAttribute("data-shown", b.dataset.key === ui.hot);
+    b.setAttribute("aria-pressed", b.dataset.key === ui.picked);
+  }
+}
 function showHood(key, press = false) {
   if (key === ui.hot && !press) return;
   ui.hot = key;
   // The rows change in place: rebuilding the list moved focus to a new copy of the row, so a screen reader
   // announced each Tab twice (AS-2).
-  for (const b of $$("[data-hood] [data-key]")) b.setAttribute("aria-pressed", b.dataset.key === ui.hot);
+  markRows();
   renderHoodDetail();
   paintScene(false);
   const spot = HOT_SPOT[ui.hot];
@@ -960,6 +969,21 @@ $("[data-hood]").addEventListener("focusin", (e) => {
   if (!b) return;
   detailLive(true);
   focusHood(b.dataset.key, false);
+  // Once the browser has scrolled it into view (a task later, not a frame: frames can lag far behind on software
+  // rendering): a row reached from the keyboard is never left under the group heading pinned to the bottom of the
+  // rows area (decision NBR, 2026-11-01). scroll-padding (style.css) is enough for a one-line heading; where the side
+  // panel is narrow the heading wraps onto two lines, taller than that, so the rows scroll up by what is still covered.
+  // A row pressed with the mouse stays where it is, under the pointer.
+  setTimeout(() => {
+    if (document.activeElement !== b || !b.matches(":focus-visible")) return;
+    const sc = $("[data-hood-scroll]");
+    const r = b.getBoundingClientRect();
+    for (const h of $$(".hood-h", sc)) {
+      if (getComputedStyle(h).position !== "sticky") continue;
+      const hr = h.getBoundingClientRect();
+      if (r.bottom > hr.top + 1 && r.top < hr.bottom) sc.scrollTop += r.bottom - hr.top;
+    }
+  }, 0);
 });
 // Hover and focus already show a row by the time a click, Enter or tap lands, so the press keeps it shown, and a
 // second press on the row it picked clears it (AS-2: rebuilding the list used to undo the toggle by accident).
@@ -969,6 +993,7 @@ $("[data-hood]").addEventListener("click", (e) => {
   detailLive(true);
   focusHood(b.dataset.key, ui.picked === b.dataset.key, true);
   ui.picked = ui.hot;
+  markRows();
   // On the phone Neighbors tab the fact sits under the list, out of sight after a press on a lower row (BTC-UX-06).
   if (TABBED.matches && ui.hot) $("[data-hood-detail]").scrollIntoView({ block: "nearest" });
 });
@@ -1370,6 +1395,18 @@ function nudgePlace(dx, dz) {
   if (!placing) return;
   setPreview(placing.dx + dx, placing.dz + dz);
 }
+// An arrow key nudges the piece the way it points on screen (BTC-UX-40, decided 2026-11-01). The screen direction is
+// turned into ground metres with the camera's turn (screen right is (cos az, -sin az), screen up (-sin az, -cos az);
+// scene.js pan), then snapped to the nearest of the eight 10 m grid steps, never more than 22.5° off. Siting never
+// starts without the 3D map (beginPlace), so the scene is there. The construction exit slides only along its road:
+// it takes the along-road part of the arrow, and an arrow straight across the road does nothing.
+function screenStep(sx, sy) {
+  const az = scene.cam().az;
+  const vx = sx * Math.cos(az) - sy * Math.sin(az), vz = -sx * Math.sin(az) - sy * Math.cos(az);
+  if (M.LAYOUT[placing.id]?.axis === "z") return [0, Math.abs(vz) < 0.2 ? 0 : Math.sign(vz)];
+  const a = Math.round(Math.atan2(vz, vx) / (Math.PI / 4)) * (Math.PI / 4);
+  return [Math.round(Math.cos(a)), Math.round(Math.sin(a))];
+}
 function place(e) {
   const t = T();
   if (st.placed.has(e) || dlg.open) return;
@@ -1709,6 +1746,15 @@ function renderVoiceBtn() {
   voiceBtn.hidden = !Object.keys(D.VOICE.en || {}).length;
   $("[data-voice-line]").hidden = voiceBtn.hidden;
   $("[data-listen]").hidden = !voice.on || !(D.VOICE.en || {}).intro;
+  // On a plain kiosk the Library mode box did the same as the Voice switch beside it, for one game: only the switch
+  // stays, and its line names both reasons to use it (BTC-UX-27, decided 2026-11-01). ?mode=library, class and home
+  // keep the box: there the address sets it, or the device remembers it.
+  if (MODE === "kiosk") {
+    libBox.closest(".libmode").hidden = true;
+    const sr = $("#intro-sr");
+    sr.dataset.t = "srVoiceKiosk";
+    sr.textContent = t.srVoiceKiosk;
+  }
 }
 function setVoice(on, remember = false) {
   voice.on = on;
@@ -2257,8 +2303,9 @@ $("[data-resume]").addEventListener("click", () => {
 });
 guard(introDlg, () => $("[data-start]").focus({ preventScroll: true }));
 // The slow turn behind the intro stops at a visitor's first key press or touch there, so nothing moves beside the
-// text they are reading; it starts again for the next visitor (BTC-UX-38, WCAG 2.2.2).
-for (const type of ["keydown", "pointerdown"]) introDlg.addEventListener(type, () => scene?.setAttract(false));
+// text they are reading; it starts again for the next visitor (BTC-UX-38, WCAG 2.2.2), and a wheel over the intro's
+// text stops it too (decided 2026-11-01).
+for (const type of ["keydown", "pointerdown", "wheel"]) introDlg.addEventListener(type, () => scene?.setAttract(false), { passive: true });
 // One question for every way to clear a game: Start over, Play again in class and home modes, and Start a new game
 // over a kept game (FEU-1, DE-3). Each says what it clears.
 function askStartOver(about = "game") {
@@ -2360,8 +2407,8 @@ document.addEventListener("keydown", (ev) => {
   // too (EA-1, AS-4, WCAG 2.1.1).
   if (placing && k === "escape") { ev.preventDefault(); endPlace(); renderBuild(); focusNext(); return; }
   if (placing && !ev.shiftKey) {
-    const step = { arrowleft: [-1, 0], arrowright: [1, 0], arrowup: [0, 1], arrowdown: [0, -1] }[k];
-    if (step) { ev.preventDefault(); nudgePlace(step[0] * (M.LAYOUT_GRID || 10), step[1] * (M.LAYOUT_GRID || 10)); return; }
+    const dir = { arrowleft: [-1, 0], arrowright: [1, 0], arrowup: [0, 1], arrowdown: [0, -1] }[k]; // screen x, screen y (up)
+    if (dir) { ev.preventDefault(); const [gx, gz] = screenStep(dir[0], dir[1]); const g = M.LAYOUT_GRID || 10; nudgePlace(gx * g, gz * g); return; }
   }
   if (!prefs.keys) return;
   if (k === "v") { ev.preventDefault(); pressVoice(); }
@@ -2509,9 +2556,9 @@ function deferDismiss() {
 }
 function onIdlePrompt(ev) {
   if (ev.type === "keydown") return !ev.repeat && ["Tab", "Enter", " "].includes(ev.key) && idleDlg.contains(document.activeElement);
-  if (ev.type !== "pointermove") return false;
-  const r = idleDlg.getBoundingClientRect();
-  return ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom;
+  // Movement anywhere (a mouse arriving from elsewhere, or a wheel) only restarts the count; the prompt stays until a
+  // click, tap or key, so a mouse can reach Start a new game too (BTC-UX-X04, decided 2026-11-01).
+  return ev.type === "pointermove" || ev.type === "wheel";
 }
 function activity(ev) {
   if (ev.type === "pointermove") {
@@ -2523,9 +2570,10 @@ function activity(ev) {
   lastInput = performance.now();
   if (!prompting()) return;
   // On the idle prompt itself a visitor is choosing between its two buttons: Tab, Shift+Tab, Enter and Space work as
-  // usual, and the mouse may move over the prompt to Start a new game; either one restarts the countdown instead of
-  // closing the prompt (repair: both closed it before its second button could be reached). Other keys, and movement
-  // elsewhere, still mean Keep playing.
+  // usual, and the mouse or a wheel may move anywhere, so a mouse from the edge of the screen reaches Start a new game;
+  // each restarts the countdown instead of closing the prompt (repair, and decision IDLE 2026-11-01: movement outside
+  // the prompt closed it, so a mouse never reached its second button). Other keys, and a click or tap anywhere but
+  // the prompt's buttons, still mean Keep playing.
   if (idleDlg.open && onIdlePrompt(ev)) {
     idleLeft = 20;
     idleBody.textContent = countText("idleBody", idleLeft);
@@ -2652,6 +2700,8 @@ window.__dc = {
     renderAll(false);
   },
   hot(key) { ui.hot = key; renderSide(); paintScene(false); },
+  // The piece being sited and its offset from the suggested spot (BTC-UX-40 checks).
+  placing: () => placing && { id: placing.id, dx: placing.dx, dz: placing.dz },
   tab: setTab,
   card: openCard,
   view(o) { if (o) scene?.setView(o); else scene?.resetView(); },
